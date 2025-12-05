@@ -1,12 +1,10 @@
-import { GUI } from 'dat';
 import * as glm from 'glm';
 
-import * as WebGPU from 'engine/WebGPU.js';
 import { GLTFLoader } from 'engine/loaders/GLTFLoader.js';
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
 import { UpdateSystem } from 'engine/systems/UpdateSystem.js';
 import { UnlitRenderer } from 'engine/renderers/UnlitRenderer.js';
-import { FirstPersonController } from 'engine/controllers/FirstPersonController.js';
+import { PlayerComponent } from 'src/components/PlayerComponent.js';
 
 import {
     Camera,
@@ -20,6 +18,7 @@ import {
 } from 'engine/core/core.js';
 
 import { loadResources } from 'engine/loaders/resources.js';
+import { EnemyComponent } from 'src/components/EnemyComponent.js';
 
 const resources = await loadResources({
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
@@ -30,12 +29,12 @@ const canvas = document.querySelector('canvas');
 const renderer = new UnlitRenderer(canvas);
 await renderer.initialize();
 
-const camera = new Entity();
-camera.addComponent(new Transform({
+const player = new Entity();
+player.addComponent(new Transform({
     translation: [0, 1, 0],
 }));
-camera.addComponent(new Camera());
-camera.addComponent(new FirstPersonController(camera, canvas));
+player.addComponent(new Camera());
+player.addComponent(new PlayerComponent(player, canvas));
 
 const floor = new Entity();
 floor.addComponent(new Transform({
@@ -63,19 +62,9 @@ floor.addComponent(new Model({
 const loader = new GLTFLoader();
 await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
 const cat = loader.loadScene()[0];
-        console.log(glm);
-        console.log(glm.quat);
-const cat_transform = cat.getComponentOfType(Transform);
-cat_transform.scale = new glm.vec3(2);
-cat_transform.translation[2] = -3.0;
-cat.addComponent({
-    update(t, dt) {
-        cat_transform.translation[1] = Math.sin(t) * 0.3 + Math.log(t) * 0.3;
-        glm.quat.rotateY(cat_transform.rotation, cat_transform.rotation, dt * t * t * 0.1);
-    }
-});
+cat.addComponent(new EnemyComponent(cat));
 
-const scene = [floor, cat, camera];
+const scene = [floor, cat, player];
 
 function update(t, dt) {
     for (const entity of scene) {
@@ -86,11 +75,11 @@ function update(t, dt) {
 }
 
 function render() {
-    renderer.render(scene, camera);
+    renderer.render(scene, player);
 }
 
 function resize({ displaySize: { width, height }}) {
-    camera.getComponentOfType(Camera).aspect = width / height;
+    player.getComponentOfType(Camera).aspect = width / height;
 }
 
 new ResizeSystem({ canvas, resize }).start();
