@@ -1,18 +1,22 @@
 struct VertexInput {
-    @location(0) position: vec3f,
-    @location(1) texcoords: vec2f,
+    @location(0) position : vec3f,
+    @location(1) normal : vec3f,
+    @location(2) texcoords : vec2f,
+    @location(3) joints : vec4u,
+    @location(4) weights : vec4f,
 }
 
 struct InstanceInput {
-    @location(2) row0: vec4f,
-    @location(3) row1: vec4f,
-    @location(4) row2: vec4f,
-    @location(5) row3: vec4f,
+    @location(5) row0: vec4f,
+    @location(6) row1: vec4f,
+    @location(7) row2: vec4f,
+    @location(8) row3: vec4f,
 }
 
 struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(1) texcoords: vec2f,
+    @location(2) normal: vec3f,
 }
 
 struct CameraUniforms {
@@ -22,23 +26,40 @@ struct CameraUniforms {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 
-@group(1) @binding(0) var baseTexture: texture_2d<f32>;
-@group(1) @binding(1) var baseSampler: sampler;
+@group(1) @binding(0) var<storage, read> joints: array<mat4x4<f32>>;
+
+// @group(2) @binding(0) var baseTexture: texture_2d<f32>;
+// @group(2) @binding(1) var baseSampler: sampler;
+
 
 @vertex
-fn vertex(v: VertexInput, i: InstanceInput) -> VertexOutput {
+fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
+    var position = vec4<f32>(0.0f);
+    var normal = vec4<f32>(0.0f);
+    for (var i = 0u; i < 4u; i += 1u){
+        let joint = joints[model.joints[i]];
+        let weight = model.weights[i];
+        position += weight * (joint * vec4<f32>(model.position, 1.0f));
+        normal += weight * (joint * vec4<f32>(model.normal, 0.0f));
+    }
+
+    let model_matrix = mat4x4<f32>( 
+        instance.row0,
+        instance.row1,
+        instance.row2,
+        instance.row3 
+    );
+
     var output: VertexOutput;
-
-    let model_matrix = mat4x4<f32>( i.row0, i.row1, i.row2, i.row3 );
-
-    output.position = camera.projectionMatrix * camera.viewMatrix * model_matrix * vec4(v.position, 1);
-    output.texcoords = v.texcoords;
-
+    output.position = camera.projectionMatrix * camera.viewMatrix * model_matrix * vec4(position.xyz, 1);
+    output.normal = normalize(normal).xyz;
+    output.texcoords = model.texcoords;
     return output;
 }
 
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
-    var color = textureSample(baseTexture, baseSampler, input.texcoords);
+    // var color2 = textureSample(baseTexture, baseSampler, input.texcoords);
+    var color = vec4f(input.texcoords.xy, 1.0, 1.0);
     return color;
 }

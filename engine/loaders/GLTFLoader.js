@@ -1,3 +1,4 @@
+import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 import {
     Accessor,
     Camera,
@@ -12,6 +13,7 @@ import {
     Transform,
     Vertex,
 } from '../core/core.js';
+import { UnlitRenderer } from '../renderers/UnlitRenderer.js';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -193,50 +195,51 @@ export class GLTFLoader {
     }
 
     loadMaterial(nameOrIndex) {
-        const gltfSpec = this.findByNameOrIndex(this.gltf.materials, nameOrIndex);
-        if (!gltfSpec) {
-            return null;
-        }
-        if (this.cache.has(gltfSpec)) {
-            return this.cache.get(gltfSpec);
-        }
+        return null;
+        // const gltfSpec = this.findByNameOrIndex(this.gltf.materials, nameOrIndex);
+        // if (!gltfSpec) {
+        //     return null;
+        // }
+        // if (this.cache.has(gltfSpec)) {
+        //     return this.cache.get(gltfSpec);
+        // }
 
-        const options = {};
-        const pbr = gltfSpec.pbrMetallicRoughness;
-        if (pbr) {
-            if (pbr.baseColorTexture) {
-                options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
-                options.baseTexture.isSRGB = true;
-            }
-            if (pbr.metallicRoughnessTexture) {
-                options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-                options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-            }
-            options.baseFactor = pbr.baseColorFactor;
-            options.metalnessFactor = pbr.metallicFactor;
-            options.roughnessFactor = pbr.roughnessFactor;
-        }
+        // const options = {};
+        // const pbr = gltfSpec.pbrMetallicRoughness;
+        // if (pbr) {
+        //     if (pbr.baseColorTexture) {
+        //         options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
+        //         options.baseTexture.isSRGB = true;
+        //     }
+        //     if (pbr.metallicRoughnessTexture) {
+        //         options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+        //         options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+        //     }
+        //     options.baseFactor = pbr.baseColorFactor;
+        //     options.metalnessFactor = pbr.metallicFactor;
+        //     options.roughnessFactor = pbr.roughnessFactor;
+        // }
 
-        if (gltfSpec.normalTexture) {
-            options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
-            options.normalFactor = gltfSpec.normalTexture.scale;
-        }
+        // if (gltfSpec.normalTexture) {
+        //     options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
+        //     options.normalFactor = gltfSpec.normalTexture.scale;
+        // }
 
-        if (gltfSpec.emissiveTexture) {
-            options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
-            options.emissionTexture.isSRGB = true;
-            options.emissionFactor = gltfSpec.emissiveFactor;
-        }
+        // if (gltfSpec.emissiveTexture) {
+        //     options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
+        //     options.emissionTexture.isSRGB = true;
+        //     options.emissionFactor = gltfSpec.emissiveFactor;
+        // }
 
-        if (gltfSpec.occlusionTexture) {
-            options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
-            options.occlusionFactor = gltfSpec.occlusionTexture.strength;
-        }
+        // if (gltfSpec.occlusionTexture) {
+        //     options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
+        //     options.occlusionFactor = gltfSpec.occlusionTexture.strength;
+        // }
 
-        const material = new Material(options);
+        // const material = new Material(options);
 
-        this.cache.set(gltfSpec, material);
-        return material;
+        // this.cache.set(gltfSpec, material);
+        // return material;
     }
 
     loadAccessor(nameOrIndex) {
@@ -341,6 +344,8 @@ export class GLTFLoader {
         const texcoords = accessors.TEXCOORD_0;
         const normal = accessors.NORMAL;
         const tangent = accessors.TANGENT;
+        const joints0 = accessors.JOINTS_0;
+        const weights0 = accessors.WEIGHTS_0;
 
         const vertexCount = position.count;
         const vertices = [];
@@ -352,6 +357,8 @@ export class GLTFLoader {
             if (texcoords) { options.texcoords = texcoords.get(i); }
             if (normal) { options.normal = normal.get(i); }
             if (tangent) { options.tangent = tangent.get(i); }
+            if (joints0) { options.joints = joints0.get(i); }
+            options.weights  = weights0 ? weights0.get(i) : [1, 0, 0, 0];
 
             vertices.push(new Vertex(options));
         }
@@ -365,6 +372,31 @@ export class GLTFLoader {
         }
 
         return new Mesh({ vertices, indices });
+    }
+
+    loadSkeleton(nameOrIndex) {
+        const gltfSpec = this.findByNameOrIndex(this.gltf.skins, nameOrIndex);
+        if (!gltfSpec) {
+            return null;
+        }
+        if (this.cache.has(gltfSpec)) {
+            return this.cache.get(gltfSpec);
+        }
+        const joints = (gltfSpec.joints ?? []).map(jointIndex => this.loadNode(jointIndex));
+        const skeletonRoot = (gltfSpec.skeleton !== undefined) ? this.loadNode(gltfSpec.skeleton) : null;
+
+        let inverseBindMatrices = null;
+        if (gltfSpec.inverseBindMatrices !== undefined) {
+            const accessor = this.loadAccessor(gltfSpec.inverseBindMatrices);
+            const count = accessor.count;
+            inverseBindMatrices = new Array(count);
+            for (let i = 0; i < count; i++) {
+                inverseBindMatrices[i] = accessor.get(i);
+            }
+        }
+        const skeleton = new SkeletonComponent({ joints, skeletonRoot, inverseBindMatrices, name: gltfSpec.name });
+        this.cache.set(gltfSpec, skeleton);
+        return skeleton;
     }
 
     loadMesh(nameOrIndex) {
@@ -435,22 +467,10 @@ export class GLTFLoader {
         return camera;
     }
 
-    loadNode(nameOrIndex) {
-        const gltfSpec = this.findByNameOrIndex(this.gltf.nodes, nameOrIndex);
-        if (!gltfSpec) {
-            return null;
-        }
-
+    loadNode(gltfSpec) {
         const entity = new Entity();
 
         entity.addComponent(new Transform(gltfSpec));
-
-        if (gltfSpec.children) {
-            for (const childIndex of gltfSpec.children) {
-                const childNode = this.loadNode(childIndex);
-                childNode.addComponent(new Parent(entity));
-            }
-        }
 
         if (gltfSpec.camera !== undefined) {
             entity.addComponent(this.loadCamera(gltfSpec.camera));
@@ -460,11 +480,16 @@ export class GLTFLoader {
             entity.addComponent(this.loadMesh(gltfSpec.mesh));
         }
 
+        if (gltfSpec.skin !== undefined) {
+            const skeleton = this.loadSkeleton(gltfSpec.skin);
+            if (skeleton)
+                entity.addComponent(skeleton);
+        }
+
         if (gltfSpec.extras) {
             entity.customProperties = structuredClone(gltfSpec.extras);
         }
 
-        this.cache.set(gltfSpec, entity);
         return entity;
     }
 
@@ -475,11 +500,20 @@ export class GLTFLoader {
         }
 
         const scene = [];
-        if (gltfSpec.nodes) {
-            scene.push(...gltfSpec.nodes.map(nodeIndex => this.loadNode(nodeIndex)));
+        const to_add = [...gltfSpec.nodes.map(index => ({index, parent: null}))];
+        while(to_add.length > 0) {
+            const {index, parent} = to_add.shift();
+            const gltfSpec = this.findByNameOrIndex(this.gltf.nodes, index);
+            if (!gltfSpec) {
+                continue;
+            }
+            const node = this.loadNode(gltfSpec);
+            if (parent)
+                node.addComponent(new Parent(parent));
+            scene.push(node);
+            if (gltfSpec.children)
+                to_add.push(...gltfSpec.children.map(childIndex => ({ index: childIndex, parent: node})));
         }
-
         return scene;
     }
-
 }
