@@ -61,10 +61,27 @@ floor.addComponent(new Model({
 
 const loader = new GLTFLoader();
 await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
-const cat = loader.loadScene()[0];
-cat.addComponent(new EnemyComponent(cat));
 
-const scene = [floor, cat, player];
+const scene = [floor, player];
+
+const torad = Math.PI / 180;;
+for (let i = 0; i < 360; i++) {
+    const angle = i * torad;
+    const distance = 5 + Math.random() * 75;
+    const height = 1 + Math.random() * 75;
+    const cat = loader.loadScene()[0];
+    const transform = cat.getComponentOfType(Transform);
+    transform.translation = [
+        Math.cos(angle) * distance,
+        height,
+        Math.sin(angle) * distance,
+    ];
+    transform.rotation = glm.quat.random(new glm.quat());
+    console.log(transform.translation);
+    transform.scale = new glm.vec3(glm.vec3.length(transform.translation) * 0.7);
+    cat.addComponent(new EnemyComponent(cat));
+    scene.push(cat);
+}
 
 function update(t, dt) {
     for (const entity of scene) {

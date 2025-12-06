@@ -5,7 +5,6 @@ import * as WebGPU from '../WebGPU.js';
 import { Camera, Model } from '../core/core.js';
 
 import {
-    getLocalModelMatrix,
     getGlobalModelMatrix,
     getGlobalViewMatrix,
     getProjectionMatrix,
@@ -15,6 +14,7 @@ import { BaseRenderer } from './BaseRenderer.js';
 
 const vertexBufferLayout = {
     arrayStride: 20,
+    stepMode: 'vertex',
     attributes: [
         {
             name: 'position',
@@ -27,6 +27,37 @@ const vertexBufferLayout = {
             shaderLocation: 1,
             offset: 12,
             format: 'float32x2',
+        },
+    ],
+};
+
+const instanceBufferLayout = {
+    arrayStride: 64,
+    stepMode: 'instance',
+    attributes: [
+        {
+            name: 'row1',
+            shaderLocation: 2,
+            offset: 0,
+            format: 'float32x4',
+        },
+        {
+            name: 'row2',
+            shaderLocation: 3,
+            offset: 16,
+            format: 'float32x4',
+        },
+        {
+            name: 'row3',
+            shaderLocation: 4,
+            offset: 32,
+            format: 'float32x4',
+        },
+        {
+            name: 'row4',
+            shaderLocation: 5,
+            offset: 48,
+            format: 'float32x4',
         },
     ],
 };
@@ -48,7 +79,7 @@ export class UnlitRenderer extends BaseRenderer {
             layout: 'auto',
             vertex: {
                 module,
-                buffers: [ vertexBufferLayout ],
+                buffers: [ vertexBufferLayout, instanceBufferLayout ],
             },
             fragment: {
                 module,
@@ -71,28 +102,6 @@ export class UnlitRenderer extends BaseRenderer {
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
-    }
-
-    prepareEntity(entity) {
-        if (this.gpuObjects.has(entity)) {
-            return this.gpuObjects.get(entity);
-        }
-
-        const modelUniformBuffer = this.device.createBuffer({
-            size: 128,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        const modelBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(1),
-            entries: [
-                { binding: 0, resource: modelUniformBuffer },
-            ],
-        });
-
-        const gpuObjects = { modelUniformBuffer, modelBindGroup };
-        this.gpuObjects.set(entity, gpuObjects);
-        return gpuObjects;
     }
 
     prepareCamera(camera) {
@@ -137,21 +146,15 @@ export class UnlitRenderer extends BaseRenderer {
 
         const baseTexture = this.prepareTexture(material.baseTexture);
 
-        const materialUniformBuffer = this.device.createBuffer({
-            size: 16,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
         const materialBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(2),
+            layout: this.pipeline.getBindGroupLayout(1),
             entries: [
-                { binding: 0, resource: materialUniformBuffer },
-                { binding: 1, resource: baseTexture.gpuTexture },
-                { binding: 2, resource: baseTexture.gpuSampler },
+                { binding: 0, resource: baseTexture.gpuTexture },
+                { binding: 1, resource: baseTexture.gpuSampler },
             ],
         });
 
-        const gpuObjects = { materialUniformBuffer, materialBindGroup };
+        const gpuObjects = { materialBindGroup };
         this.gpuObjects.set(material, gpuObjects);
         return gpuObjects;
     }
@@ -188,44 +191,65 @@ export class UnlitRenderer extends BaseRenderer {
         this.device.queue.writeBuffer(cameraUniformBuffer, 64, projectionMatrix);
         this.renderPass.setBindGroup(0, cameraBindGroup);
 
+        const modelMatrices = new Map();
         for (const entity of entities) {
-            this.renderEntity(entity);
+            const model = entity.getComponentOfType(Model);
+            if (!model) continue;
+
+            let arr = modelMatrices.get(model);
+            if (!arr) {
+                arr = [];
+                modelMatrices.set(model, arr);
+            }
+            arr.push(getGlobalModelMatrix(entity));
+        }
+
+        for (const [model, matrices] of modelMatrices.entries())
+        {
+            if (!this.gpuObjects.has(model))
+                this.gpuObjects.set(model, { nInstances: 0, instanceBuffer: null });
+
+            const modelData = this.gpuObjects.get(model);
+            const nInstances = matrices.length;
+            const instanceArrayBuffer = new Float32Array(nInstances * 16);
+            for (let i = 0; i < nInstances; i++)
+                instanceArrayBuffer.set(matrices[i], i * 16);
+
+            if (modelData.nInstances !== nInstances) {
+                const instanceBuffer = WebGPU.createBuffer(this.device, {
+                    data: instanceArrayBuffer.buffer,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+                modelData.nInstances = nInstances;
+                modelData.instanceBuffer = instanceBuffer;
+            }
+            else {
+                this.device.queue.writeBuffer(modelData.instanceBuffer, 0, instanceArrayBuffer);
+            }
+
+            this.renderModel(model, modelData.instanceBuffer, modelData.nInstances);
         }
 
         this.renderPass.end();
         this.device.queue.submit([encoder.finish()]);
     }
-
-    renderEntity(entity) {
-        const modelMatrix = getGlobalModelMatrix(entity);
-        const normalMatrix = mat4.normalFromMat4(mat4.create(), modelMatrix);
-
-        const { modelUniformBuffer, modelBindGroup } = this.prepareEntity(entity);
-        this.device.queue.writeBuffer(modelUniformBuffer, 0, modelMatrix);
-        this.device.queue.writeBuffer(modelUniformBuffer, 64, normalMatrix);
-        this.renderPass.setBindGroup(1, modelBindGroup);
-
-        for (const model of entity.getComponentsOfType(Model)) {
-            this.renderModel(model);
-        }
-    }
-
-    renderModel(model) {
+    
+    renderModel(model, instanceBuffer, nInstances) {
         for (const primitive of model.primitives) {
-            this.renderPrimitive(primitive);
+            this.renderPrimitive(primitive, instanceBuffer, nInstances);
         }
     }
 
-    renderPrimitive(primitive) {
-        const { materialUniformBuffer, materialBindGroup } = this.prepareMaterial(primitive.material);
-        this.device.queue.writeBuffer(materialUniformBuffer, 0, new Float32Array(primitive.material.baseFactor));
-        this.renderPass.setBindGroup(2, materialBindGroup);
+    renderPrimitive(primitive, instanceBuffer, nInstances) {
+        const { materialBindGroup } = this.prepareMaterial(primitive.material);
+        this.renderPass.setBindGroup(1, materialBindGroup);
 
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
         this.renderPass.setVertexBuffer(0, vertexBuffer);
+        this.renderPass.setVertexBuffer(1, instanceBuffer);
         this.renderPass.setIndexBuffer(indexBuffer, 'uint32');
 
-        this.renderPass.drawIndexed(primitive.mesh.indices.length);
+        this.renderPass.drawIndexed(primitive.mesh.indices.length, nInstances);
     }
 
 }

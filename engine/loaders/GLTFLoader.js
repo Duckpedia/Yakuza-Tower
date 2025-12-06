@@ -440,9 +440,6 @@ export class GLTFLoader {
         if (!gltfSpec) {
             return null;
         }
-        if (this.cache.has(gltfSpec)) {
-            return this.cache.get(gltfSpec);
-        }
 
         const entity = new Entity();
 
@@ -476,16 +473,12 @@ export class GLTFLoader {
         if (!gltfSpec) {
             return null;
         }
-        if (this.cache.has(gltfSpec)) {
-            return this.cache.get(gltfSpec);
-        }
 
         const scene = [];
         if (gltfSpec.nodes) {
             scene.push(...gltfSpec.nodes.map(nodeIndex => this.loadNode(nodeIndex)));
         }
 
-        this.cache.set(gltfSpec, scene);
         return scene;
     }
 
