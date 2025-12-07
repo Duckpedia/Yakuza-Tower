@@ -113,10 +113,10 @@ export class UnlitRenderer extends BaseRenderer {
 
         this.recreateDepthTexture();
 
-        this.defaultNode = new Entity();
-        this.defaultNode.addComponent(new Transform());
-        this.default_skeleton = new SkeletonComponent({ joints: [this.defaultNode]});
-        this.prepareSkeleton(this.default_skeleton);
+        this.defaultSkeletonEntity = new Entity();
+        this.defaultSkeletonEntity.addComponent(new Transform());
+        this.defaultSkeleton = new SkeletonComponent({ joints: [this.defaultSkeletonEntity]});
+        this.prepareSkeleton(this.defaultSkeleton);
     }
 
     recreateDepthTexture() {
@@ -173,9 +173,10 @@ export class UnlitRenderer extends BaseRenderer {
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
+        const identity = new mat4();
         const data = new Float32Array(skeleton.joints.length * 16);
         for (let i = 0; i < skeleton.joints.length; i++)
-            data.set(skeleton.joints[i].getComponentOfType(Transform).matrix, i * 16);
+            data.set(identity, i * 16);
         this.device.queue.writeBuffer(skeletonBuffer, 0, data);
 
         const skeletonBindGroup = this.device.createBindGroup({
@@ -267,7 +268,7 @@ export class UnlitRenderer extends BaseRenderer {
 
             for (const [skeleton, matrices] of skeletons.entries())
             {   
-                const skeletonModelData = this.prepareSkeleton(skeleton ?? this.default_skeleton);
+                const skeletonModelData = this.prepareSkeleton(skeleton ?? this.defaultSkeleton);
                 const nInstances = matrices.length;
                 const instanceArrayBuffer = new Float32Array(nInstances * 16);
                 for (let i = 0; i < nInstances; i++)
@@ -287,13 +288,17 @@ export class UnlitRenderer extends BaseRenderer {
                     this.device.queue.writeBuffer(skeletonModelData.instanceBuffer, 0, instanceArrayBuffer);
                 }
 
-                // if (skeleton)
-                // {
-                //     const skeletonArrayBuffer = new Float32Array(skeleton.joints.length * 16);
-                //     for (let i = 0; i < skeleton.joints.length; i++)
-                //         skeletonArrayBuffer.set(skeleton.joints[i].getComponentOfType(Transform).matrix, i * 16);
-                //     this.device.queue.writeBuffer(skeletonModelData.skeletonBuffer, 0, skeletonArrayBuffer);
-                // }
+                if (skeleton)
+                {
+                    const skeletonArrayBuffer = new Float32Array(skeleton.joints.length * 16);
+                    for (let i = 0; i < skeleton.joints.length; i++)
+                    {
+                        // TODO: do the multiplication on the gpu
+                        const mat = getGlobalModelMatrix(skeleton.joints[i]);
+                        skeletonArrayBuffer.set(mat4.mul(new mat4(), mat, skeleton.inverseBindMatrices[i]), i * 16);
+                    }
+                    this.device.queue.writeBuffer(skeletonModelData.skeletonBuffer, 0, skeletonArrayBuffer);
+                }
 
                 this.renderModel(model, skeletonModelData, skeletonModelData.instanceBuffer, skeletonModelData.nInstances);
             }

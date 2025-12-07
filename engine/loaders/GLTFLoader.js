@@ -2,8 +2,6 @@ import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 import {
     Accessor,
     Camera,
-    Material,
-    Mesh,
     Model,
     Entity,
     Parent,
@@ -12,8 +10,8 @@ import {
     Texture,
     Transform,
     Vertex,
+    Mesh,
 } from '../core/core.js';
-import { UnlitRenderer } from '../renderers/UnlitRenderer.js';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -374,31 +372,6 @@ export class GLTFLoader {
         return new Mesh({ vertices, indices });
     }
 
-    loadSkeleton(nameOrIndex) {
-        const gltfSpec = this.findByNameOrIndex(this.gltf.skins, nameOrIndex);
-        if (!gltfSpec) {
-            return null;
-        }
-        if (this.cache.has(gltfSpec)) {
-            return this.cache.get(gltfSpec);
-        }
-        const joints = (gltfSpec.joints ?? []).map(jointIndex => this.loadNode(jointIndex));
-        const skeletonRoot = (gltfSpec.skeleton !== undefined) ? this.loadNode(gltfSpec.skeleton) : null;
-
-        let inverseBindMatrices = null;
-        if (gltfSpec.inverseBindMatrices !== undefined) {
-            const accessor = this.loadAccessor(gltfSpec.inverseBindMatrices);
-            const count = accessor.count;
-            inverseBindMatrices = new Array(count);
-            for (let i = 0; i < count; i++) {
-                inverseBindMatrices[i] = accessor.get(i);
-            }
-        }
-        const skeleton = new SkeletonComponent({ joints, skeletonRoot, inverseBindMatrices, name: gltfSpec.name });
-        this.cache.set(gltfSpec, skeleton);
-        return skeleton;
-    }
-
     loadMesh(nameOrIndex) {
         const gltfSpec = this.findByNameOrIndex(this.gltf.meshes, nameOrIndex);
         if (!gltfSpec) {
@@ -467,6 +440,111 @@ export class GLTFLoader {
         return camera;
     }
 
+    loadAnimation(gltfSpec) {
+        if (this.cache.has(gltfSpec)) {
+            return this.cache.get(gltfSpec);
+        }
+
+        const channels = gltfSpec.channels.map(channelSpec => {
+            const target = channelSpec.target;
+
+            const samplerSpec = gltfSpec.samplers[channelSpec.sampler];
+            const inputAccessor = this.loadAccessor(samplerSpec.input);
+            const outputAccessor = this.loadAccessor(samplerSpec.output);
+
+            const keyframeCount = inputAccessor.count;
+
+            const times = new Float32Array(keyframeCount);
+            for (let i = 0; i < keyframeCount; i++) {
+                times[i] = inputAccessor.get(i)[0];
+            }
+
+            const values = new Array(keyframeCount);
+            for (let i = 0; i < keyframeCount; i++) {
+                values[i] = outputAccessor.get(i);
+            }
+
+            return {
+                interpolation: samplerSpec.interpolation ?? 'LINEAR',
+                times,
+                values,
+                samplerIndex: channelSpec.sampler,
+                targetNodeIndex: target.node,
+                targetPath: target.path,
+            };
+        });
+
+        let duration = 0;
+        for (const channel of channels) {
+            if (channel.times.length > 0) {
+                const last = channel.times[channel.times.length - 1];
+                if (last > duration) duration = last;
+            }
+        }
+
+        const animation = {
+            name: gltfSpec.name,
+            channels,
+            duration,
+        };
+
+        this.cache.set(gltfSpec, animation);
+        return animation;
+    }
+
+    loadAnimations() {
+        if (!this.gltf.animations) {
+            return [];
+        }
+
+        if (this.cache.has(this.gltf.animations)) {
+            return this.cache.get(this.gltf.animations);
+        }
+
+        const result = this.gltf.animations.map(i => this.loadAnimation(i));
+        this.cache.set(this.gltf.animations, result);
+        return result;
+    }
+
+    loadSkeleton(nameOrIndex) {
+        const gltfSpec = this.findByNameOrIndex(this.gltf.skins, nameOrIndex);
+        if (!gltfSpec) {
+            return null;
+        }
+        if (this.cache.has(gltfSpec)) {
+            return this.cache.get(gltfSpec).clone();
+        }
+
+        let inverseBindMatrices = null;
+        if (gltfSpec.inverseBindMatrices !== undefined) {
+            const accessor = this.loadAccessor(gltfSpec.inverseBindMatrices);
+            const count = accessor.count;
+            inverseBindMatrices = new Array(count);
+            for (let i = 0; i < count; i++) {
+                inverseBindMatrices[i] = accessor.get(i);
+            }
+        }
+
+        const animations = this.loadAnimations();
+        for (const anim of animations)
+        {
+            for (const channel of anim.channels)
+            {
+                channel.targetNodeIndex = gltfSpec.joints.findIndex(e => e === channel.targetNodeIndex);
+            }
+        }
+
+
+        const skeleton = new SkeletonComponent({ 
+            jointIndices: gltfSpec.joints, 
+            inverseBindMatrices, 
+            name: gltfSpec.name,
+            animations
+        });
+        this.cache.set(gltfSpec, skeleton);
+        return skeleton;
+    }
+
     loadNode(gltfSpec) {
         const entity = new Entity();
 
@@ -499,6 +577,7 @@ export class GLTFLoader {
             return null;
         }
 
+        const nodeEntities = [];
         const scene = [];
         const to_add = [...gltfSpec.nodes.map(index => ({index, parent: null}))];
         while(to_add.length > 0) {
@@ -510,10 +589,34 @@ export class GLTFLoader {
             const node = this.loadNode(gltfSpec);
             if (parent)
                 node.addComponent(new Parent(parent));
+            nodeEntities[index] = node;
             scene.push(node);
             if (gltfSpec.children)
                 to_add.push(...gltfSpec.children.map(childIndex => ({ index: childIndex, parent: node})));
         }
+
+        for(const entity of scene) {
+            const skeleton = entity.getComponentOfType(SkeletonComponent);
+            if (!skeleton) continue;
+            skeleton.joints = skeleton.jointIndices.map(index => nodeEntities[index]);
+        }
+
         return scene;
+    }
+
+    buildEntityFromScene(scene) {
+        const root = scene[0];
+        root.skeleton = null;
+        root.models = [];
+        for (const entity of scene)
+        {
+            if (!root.skeleton)
+                root.skeleton = entity.getComponentOfType(SkeletonComponent);
+            const model = entity.getComponentOfType(Model);
+            if (model)
+                root.models.push(model);
+        }
+        root.animations = root.skeleton?.animations ?? [];
+        return root;
     }
 }

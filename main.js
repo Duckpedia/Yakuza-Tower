@@ -18,7 +18,7 @@ import {
 } from 'engine/core/core.js';
 
 import { loadResources } from 'engine/loaders/resources.js';
-import { EnemyComponent } from 'src/components/EnemyComponent.js';
+import { EnemyComponent } from './src/components/EnemyComponent.js';
 
 const resources = await loadResources({
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
@@ -36,52 +36,55 @@ player.addComponent(new Transform({
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
 
-const floor = new Entity();
-floor.addComponent(new Transform({
-    scale: [10, 1, 10],
-}));
-floor.addComponent(new Model({
-    primitives: [
-        new Primitive({
-            mesh: resources.floor_mesh,
-            material: new Material({
-                baseTexture: new Texture({
-                    image: resources.floor_image,
-                    sampler: new Sampler({
-                        minFilter: 'nearest',
-                        magFilter: 'nearest',
-                        addressModeU: 'repeat',
-                        addressModeV: 'repeat',
-                    }),
-                }),
-            }),
-        }),
-    ],
-}));
+const scene = [player];
+
+// const floor = new Entity();
+// floor.addComponent(new Transform({
+//     scale: [10, 1, 10],
+// }));
+// floor.addComponent(new Model({
+//     primitives: [
+//         new Primitive({
+//             mesh: resources.floor_mesh,
+//             material: new Material({
+//                 baseTexture: new Texture({
+//                     image: resources.floor_image,
+//                     sampler: new Sampler({
+//                         minFilter: 'nearest',
+//                         magFilter: 'nearest',
+//                         addressModeU: 'repeat',
+//                         addressModeV: 'repeat',
+//                     }),
+//                 }),
+//             }),
+//         }),
+//     ],
+// }));
+// scene.push(floor);
+
+const guy_loader = new GLTFLoader();
+await guy_loader.load(new URL('./models/xd/character.gltf', import.meta.url));
+
+let i = 0;
+while(true) {
+    const guy_scene = guy_loader.loadScene();
+    const guy = guy_loader.buildEntityFromScene(guy_scene);
+    if (!guy.skeleton.playAnimationByIndex(i++))
+        break;
+    const guy_transform = guy.getComponentOfType(Transform);
+    guy_transform.translation = [i * (i % 2 ? 1 : -1), 0, -3];
+    guy_transform.scale = [.1, .1, .1];
+    scene.push(...guy_scene);
+}
 
 const loader = new GLTFLoader();
 await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
-
-const scene = [floor, player];
-
-const torad = Math.PI / 180;;
-for (let i = 0; i < 360; i++) {
-    const angle = i * torad;
-    const distance = 5 + Math.random() * 75;
-    const height = 1 + Math.random() * 75;
-    const cat = loader.loadScene()[0];
-    const transform = cat.getComponentOfType(Transform);
-    transform.translation = [
-        Math.cos(angle) * distance,
-        height,
-        Math.sin(angle) * distance,
-    ];
-    transform.rotation = glm.quat.random(new glm.quat());
-    console.log(transform.translation);
-    transform.scale = new glm.vec3(glm.vec3.length(transform.translation) * 0.7);
-    cat.addComponent(new EnemyComponent(cat));
-    scene.push(cat);
-}
+const cat_scene = loader.loadScene();
+const cat = loader.buildEntityFromScene(cat_scene);
+const transform = cat.getComponentOfType(Transform);
+transform.translation = [0, 0, -2];
+cat.addComponent(new EnemyComponent(cat));
+scene.push(...cat_scene);
 
 function update(t, dt) {
     for (const entity of scene) {
