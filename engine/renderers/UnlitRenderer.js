@@ -51,7 +51,7 @@ const vertexBufferLayout = {
 };
 
 const instanceBufferLayout = {
-    arrayStride: 64,
+    arrayStride: 68,
     stepMode: 'instance',
     attributes: [
         {
@@ -77,6 +77,12 @@ const instanceBufferLayout = {
             shaderLocation: 8,
             offset: 48,
             format: 'float32x4',
+        },
+        {
+            name: 'jointI',
+            shaderLocation: 9,
+            offset: 64,
+            format: 'sint32',
         },
     ],
 };
@@ -113,10 +119,22 @@ export class UnlitRenderer extends BaseRenderer {
 
         this.recreateDepthTexture();
 
-        this.defaultSkeletonEntity = new Entity();
-        this.defaultSkeletonEntity.addComponent(new Transform());
-        this.defaultSkeleton = new SkeletonComponent({ joints: [this.defaultSkeletonEntity]});
-        this.prepareSkeleton(this.defaultSkeleton);
+        this.dummySkeletonBuffer =  this.device.createBuffer({
+            size: 64,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true,
+        });
+        new Float32Array(this.dummySkeletonBuffer.getMappedRange()).set(new Float32Array([
+            1,0,0,0,
+            0,1,0,0,
+            0,0,1,0,
+            0,0,0,1
+        ]));
+        this.dummySkeletonBuffer.unmap();
+        this.dummySkeletonBindGroup = this.device.createBindGroup({
+            layout: this.pipeline.getBindGroupLayout(1),
+            entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
+        });
     }
 
     recreateDepthTexture() {
@@ -160,32 +178,6 @@ export class UnlitRenderer extends BaseRenderer {
 
         const gpuObjects = { gpuTexture, gpuSampler };
         this.gpuObjects.set(texture, gpuObjects);
-        return gpuObjects;
-    }
-
-    prepareSkeleton(skeleton) {
-        if (this.gpuObjects.has(skeleton)) {
-            return this.gpuObjects.get(skeleton);
-        }
-        
-        const skeletonBuffer = this.device.createBuffer({
-            size: skeleton.joints.length * 64,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-
-        const identity = new mat4();
-        const data = new Float32Array(skeleton.joints.length * 16);
-        for (let i = 0; i < skeleton.joints.length; i++)
-            data.set(identity, i * 16);
-        this.device.queue.writeBuffer(skeletonBuffer, 0, data);
-
-        const skeletonBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(1),
-            entries: [ { binding: 0, resource: skeletonBuffer } ],
-        });
-    
-        const gpuObjects = { skeletonBuffer, skeletonBindGroup };
-        this.gpuObjects.set(skeleton, gpuObjects);
         return gpuObjects;
     }
 
@@ -242,80 +234,113 @@ export class UnlitRenderer extends BaseRenderer {
         this.renderPass.setBindGroup(0, cameraBindGroup);
 
         const models = new Map();
+        const skeletons = [];
+        const skeletonToJoint = new Map();
+        let nJoints = 0;
         for (const entity of entities) {
             const model = entity.getComponentOfType(Model);
             if (!model) continue;
 
-            let skeletonMap = models.get(model);
-            if (!skeletonMap) {
-                skeletonMap = new Map();
-                models.set(model, skeletonMap);
+            let arr = models.get(model);
+            if (!arr) {
+                arr = [];
+                models.set(model, arr);
             }
 
             const skeleton = entity.getComponentOfType(SkeletonComponent) ?? null;
-            let matrices = skeletonMap.get(skeleton);
-            if (!matrices) {
-                matrices = [];
-                skeletonMap.set(skeleton, matrices);
+            if (skeleton) {
+                if (skeletons.indexOf(skeleton) < 0)
+                {
+                    skeletons.push(skeleton);
+                    skeletonToJoint.set(skeleton, nJoints);
+                    nJoints += skeleton.joints.length;
+                }
             }
-            matrices.push(getGlobalModelMatrix(entity));
+            arr.push({ transform: getGlobalModelMatrix(entity), skeleton });
         }
 
-        for (const [model, skeletons] of models.entries())
+        if (skeletons.length > 0)
+        {
+            const jointsBuffer = new Float32Array(nJoints * 16);
+            for (const skeleton of skeletons)
+            {
+                const jointI = skeletonToJoint.get(skeleton);
+                for (let i = 0; i < skeleton.joints.length; i++)
+                {
+                    const mat = getGlobalModelMatrix(skeleton.joints[i]);
+                    jointsBuffer.set(mat4.mul(new mat4(), mat, skeleton.inverseBindMatrices[i]), (jointI + i) * 16);
+                }
+            }
+
+            if (!this.maxJoints || this.maxJoints < nJoints)
+            {
+                this.maxJoints = skeletons.nJoints;
+                this.skeletonBuffer = WebGPU.createBuffer(this.device, {
+                    data: jointsBuffer,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                    mappedAtCreation: true,
+                });
+
+                this.skeletonBindGroup = this.device.createBindGroup({
+                    layout: this.pipeline.getBindGroupLayout(1),
+                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
+                });
+            }
+            else 
+            {
+                this.device.queue.writeBuffer(this.skeletonBuffer, 0, jointsBuffer);
+            }
+        }
+
+        for (const [model, arr] of models.entries())
         {
             if (!this.gpuObjects.has(model))
-                this.gpuObjects.set(model, { nInstances: 0, instanceBuffer: null });
+                this.gpuObjects.set(model, { maxInstances: 0, instanceBuffer: null });
 
-            for (const [skeleton, matrices] of skeletons.entries())
-            {   
-                const skeletonModelData = this.prepareSkeleton(skeleton ?? this.defaultSkeleton);
-                const nInstances = matrices.length;
-                const instanceArrayBuffer = new Float32Array(nInstances * 16);
-                for (let i = 0; i < nInstances; i++)
-                    instanceArrayBuffer.set(matrices[i], i * 16);
-
-                if (skeletonModelData.nInstances !== nInstances) 
-                {
-                    const instanceBuffer = WebGPU.createBuffer(this.device, {
-                        data: instanceArrayBuffer.buffer,
-                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-                    });
-                    skeletonModelData.nInstances = nInstances;
-                    skeletonModelData.instanceBuffer = instanceBuffer;
-                }
-                else 
-                {
-                    this.device.queue.writeBuffer(skeletonModelData.instanceBuffer, 0, instanceArrayBuffer);
-                }
-
-                if (skeleton)
-                {
-                    const skeletonArrayBuffer = new Float32Array(skeleton.joints.length * 16);
-                    for (let i = 0; i < skeleton.joints.length; i++)
-                    {
-                        // TODO: do the multiplication on the gpu
-                        const mat = getGlobalModelMatrix(skeleton.joints[i]);
-                        skeletonArrayBuffer.set(mat4.mul(new mat4(), mat, skeleton.inverseBindMatrices[i]), i * 16);
-                    }
-                    this.device.queue.writeBuffer(skeletonModelData.skeletonBuffer, 0, skeletonArrayBuffer);
-                }
-
-                this.renderModel(model, skeletonModelData, skeletonModelData.instanceBuffer, skeletonModelData.nInstances);
+            const strideFloats = 16;
+            const stride  = 68;
+            const instanceBuffer = new ArrayBuffer(arr.length * stride);
+            const floatView = new Float32Array(instanceBuffer);
+            const uintView  = new Int32Array(instanceBuffer);
+            for (let i = 0; i < arr.length; i++)
+            {
+                const { transform, skeleton } = arr[i];
+                floatView.set(transform, (stride * i) / 4);
+                uintView[(stride * i) / 4 + strideFloats] = skeleton ? (skeletonToJoint.get(skeleton) ?? -1) : -1;
             }
+
+            const modelData = this.gpuObjects.get(model);
+
+            const nInstances = arr.length;
+            if (modelData.maxInstances < nInstances) 
+            {
+                modelData.maxInstances = nInstances;
+                modelData.instanceBuffer = WebGPU.createBuffer(this.device, {
+                    data: instanceBuffer,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                    mappedAtCreation: true,
+                });
+            }
+            else 
+            {
+                this.device.queue.writeBuffer(modelData.instanceBuffer, 0, instanceBuffer);
+            }
+
+            this.renderModel(model, modelData.instanceBuffer, nInstances);
         }
 
         this.renderPass.end();
         this.device.queue.submit([encoder.finish()]);
     }
     
-    renderModel(model, skeletonModelData, instanceBuffer, nInstances) {
+    renderModel(model, instanceBuffer, nInstances) {
         for (const primitive of model.primitives) {
-            this.renderPrimitive(primitive, skeletonModelData, instanceBuffer, nInstances);
+            this.renderPrimitive(primitive, instanceBuffer, nInstances);
         }
     }
 
-    renderPrimitive(primitive, skeletonModelData, instanceBuffer, nInstances) {
-        this.renderPass.setBindGroup(1, skeletonModelData.skeletonBindGroup);
+    renderPrimitive(primitive, instanceBuffer, nInstances) {
+        this.renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBuffer);
         // const { materialBindGroup } = this.prepareMaterial(primitive.material);
         // this.renderPass.setBindGroup(2, materialBindGroup);
 

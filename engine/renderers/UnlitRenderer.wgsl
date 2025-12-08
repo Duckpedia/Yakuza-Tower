@@ -11,6 +11,7 @@ struct InstanceInput {
     @location(6) row1: vec4f,
     @location(7) row2: vec4f,
     @location(8) row3: vec4f,
+    @location(9) jointI: i32,
 }
 
 struct VertexOutput {
@@ -34,13 +35,16 @@ struct CameraUniforms {
 
 @vertex
 fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
-    var position = vec4<f32>(0.0f);
-    var normal = vec4<f32>(0.0f);
-    for (var i = 0u; i < 4u; i += 1u){
-        let joint = joints[model.joints[i]];
-        let weight = model.weights[i];
-        position += weight * (joint * vec4<f32>(model.position, 1.0f));
-        normal += weight * (joint * vec4<f32>(model.normal, 0.0f));
+    var position = vec4f(model.position, 1.0f);
+    var normal = vec4f(model.normal, 1.0f);
+    if (instance.jointI >= 0)
+    {
+        for (var i = 0u; i < 4u; i += 1u){
+            let joint = joints[u32(instance.jointI) + model.joints[i]];
+            let weight = model.weights[i];
+            position += weight * (joint * vec4<f32>(model.position, 1.0f));
+            normal += weight * (joint * vec4<f32>(model.normal, 0.0f));
+        }
     }
 
     let model_matrix = mat4x4<f32>( 
