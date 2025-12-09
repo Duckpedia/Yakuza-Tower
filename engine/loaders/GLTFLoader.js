@@ -11,6 +11,7 @@ import {
     Transform,
     Vertex,
     Mesh,
+    Material,
 } from '../core/core.js';
 
 // TODO: GLB support
@@ -193,51 +194,50 @@ export class GLTFLoader {
     }
 
     loadMaterial(nameOrIndex) {
-        return null;
-        // const gltfSpec = this.findByNameOrIndex(this.gltf.materials, nameOrIndex);
-        // if (!gltfSpec) {
-        //     return null;
-        // }
-        // if (this.cache.has(gltfSpec)) {
-        //     return this.cache.get(gltfSpec);
-        // }
+        const gltfSpec = this.findByNameOrIndex(this.gltf.materials, nameOrIndex);
+        if (!gltfSpec) {
+            return null;
+        }
+        if (this.cache.has(gltfSpec)) {
+            return this.cache.get(gltfSpec);
+        }
 
-        // const options = {};
-        // const pbr = gltfSpec.pbrMetallicRoughness;
-        // if (pbr) {
-        //     if (pbr.baseColorTexture) {
-        //         options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
-        //         options.baseTexture.isSRGB = true;
-        //     }
-        //     if (pbr.metallicRoughnessTexture) {
-        //         options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-        //         options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-        //     }
-        //     options.baseFactor = pbr.baseColorFactor;
-        //     options.metalnessFactor = pbr.metallicFactor;
-        //     options.roughnessFactor = pbr.roughnessFactor;
-        // }
+        const options = {};
+        const pbr = gltfSpec.pbrMetallicRoughness;
+        if (pbr) {
+            if (pbr.baseColorTexture) {
+                options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
+                options.baseTexture.isSRGB = true;
+            }
+            if (pbr.metallicRoughnessTexture) {
+                options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+                options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+            }
+            options.baseFactor = pbr.baseColorFactor;
+            options.metalnessFactor = pbr.metallicFactor;
+            options.roughnessFactor = pbr.roughnessFactor;
+        }
 
-        // if (gltfSpec.normalTexture) {
-        //     options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
-        //     options.normalFactor = gltfSpec.normalTexture.scale;
-        // }
+        if (gltfSpec.normalTexture) {
+            options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
+            options.normalFactor = gltfSpec.normalTexture.scale;
+        }
 
-        // if (gltfSpec.emissiveTexture) {
-        //     options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
-        //     options.emissionTexture.isSRGB = true;
-        //     options.emissionFactor = gltfSpec.emissiveFactor;
-        // }
+        if (gltfSpec.emissiveTexture) {
+            options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
+            options.emissionTexture.isSRGB = true;
+            options.emissionFactor = gltfSpec.emissiveFactor;
+        }
 
-        // if (gltfSpec.occlusionTexture) {
-        //     options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
-        //     options.occlusionFactor = gltfSpec.occlusionTexture.strength;
-        // }
+        if (gltfSpec.occlusionTexture) {
+            options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
+            options.occlusionFactor = gltfSpec.occlusionTexture.strength;
+        }
 
-        // const material = new Material(options);
+        const material = new Material(options);
 
-        // this.cache.set(gltfSpec, material);
-        // return material;
+        this.cache.set(gltfSpec, material);
+        return material;
     }
 
     loadAccessor(nameOrIndex) {

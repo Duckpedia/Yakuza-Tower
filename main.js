@@ -21,13 +21,14 @@ import { loadResources } from 'engine/loaders/resources.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 
 const resources = await loadResources({
+    'white_image': new URL('./textures/white.png', import.meta.url),
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
 });
 
 const canvas = document.querySelector('canvas');
 const renderer = new UnlitRenderer(canvas);
-await renderer.initialize();
+await renderer.initialize(resources.white_image);
 
 const player = new Entity();
 player.addComponent(new Transform({
@@ -38,29 +39,29 @@ player.addComponent(new PlayerComponent(player, canvas));
 
 const scene = [player];
 
-// const floor = new Entity();
-// floor.addComponent(new Transform({
-//     scale: [10, 1, 10],
-// }));
-// floor.addComponent(new Model({
-//     primitives: [
-//         new Primitive({
-//             mesh: resources.floor_mesh,
-//             material: new Material({
-//                 baseTexture: new Texture({
-//                     image: resources.floor_image,
-//                     sampler: new Sampler({
-//                         minFilter: 'nearest',
-//                         magFilter: 'nearest',
-//                         addressModeU: 'repeat',
-//                         addressModeV: 'repeat',
-//                     }),
-//                 }),
-//             }),
-//         }),
-//     ],
-// }));
-// scene.push(floor);
+const floor = new Entity();
+floor.addComponent(new Transform({
+    scale: [10, 1, 10],
+}));
+floor.addComponent(new Model({
+    primitives: [
+        new Primitive({
+            mesh: resources.floor_mesh,
+            material: new Material({
+                baseTexture: new Texture({
+                    image: resources.floor_image,
+                    sampler: new Sampler({
+                        minFilter: 'nearest',
+                        magFilter: 'nearest',
+                        addressModeU: 'repeat',
+                        addressModeV: 'repeat',
+                    }),
+                }),
+            }),
+        }),
+    ],
+}));
+scene.push(floor);
 
 const guy_loader = new GLTFLoader();
 await guy_loader.load(new URL('./models/xd/character.gltf', import.meta.url));

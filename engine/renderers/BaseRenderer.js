@@ -1,4 +1,7 @@
 import * as WebGPU from '../WebGPU.js';
+import { Material } from '../core/Material.js';
+import { Sampler } from '../core/Sampler.js';
+import { Texture } from '../core/Texture.js';
 
 import { createVertexBuffer } from '../core/VertexUtils.js';
 
@@ -8,17 +11,29 @@ export class BaseRenderer {
         this.canvas = canvas;
         this.gpuObjects = new WeakMap();
     }
-
-    async initialize() {
+    
+    async initialize(defaultTextureImage) {
         const adapter = await navigator.gpu.requestAdapter();
         const device = await adapter.requestDevice();
         const context = this.canvas.getContext('webgpu');
         const format = navigator.gpu.getPreferredCanvasFormat();
         context.configure({ device, format });
-
+        
         this.device = device;
         this.context = context;
         this.format = format;
+        
+        this.dummyMaterial = new Material({
+            baseTexture: new Texture({
+                image: defaultTextureImage,
+                sampler: new Sampler({
+                    minFilter: 'nearest',
+                    magFilter: 'nearest',
+                    addressModeU: 'repeat',
+                    addressModeV: 'repeat',
+                }),
+            }),
+        });
     }
 
     prepareImage(image, isSRGB = false) {

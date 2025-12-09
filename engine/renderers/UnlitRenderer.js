@@ -11,6 +11,7 @@ import {
 } from '../core/SceneUtils.js';
 
 import { BaseRenderer } from './BaseRenderer.js';
+import { loadResources } from '../loaders/resources.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 
 const vertexBufferLayout = {
@@ -93,8 +94,8 @@ export class UnlitRenderer extends BaseRenderer {
         super(canvas);
     }
 
-    async initialize() {
-        await super.initialize();
+    async initialize(defaultTextureImage) {
+        await super.initialize(defaultTextureImage);
 
         const code = await fetch(new URL('UnlitRenderer.wgsl', import.meta.url))
             .then(response => response.text());
@@ -119,6 +120,7 @@ export class UnlitRenderer extends BaseRenderer {
 
         this.recreateDepthTexture();
 
+        // create dummy skeleton with one identity joint
         this.dummySkeletonBuffer =  this.device.createBuffer({
             size: 64,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -211,7 +213,7 @@ export class UnlitRenderer extends BaseRenderer {
             colorAttachments: [
                 {
                     view: this.context.getCurrentTexture(),
-                    clearValue: [1, 1, 1, 1],
+                    clearValue: [251.0 / 255.0, 239.0 / 255.0, 239.0 / 255, 1],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
@@ -341,8 +343,8 @@ export class UnlitRenderer extends BaseRenderer {
 
     renderPrimitive(primitive, instanceBuffer, nInstances) {
         this.renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBuffer);
-        // const { materialBindGroup } = this.prepareMaterial(primitive.material);
-        // this.renderPass.setBindGroup(2, materialBindGroup);
+        const { materialBindGroup } = this.prepareMaterial(primitive.material ?? this.dummyMaterial);
+        this.renderPass.setBindGroup(2, materialBindGroup);
 
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
         this.renderPass.setVertexBuffer(0, vertexBuffer);

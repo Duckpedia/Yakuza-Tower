@@ -29,9 +29,8 @@ struct CameraUniforms {
 
 @group(1) @binding(0) var<storage, read> joints: array<mat4x4<f32>>;
 
-// @group(2) @binding(0) var baseTexture: texture_2d<f32>;
-// @group(2) @binding(1) var baseSampler: sampler;
-
+@group(2) @binding(0) var baseTexture: texture_2d<f32>;
+@group(2) @binding(1) var baseSampler: sampler;
 
 @vertex
 fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
@@ -63,7 +62,9 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
-    // var color2 = textureSample(baseTexture, baseSampler, input.texcoords);
-    var color = vec4f(input.texcoords.xy, 1.0, 1.0);
-    return color;
+    let textureColor = textureSample(baseTexture, baseSampler, input.texcoords).rgb;
+    let d = max(dot(vec3(1.0, 1.0, 1.0), input.normal), 0.0);
+    let ambient = vec3f(23, 26, 31) / 255.0;
+    var color = textureColor * d + ambient;
+    return vec4f(color, 1.0);
 }
