@@ -2,6 +2,8 @@ export class Entity {
 
     constructor(components = []) {
         this.components = components;
+        this.children = [];
+        this._parent = null;
     }
 
     addComponent(component) {
@@ -24,4 +26,14 @@ export class Entity {
         return this.components.filter(component => component instanceof type);
     }
 
+    get parent() {
+       return this._parent; 
+    }
+
+    set parent(parent) {
+        if (this._parent)
+            this._parent.children.remove(this);
+        this._parent = parent;
+        parent?.children.push(this);
+    }
 }

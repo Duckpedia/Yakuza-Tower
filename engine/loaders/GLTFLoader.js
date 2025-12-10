@@ -4,7 +4,6 @@ import {
     Camera,
     Model,
     Entity,
-    Parent,
     Primitive,
     Sampler,
     Texture,
@@ -568,6 +567,8 @@ export class GLTFLoader {
             entity.customProperties = structuredClone(gltfSpec.extras);
         }
 
+        entity.name = gltfSpec.name;
+
         return entity;
     }
 
@@ -579,7 +580,7 @@ export class GLTFLoader {
 
         const nodeEntities = [];
         const scene = [];
-        const to_add = [...gltfSpec.nodes.map(index => ({index, parent: null}))];
+        const to_add = [{index: gltfSpec.nodes[0], parent: null }];
         while(to_add.length > 0) {
             const {index, parent} = to_add.shift();
             const gltfSpec = this.findByNameOrIndex(this.gltf.nodes, index);
@@ -587,8 +588,7 @@ export class GLTFLoader {
                 continue;
             }
             const node = this.loadNode(gltfSpec);
-            if (parent)
-                node.addComponent(new Parent(parent));
+            node.parent = parent;
             nodeEntities[index] = node;
             scene.push(node);
             if (gltfSpec.children)

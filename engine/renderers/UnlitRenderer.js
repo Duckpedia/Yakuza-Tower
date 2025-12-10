@@ -2,16 +2,14 @@ import { mat4 } from 'glm';
 
 import * as WebGPU from '../WebGPU.js';
 
-import { Camera, Entity, Model, Transform } from '../core/core.js';
+import { Camera, Model, Transform } from '../core/core.js';
 
 import {
-    getGlobalModelMatrix,
     getGlobalViewMatrix,
     getProjectionMatrix,
 } from '../core/SceneUtils.js';
 
 import { BaseRenderer } from './BaseRenderer.js';
-import { loadResources } from '../loaders/resources.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 
 const vertexBufferLayout = {
@@ -243,6 +241,9 @@ export class UnlitRenderer extends BaseRenderer {
             const model = entity.getComponentOfType(Model);
             if (!model) continue;
 
+            const transform = entity.getComponentOfType(Transform);
+            if (!transform) continue;
+
             let arr = models.get(model);
             if (!arr) {
                 arr = [];
@@ -258,7 +259,7 @@ export class UnlitRenderer extends BaseRenderer {
                     nJoints += skeleton.joints.length;
                 }
             }
-            arr.push({ transform: getGlobalModelMatrix(entity), skeleton });
+            arr.push({ transform: transform.final, skeleton });
         }
 
         if (skeletons.length > 0)
@@ -269,14 +270,14 @@ export class UnlitRenderer extends BaseRenderer {
                 const jointI = skeletonToJoint.get(skeleton);
                 for (let i = 0; i < skeleton.joints.length; i++)
                 {
-                    const mat = getGlobalModelMatrix(skeleton.joints[i]);
+                    const mat = skeleton.joints[i].getComponentOfType(Transform).final;
                     jointsBuffer.set(mat4.mul(new mat4(), mat, skeleton.inverseBindMatrices[i]), (jointI + i) * 16);
                 }
             }
 
             if (!this.maxJoints || this.maxJoints < nJoints)
             {
-                this.maxJoints = skeletons.nJoints;
+                this.maxJoints = nJoints;
                 this.skeletonBuffer = WebGPU.createBuffer(this.device, {
                     data: jointsBuffer,
                     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -342,7 +343,7 @@ export class UnlitRenderer extends BaseRenderer {
     }
 
     renderPrimitive(primitive, instanceBuffer, nInstances) {
-        this.renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBuffer);
+        this.renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
         const { materialBindGroup } = this.prepareMaterial(primitive.material ?? this.dummyMaterial);
         this.renderPass.setBindGroup(2, materialBindGroup);
 

@@ -1,8 +1,6 @@
 import { mat4 } from 'glm';
 
 import { Camera } from './Camera.js';
-import { Model } from './Model.js';
-import { Parent } from './Parent.js';
 import { Transform } from './Transform.js';
 
 export function getLocalModelMatrix(entity) {
@@ -14,9 +12,8 @@ export function getLocalModelMatrix(entity) {
 }
 
 export function getGlobalModelMatrix(entity) {
-    const parent = entity.getComponentOfType(Parent)?.entity;
-    if (parent) {
-        const parentMatrix = getGlobalModelMatrix(parent);
+    if (entity.parent) {
+        const parentMatrix = getGlobalModelMatrix(entity.parent);
         const modelMatrix = getLocalModelMatrix(entity);
         return parentMatrix.multiply(modelMatrix);
     } else {

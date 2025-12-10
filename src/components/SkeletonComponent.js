@@ -27,7 +27,7 @@ export class SkeletonComponent {
     }
 
     playAnimation(name, loop = true) {
-        return this.playAnimationByIndex(this.animations.findIndex(anim => anim.name === name));
+        return this.playAnimationByIndex(this.animations.findIndex(anim => anim.name === name), loop);
     }
     
     update(t, dt) {

@@ -4,7 +4,6 @@ export * from './Entity.js';
 export * from './Material.js';
 export * from './Mesh.js';
 export * from './Model.js';
-export * from './Parent.js';
 export * from './Primitive.js';
 export * from './Sampler.js';
 export * from './Texture.js';

@@ -1,4 +1,4 @@
-import * as glm from 'glm';
+import { mat4 } from 'glm';
 
 import { GLTFLoader } from 'engine/loaders/GLTFLoader.js';
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
@@ -32,7 +32,7 @@ await renderer.initialize(resources.white_image);
 
 const player = new Entity();
 player.addComponent(new Transform({
-    translation: [0, 1, 0],
+    translation: [0, 1, 5],
 }));
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
@@ -67,7 +67,7 @@ const guy_loader = new GLTFLoader();
 await guy_loader.load(new URL('./models/xd/character.gltf', import.meta.url));
 
 let i = 0;
-while(true) {
+while(i == 0) {
     const guy_scene = guy_loader.loadScene();
     const guy = guy_loader.buildEntityFromScene(guy_scene);
     if (!guy.skeleton.playAnimationByIndex(i++))
@@ -78,20 +78,38 @@ while(true) {
     scene.push(...guy_scene);
 }
 
-const loader = new GLTFLoader();
-await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
-const cat_scene = loader.loadScene();
-const cat = loader.buildEntityFromScene(cat_scene);
-const transform = cat.getComponentOfType(Transform);
-transform.translation = [0, 0, -2];
-cat.addComponent(new EnemyComponent(cat));
-scene.push(...cat_scene);
+// const loader = new GLTFLoader();
+// await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
+// const cat_scene = loader.loadScene();
+// const cat = loader.buildEntityFromScene(cat_scene);
+// const transform = cat.getComponentOfType(Transform);
+// transform.translation = [0, 0, -2];
+// cat.addComponent(new EnemyComponent(cat));
+// scene.push(...cat_scene);
 
 function update(t, dt) {
+    // full update
     for (const entity of scene) {
         for (const component of entity.components) {
             component.update?.(t, dt);
         }
+    }
+
+    for (const entity of scene)
+    {
+        if (!entity.parent)
+        {
+            updateWorldMatricesRecursive(entity, new mat4());
+        }
+    }
+}
+
+function updateWorldMatricesRecursive(entity, parentMatrix)
+{
+    const transform = entity.getComponentOfType(Transform);
+    transform.final = mat4.mul(transform.final, parentMatrix, transform.matrix);
+    for (const child of entity.children) {
+        updateWorldMatricesRecursive(child, transform.final);
     }
 }
 

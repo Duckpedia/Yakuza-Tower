@@ -11,6 +11,7 @@ export class Transform {
         this.rotation = rotation;
         this.translation = translation;
         this.scale = scale;
+        this.final = new mat4();
         if (matrix) {
             this.matrix = matrix;
         }
