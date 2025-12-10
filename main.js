@@ -66,26 +66,21 @@ scene.push(floor);
 const guy_loader = new GLTFLoader();
 await guy_loader.load(new URL('./models/xd/character.gltf', import.meta.url));
 
-let i = 0;
-while(i == 0) {
-    const guy_scene = guy_loader.loadScene();
-    const guy = guy_loader.buildEntityFromScene(guy_scene);
-    if (!guy.skeleton.playAnimationByIndex(i++))
-        break;
-    const guy_transform = guy.getComponentOfType(Transform);
-    guy_transform.translation = [i * (i % 2 ? 1 : -1), 0, -3];
-    guy_transform.scale = [.1, .1, .1];
-    scene.push(...guy_scene);
-}
+const guy_scene = guy_loader.loadScene();
+const guy = guy_loader.buildEntityFromScene(guy_scene);
+guy.addComponent(new EnemyComponent(guy, player));
+const guy_transform = guy.getComponentOfType(Transform);
+guy_transform.scale = [.1, .1, .1];
+scene.push(...guy_scene);
 
-// const loader = new GLTFLoader();
-// await loader.load(new URL('./models/cat/cat.gltf', import.meta.url));
-// const cat_scene = loader.loadScene();
-// const cat = loader.buildEntityFromScene(cat_scene);
-// const transform = cat.getComponentOfType(Transform);
-// transform.translation = [0, 0, -2];
-// cat.addComponent(new EnemyComponent(cat));
-// scene.push(...cat_scene);
+function updateWorldMatricesRecursive(entity, parentMatrix)
+{
+    const transform = entity.getComponentOfType(Transform);
+    transform.final = mat4.mul(transform.final, parentMatrix, transform.matrix);
+    for (const child of entity.children) {
+        updateWorldMatricesRecursive(child, transform.final);
+    }
+}
 
 function update(t, dt) {
     // full update
@@ -95,22 +90,10 @@ function update(t, dt) {
         }
     }
 
+    // figure out the final world matrices down the node tree
     for (const entity of scene)
-    {
         if (!entity.parent)
-        {
             updateWorldMatricesRecursive(entity, new mat4());
-        }
-    }
-}
-
-function updateWorldMatricesRecursive(entity, parentMatrix)
-{
-    const transform = entity.getComponentOfType(Transform);
-    transform.final = mat4.mul(transform.final, parentMatrix, transform.matrix);
-    for (const child of entity.children) {
-        updateWorldMatricesRecursive(child, transform.final);
-    }
 }
 
 function render() {

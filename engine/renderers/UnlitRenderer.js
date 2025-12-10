@@ -50,7 +50,7 @@ const vertexBufferLayout = {
 };
 
 const instanceBufferLayout = {
-    arrayStride: 68,
+    arrayStride: 132,
     stepMode: 'instance',
     attributes: [
         {
@@ -78,9 +78,33 @@ const instanceBufferLayout = {
             format: 'float32x4',
         },
         {
-            name: 'jointI',
+            name: 'inv_row1',
             shaderLocation: 9,
             offset: 64,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row2',
+            shaderLocation: 10,
+            offset: 80,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row3',
+            shaderLocation: 11,
+            offset: 96,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row4',
+            shaderLocation: 12,
+            offset: 112,
+            format: 'float32x4',
+        },
+        {
+            name: 'jointI',
+            shaderLocation: 13,
+            offset: 128,
             format: 'sint32',
         },
     ],
@@ -238,11 +262,13 @@ export class UnlitRenderer extends BaseRenderer {
         const skeletonToJoint = new Map();
         let nJoints = 0;
         for (const entity of entities) {
-            const model = entity.getComponentOfType(Model);
-            if (!model) continue;
+            if (entity.hidden) continue;
 
             const transform = entity.getComponentOfType(Transform);
             if (!transform) continue;
+
+            const model = entity.getComponentOfType(Model);
+            if (!model) continue;
 
             let arr = models.get(model);
             if (!arr) {
@@ -270,8 +296,13 @@ export class UnlitRenderer extends BaseRenderer {
                 const jointI = skeletonToJoint.get(skeleton);
                 for (let i = 0; i < skeleton.joints.length; i++)
                 {
-                    const mat = skeleton.joints[i].getComponentOfType(Transform).final;
-                    jointsBuffer.set(mat4.mul(new mat4(), mat, skeleton.inverseBindMatrices[i]), (jointI + i) * 16);
+                    const joint_final = skeleton.joints[i].getComponentOfType(Transform).final;
+                    const joint_mat = new mat4(); mat4.mul(joint_mat, joint_final, skeleton.inverseBindMatrices[i]);
+                    // const joint_inv_mat = new mat4(); 
+                    // mat4.invert(joint_inv_mat, joint_mat);
+                    // mat4.transpose(joint_inv_mat, joint_inv_mat);
+                    jointsBuffer.set(joint_mat, (jointI + i) * 16);
+                    // jointsBuffer.set(joint_inv_mat, (jointI + i) * 16 * 2 + 16);
                 }
             }
 
@@ -300,15 +331,19 @@ export class UnlitRenderer extends BaseRenderer {
             if (!this.gpuObjects.has(model))
                 this.gpuObjects.set(model, { maxInstances: 0, instanceBuffer: null });
 
-            const strideFloats = 16;
-            const stride  = 68;
+            const strideFloats = 32;
+            const stride  = 132;
             const instanceBuffer = new ArrayBuffer(arr.length * stride);
             const floatView = new Float32Array(instanceBuffer);
             const uintView  = new Int32Array(instanceBuffer);
             for (let i = 0; i < arr.length; i++)
             {
                 const { transform, skeleton } = arr[i];
+                const inv_mat = new mat4();
+                mat4.invert(inv_mat, transform);
+                mat4.transpose(inv_mat, inv_mat);
                 floatView.set(transform, (stride * i) / 4);
+                floatView.set(inv_mat, (stride * i) / 4 + 16);
                 uintView[(stride * i) / 4 + strideFloats] = skeleton ? (skeletonToJoint.get(skeleton) ?? -1) : -1;
             }
 

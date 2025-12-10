@@ -568,6 +568,7 @@ export class GLTFLoader {
         }
 
         entity.name = gltfSpec.name;
+        console.log(entity.name);
 
         return entity;
     }

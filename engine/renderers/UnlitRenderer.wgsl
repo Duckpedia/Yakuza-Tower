@@ -11,7 +11,13 @@ struct InstanceInput {
     @location(6) row1: vec4f,
     @location(7) row2: vec4f,
     @location(8) row3: vec4f,
-    @location(9) jointI: i32,
+
+    @location(9)  inv_row0: vec4f,
+    @location(10) inv_row1: vec4f,
+    @location(11) inv_row2: vec4f,
+    @location(12) inv_row3: vec4f,
+
+    @location(13) jointI: i32,
 }
 
 struct VertexOutput {
@@ -25,26 +31,34 @@ struct CameraUniforms {
     projectionMatrix: mat4x4f,
 }
 
+struct Joint {
+    m: mat4x4<f32>,
+}
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 
-@group(1) @binding(0) var<storage, read> joints: array<mat4x4<f32>>;
+@group(1) @binding(0) var<storage, read> joints: array<Joint>;
 
 @group(2) @binding(0) var baseTexture: texture_2d<f32>;
 @group(2) @binding(1) var baseSampler: sampler;
 
 @vertex
 fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
-    var position = vec4f(model.position, 1.0f);
-    var normal = vec4f(model.normal, 1.0f);
+    var position = vec4f(0.0, 0.0, 0.0, 1.0f);
+    var normal = vec4f(0.0, 0.0, 0.0, 0.0);
     if (instance.jointI >= 0)
     {
         for (var i = 0u; i < 4u; i += 1u){
             let joint = joints[u32(instance.jointI) + model.joints[i]];
             let weight = model.weights[i];
-            position += weight * (joint * vec4<f32>(model.position, 1.0f));
-            normal += weight * (joint * vec4<f32>(model.normal, 0.0f));
+            position += weight * (joint.m * vec4<f32>(model.position, 1.0f));
+            normal += weight * (joint.m * vec4<f32>(model.normal, 0.0f));
         }
     }
+    else {
+        normal = vec4f(model.normal, 0.0);
+    }
+    normal = normalize(normal);
 
     let model_matrix = mat4x4<f32>( 
         instance.row0,
@@ -53,9 +67,16 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
         instance.row3 
     );
 
+    let inv_model_matrix = mat4x4<f32>( 
+        instance.inv_row0,
+        instance.inv_row1,
+        instance.inv_row2,
+        instance.inv_row3 
+    );
+
     var output: VertexOutput;
     output.position = camera.projectionMatrix * camera.viewMatrix * model_matrix * vec4(position.xyz, 1);
-    output.normal = normalize(normal).xyz;
+    output.normal = normalize(inv_model_matrix * normal).xyz;
     output.texcoords = model.texcoords;
     return output;
 }

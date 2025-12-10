@@ -25,6 +25,11 @@ export class Entity {
     getComponentsOfType(type) {
         return this.components.filter(component => component instanceof type);
     }
+    
+    findChildByName(name) {
+        return this.children.find(c => c.name === name) ??
+            this.children.map(c => c.findChildByName(name)).find(x => x);
+    }
 
     get parent() {
        return this._parent; 
