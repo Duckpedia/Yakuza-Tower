@@ -10,6 +10,7 @@ import {
 } from '../core/SceneUtils.js';
 
 import { BaseRenderer } from './BaseRenderer.js';
+import { ImageLoader } from '../loaders/ImageLoader.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 
 const vertexBufferLayout = {
@@ -159,6 +160,64 @@ export class UnlitRenderer extends BaseRenderer {
             layout: this.pipeline.getBindGroupLayout(1),
             entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
         });
+
+        const cubeCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
+        const cubeModule = this.device.createShaderModule({ code: cubeCode });
+        this.cubePipeline = await this.device.createRenderPipelineAsync({
+            layout: 'auto',
+            vertex: { module: cubeModule },
+            fragment: { module: cubeModule, targets: [{ format: this.format }], },
+            depthStencil: {
+                format: 'depth24plus',
+                depthWriteEnabled: false,
+                depthCompare: 'less',
+            },
+        });
+
+        const imageLoader = new ImageLoader();
+        const environmentImages = await Promise.all([
+            'posx.jpg',
+            'negx.jpg',
+            'posy.jpg',
+            'negy.jpg',
+            'posz.jpg',
+            'negz.jpg',
+        ].map(url => imageLoader.load(url)));
+
+        this.environmentSampler = this.device.createSampler({
+            minFilter: 'linear',
+            magFilter: 'linear',
+        });
+        this.environmentTexture = this.device.createTexture({
+            size: [environmentImages[0].width, environmentImages[0].height, 6],
+            format: 'rgba8unorm',
+            usage:
+                GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+
+        for (let i = 0; i < environmentImages.length; i++) {
+            this.device.queue.copyExternalImageToTexture(
+                { source: environmentImages[i] },
+                { texture: this.environmentTexture, origin: [0, 0, i] },
+                [environmentImages[i].width, environmentImages[i].height],
+            );
+        }
+        this.cubeBindGroup = this.device.createBindGroup({
+            layout: this.cubePipeline.getBindGroupLayout(1),
+            entries: [
+                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
+                { binding: 1, resource: this.environmentSampler },
+            ],
+        });
+        this.cubeBindGroup2 = this.device.createBindGroup({
+            layout: this.pipeline.getBindGroupLayout(3),
+            entries: [
+                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
+                { binding: 1, resource: this.environmentSampler },
+            ],
+        });
     }
 
     recreateDepthTexture() {
@@ -176,7 +235,7 @@ export class UnlitRenderer extends BaseRenderer {
         }
 
         const cameraUniformBuffer = this.device.createBuffer({
-            size: 128,
+            size: 144,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
@@ -187,7 +246,14 @@ export class UnlitRenderer extends BaseRenderer {
             ],
         });
 
-        const gpuObjects = { cameraUniformBuffer, cameraBindGroup };
+        const cameraSkyboxBindGroup = this.device.createBindGroup({
+            layout: this.cubePipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const gpuObjects = { cameraUniformBuffer, cameraBindGroup, cameraSkyboxBindGroup };
         this.gpuObjects.set(camera, gpuObjects);
         return gpuObjects;
     }
@@ -247,15 +313,23 @@ export class UnlitRenderer extends BaseRenderer {
                 depthStoreOp: 'discard',
             },
         });
-        this.renderPass.setPipeline(this.pipeline);
-
+        
         const cameraComponent = camera.getComponentOfType(Camera);
-        const viewMatrix = getGlobalViewMatrix(camera);
-        const projectionMatrix = getProjectionMatrix(camera);
-        const { cameraUniformBuffer, cameraBindGroup } = this.prepareCamera(cameraComponent);
-        this.device.queue.writeBuffer(cameraUniformBuffer, 0, viewMatrix);
-        this.device.queue.writeBuffer(cameraUniformBuffer, 64, projectionMatrix);
+        const { cameraUniformBuffer, cameraBindGroup, cameraSkyboxBindGroup } = this.prepareCamera(cameraComponent);
+        const cameraBuffer = new Float32Array(36);
+        cameraBuffer.set(getGlobalViewMatrix(camera), 0);
+        cameraBuffer.set(getProjectionMatrix(camera), 16);
+        cameraBuffer.set(camera.getComponentOfType(Transform).translation, 32);
+        this.device.queue.writeBuffer(cameraUniformBuffer, 0, cameraBuffer.buffer);
+
+        this.renderPass.setPipeline(this.cubePipeline);
+        this.renderPass.setBindGroup(0, cameraSkyboxBindGroup);
+        this.renderPass.setBindGroup(1, this.cubeBindGroup);
+        this.renderPass.draw(36);
+
+        this.renderPass.setPipeline(this.pipeline);
         this.renderPass.setBindGroup(0, cameraBindGroup);
+        this.renderPass.setBindGroup(3, this.cubeBindGroup2);
 
         const models = new Map();
         const skeletons = [];

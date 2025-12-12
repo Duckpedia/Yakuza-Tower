@@ -29,6 +29,7 @@ struct VertexOutput {
 struct CameraUniforms {
     viewMatrix: mat4x4f,
     projectionMatrix: mat4x4f,
+    position: vec4f,
 }
 
 struct Joint {
@@ -41,6 +42,9 @@ struct Joint {
 
 @group(2) @binding(0) var baseTexture: texture_2d<f32>;
 @group(2) @binding(1) var baseSampler: sampler;
+
+@group(3) @binding(0) var envTexture: texture_cube<f32>;
+@group(3) @binding(1) var envSampler: sampler;
 
 @vertex
 fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
@@ -83,9 +87,17 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
-    let textureColor = textureSample(baseTexture, baseSampler, input.texcoords).rgb;
-    let d = max(dot(vec3(1.0, 1.0, 1.0), input.normal), 0.0);
-    let ambient = vec3f(23, 26, 31) / 255.0;
-    var color = textureColor * d + ambient;
+    let baseColor = textureSample(baseTexture, baseSampler, input.texcoords).rgb;
+
+    let view = camera.position.xyz - input.position.xyz;
+    let reflected = reflect(view, normalize(input.normal));
+    let reflectColor = textureSample(envTexture, envSampler, reflected).rgb;
+
+    let lightDir = normalize(vec3(1.0, 1.0, 1.0));
+    let diffuse = max(dot(lightDir, input.normal), 0.0);
+
+    let fresnel = pow(1.0 - max(dot(view, input.normal), 0.0), 5.0);
+
+    var color = diffuse * baseColor + 0.5 * reflectColor;
     return vec4f(color, 1.0);
 }

@@ -20,6 +20,6 @@ export class EnemyComponent {
         // lah probas mu tud dt weapon (macko alpaneki) v roko
         // vsak entity ma funkcijo findChildByName in loh poisces "LeftHand" in parentas orozje po njega
 
-        glm.quat.rotateY(this.transform.rotation, this.transform.rotation, dt * t * t * 0.1);
+        // glm.quat.rotateY(this.transform.rotation, this.transform.rotation, dt * t * t * 0.1);
     }
 }
