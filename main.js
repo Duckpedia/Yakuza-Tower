@@ -1,3 +1,4 @@
+import { GUI } from 'dat';
 import { mat4 } from 'glm';
 
 import { GLTFLoader } from 'engine/loaders/GLTFLoader.js';
@@ -32,7 +33,7 @@ await renderer.initialize(resources.white_image);
 
 const player = new Entity();
 player.addComponent(new Transform({
-    translation: [0, 1, 5],
+    translation: [0, 1.2, 2],
 }));
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
@@ -48,7 +49,7 @@ floor.addComponent(new Model({
         new Primitive({
             mesh: resources.floor_mesh,
             material: new Material({
-                baseTexture: new Texture({
+                albedoTexture: new Texture({
                     image: resources.floor_image,
                     sampler: new Sampler({
                         minFilter: 'nearest',
@@ -65,13 +66,23 @@ scene.push(floor);
 
 const guy_loader = new GLTFLoader();
 await guy_loader.load(new URL('./models/xd/character.gltf', import.meta.url));
-
 const guy_scene = guy_loader.loadScene();
 const guy = guy_loader.buildEntityFromScene(guy_scene);
+guy.skeleton.playAnimationByIndex(0);
 guy.addComponent(new EnemyComponent(guy, player));
 const guy_transform = guy.getComponentOfType(Transform);
-guy_transform.scale = [.1, .1, .1];
+guy_transform.scale = [.01, .01, .01];
 scene.push(...guy_scene);
+
+{
+    const littleguy_scene = guy_loader.loadScene();
+    const littleguy = guy_loader.buildEntityFromScene(littleguy_scene);
+    littleguy.addComponent(new EnemyComponent(littleguy, player));
+    const littleguy_transform = littleguy.getComponentOfType(Transform);
+    littleguy_transform.scale = [.6, .6, .6];
+    littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
+    scene.push(...littleguy_scene);
+}
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {

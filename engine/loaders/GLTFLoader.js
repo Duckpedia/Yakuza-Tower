@@ -205,33 +205,33 @@ export class GLTFLoader {
         const pbr = gltfSpec.pbrMetallicRoughness;
         if (pbr) {
             if (pbr.baseColorTexture) {
-                options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
-                options.baseTexture.isSRGB = true;
+                options.albedoTexture = this.loadTexture(pbr.baseColorTexture.index);
+                options.albedoTexture.isSRGB = true;
             }
-            if (pbr.metallicRoughnessTexture) {
-                options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-                options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-            }
-            options.baseFactor = pbr.baseColorFactor;
+            // if (pbr.metallicRoughnessTexture) {
+            //     options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+            //     options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
+            // }
+            options.albedoFactor = pbr.baseColorFactor;
             options.metalnessFactor = pbr.metallicFactor;
             options.roughnessFactor = pbr.roughnessFactor;
         }
 
-        if (gltfSpec.normalTexture) {
-            options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
-            options.normalFactor = gltfSpec.normalTexture.scale;
-        }
+        // if (gltfSpec.normalTexture) {
+        //     options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
+        //     options.normalFactor = gltfSpec.normalTexture.scale;
+        // }
 
-        if (gltfSpec.emissiveTexture) {
-            options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
-            options.emissionTexture.isSRGB = true;
-            options.emissionFactor = gltfSpec.emissiveFactor;
-        }
+        // if (gltfSpec.emissiveTexture) {
+        //     options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
+        //     options.emissionTexture.isSRGB = true;
+        //     options.emissionFactor = gltfSpec.emissiveFactor;
+        // }
 
-        if (gltfSpec.occlusionTexture) {
-            options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
-            options.occlusionFactor = gltfSpec.occlusionTexture.strength;
-        }
+        // if (gltfSpec.occlusionTexture) {
+        //     options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
+        //     options.occlusionFactor = gltfSpec.occlusionTexture.strength;
+        // }
 
         const material = new Material(options);
 
@@ -513,7 +513,6 @@ export class GLTFLoader {
         if (this.cache.has(gltfSpec)) {
             return this.cache.get(gltfSpec).clone();
         }
-
         let inverseBindMatrices = null;
         if (gltfSpec.inverseBindMatrices !== undefined) {
             const accessor = this.loadAccessor(gltfSpec.inverseBindMatrices);
@@ -526,12 +525,8 @@ export class GLTFLoader {
 
         const animations = this.loadAnimations();
         for (const anim of animations)
-        {
             for (const channel of anim.channels)
-            {
                 channel.targetNodeIndex = gltfSpec.joints.findIndex(e => e === channel.targetNodeIndex);
-            }
-        }
 
 
         const skeleton = new SkeletonComponent({ 
@@ -568,7 +563,6 @@ export class GLTFLoader {
         }
 
         entity.name = gltfSpec.name;
-        console.log(entity.name);
 
         return entity;
     }

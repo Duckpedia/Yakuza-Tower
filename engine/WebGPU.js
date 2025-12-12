@@ -1,15 +1,18 @@
-export function createBuffer(device, { data, usage }) {
+export function createBuffer(device, { data, size, usage }) {
     const buffer = device.createBuffer({
-        size: Math.ceil(data.byteLength / 4) * 4,
-        mappedAtCreation: true,
+        size: size ?? Math.ceil(data.byteLength / 4) * 4,
+        mappedAtCreation: data != null,
         usage,
     });
-    if (ArrayBuffer.isView(data)) {
-        new data.constructor(buffer.getMappedRange()).set(data);
-    } else {
-        new Uint8Array(buffer.getMappedRange()).set(new Uint8Array(data));
+    if (data)
+    {
+        if (ArrayBuffer.isView(data)) {
+            new data.constructor(buffer.getMappedRange()).set(data);
+        } else {
+            new Uint8Array(buffer.getMappedRange()).set(new Uint8Array(data));
+        }
+        buffer.unmap();
     }
-    buffer.unmap();
     return buffer;
 }
 
