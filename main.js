@@ -75,11 +75,13 @@ guy_transform.scale = [.01, .01, .01];
 scene.push(...guy_scene);
 
 {
-    const littleguy_scene = guy_loader.loadScene();
-    const littleguy = guy_loader.buildEntityFromScene(littleguy_scene);
+    const littleguy_loader = new GLTFLoader();
+    await littleguy_loader.load(new URL('./models/katana/katana.gltf', import.meta.url));
+    const littleguy_scene = littleguy_loader.loadScene();
+    const littleguy = littleguy_loader.buildEntityFromScene(littleguy_scene);
     littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
-    littleguy_transform.scale = [.6, .6, .6];
+    littleguy_transform.scale = [16, 16, 16];
     littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
     scene.push(...littleguy_scene);
 }
