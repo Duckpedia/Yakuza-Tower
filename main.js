@@ -82,8 +82,20 @@ scene.push(...guy_scene);
     littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
     littleguy_transform.scale = [16, 16, 16];
+
+
+
+    const littleguy2_scene = littleguy_loader.loadScene();
+    const littleguy2 = littleguy_loader.buildEntityFromScene(littleguy2_scene);
+    littleguy2.addComponent(new EnemyComponent(littleguy2, player));
+    const littleguy2_transform = littleguy2.getComponentOfType(Transform);
+    littleguy2_transform.scale = [16, 16, 16];
+
+
+    littleguy2.parent = guy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
     scene.push(...littleguy_scene);
+    scene.push(...littleguy2_scene);
 }
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
