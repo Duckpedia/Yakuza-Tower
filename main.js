@@ -25,6 +25,9 @@ import { LightComponent } from './src/components/LightComponent.js';
 // time scale for slow down
 window.worldTimeScale = 1; 
 
+
+//test
+
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
