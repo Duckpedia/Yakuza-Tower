@@ -21,6 +21,6 @@ function ext(url) {
 
 export async function loadResources(resourceMap) {
     const promises = Object.entries(resourceMap)
-        .map(async ([name, url]) => [name, await (new loaderMap[ext(url)]).load(url)])
+        .map(async ([name, url]) => [name, await (new loaderMap[ext(url)]).load(url)]);
     return Object.fromEntries(await Promise.all(promises));
 }
