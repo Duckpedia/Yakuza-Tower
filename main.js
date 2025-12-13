@@ -84,7 +84,6 @@ scene.push(...guy_scene);
 const guy2_scene = resources.guy_model.loadScene();
 const guy2 = resources.guy_model.buildEntityFromScene(guy2_scene);
 guy2.skeleton.playAnimationByIndex(4);
-console.log(guy2.skeleton);
 guy2.addComponent(new EnemyComponent(guy2, player));
 const guy2_transform = guy2.getComponentOfType(Transform);
 guy2_transform.translation = [3, 0, 0];
@@ -117,8 +116,6 @@ scene.push(...guy2_katana_scene);
     scene.push(...littleguy2_scene);
 }
 
-console.log(glm);
-
 // stackoverflow
 function hsv2rgb(h,s,v) 
 {                              
@@ -128,12 +125,11 @@ function hsv2rgb(h,s,v)
 
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
 const radsToDegrees = rad => (rad * 180.0) / Math.PI;
-for (let i = 0; i < 360; i++)
+for (let i = 0; i < 360; i+=5)
 {
     const light = new Entity();
     let translation = new vec3(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)));
     vec3.scale(translation, translation, Math.random() * 5 + 2);
-    console.log(translation);
     light.addComponent(new Transform({ translation }));
     light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
     scene.push(light);
@@ -142,6 +138,7 @@ for (let i = 0; i < 360; i++)
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {
     const transform = entity.getComponentOfType(Transform);
+    // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
     transform.final = mat4.mul(transform.final, parentMatrix, transform.matrix);
     for (const child of entity.children) {
         updateWorldMatricesRecursive(child, transform.final);

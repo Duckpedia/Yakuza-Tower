@@ -81,6 +81,7 @@ fn isnan(x: f32) -> bool {
 
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
+    // PBR based on LearnOpenGl
     let loc = vec2i(input.uv * vec2f(textureDimensions(gBufferAlbedo)));
     let albedoAndMetallic = textureLoad(gBufferAlbedo, loc, 0);
     let worldAndRoughness = textureLoad(gBufferPosWorld, loc, 0);
