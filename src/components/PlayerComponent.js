@@ -106,7 +106,10 @@ export class PlayerComponent {
             !this.keys['KeyA'])
         {
             const decay = Math.exp(effectiveDt * Math.log(1 - this.decay));
-            vec3.scale(this.velocity, this.velocity, decay);
+            const velxz = [...this.velocity];
+            vec3.scale(velxz, velxz, decay);
+            this.velocity[0] = velxz[0];
+            this.velocity[2] = velxz[2];
         }
 
         const speed = Math.sqrt(this.velocity[0]**2 + this.velocity[2]**2);
