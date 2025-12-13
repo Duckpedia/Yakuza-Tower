@@ -71,7 +71,6 @@ const guy = guy_loader.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(0);
 guy.addComponent(new EnemyComponent(guy, player));
 const guy_transform = guy.getComponentOfType(Transform);
-guy_transform.scale = [.01, .01, .01];
 scene.push(...guy_scene);
 
 {
