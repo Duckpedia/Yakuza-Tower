@@ -1,4 +1,4 @@
-import { mat4 } from 'glm';
+import { mat4, vec3 } from 'glm';
 
 export class Transform {
 
@@ -15,6 +15,10 @@ export class Transform {
         if (matrix) {
             this.matrix = matrix;
         }
+    }
+
+    get final_position() {
+        return this.final ? new vec3(this.final[12], this.final[13], this.final[14]) : new vec3(0.0);
     }
 
     get matrix() {

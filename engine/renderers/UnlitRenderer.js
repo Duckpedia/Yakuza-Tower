@@ -12,6 +12,7 @@ import {
 import { BaseRenderer } from './BaseRenderer.js';
 import { ImageLoader } from '../loaders/ImageLoader.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
+import { LightComponent } from '../../src/components/LightComponent.js';
 
 const vertexBufferLayout = {
     arrayStride: 48,
@@ -130,11 +131,16 @@ export class UnlitRenderer extends BaseRenderer {
     async setUpDefaults() {
         this.materialBuffer = new Float32Array(6);
         this.cameraBuffer = new Float32Array(36);
-        this.maxJoints = null;
-        this.jointsBuffer = null;
         this.models = new Map();
         this.skeletonToJoint = new Map();
+        this.maxJoints = 0;
+        this.maxInstances = 0;
+        this.maxLights = 0;
+        this.jointsBuffer = null;
+        this.lightsBuffer = null;
+        this.instancesBuffer = null;
         this.skeletons = [];
+        this.lights = [];
     }
 
     async setUpDeferred() {
@@ -179,6 +185,17 @@ export class UnlitRenderer extends BaseRenderer {
         this.dummySkeletonBindGroup = this.device.createBindGroup({
             layout: this.deferredPipeline.getBindGroupLayout(1),
             entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
+        });
+
+        
+        this.lightsBuffer = WebGPU.createBuffer(this.device, {
+            data: new Float32Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+
+        this.lightsBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(2),
+            entries: [ { binding: 0, resource: this.lightsBuffer } ],
         });
     }
 
@@ -361,7 +378,7 @@ export class UnlitRenderer extends BaseRenderer {
         const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup } = this.prepareCamera(cameraComponent);
         this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
         this.cameraBuffer.set(getProjectionMatrix(camera), 16);
-        this.cameraBuffer.set(camera.getComponentOfType(Transform).translation, 32);
+        this.cameraBuffer.set(camera.getComponentOfType(Transform).final_position, 32);
         this.device.queue.writeBuffer(cameraUniformBuffer, 0, this.cameraBuffer.buffer);
 
         const target = this.context.getCurrentTexture().createView();
@@ -420,6 +437,7 @@ export class UnlitRenderer extends BaseRenderer {
             renderPass.setPipeline(this.lightingPipeline);
             renderPass.setBindGroup(0, lightingCameraBindGroup);
             renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
+            renderPass.setBindGroup(2, this.lightsBindGroup);
             renderPass.draw(6);
 
             renderPass.end();
@@ -458,10 +476,16 @@ export class UnlitRenderer extends BaseRenderer {
         this.skeletonToJoint.clear();
         let nInstances = 0;
         let nJoints = 0;
+        this.lights.length = 0;
+
         for (const entity of entities) {
             if (entity.hidden) continue;
             const transform = entity.getComponentOfType(Transform);
             if (!transform) continue;
+            const light = entity.getComponentOfType(LightComponent);
+            if (light) {
+                this.lights.push({position: transform.final_position, light});
+            }
             const model = entity.getComponentOfType(Model);
             if (!model) continue;
             let data = this.models.get(model);
@@ -470,7 +494,7 @@ export class UnlitRenderer extends BaseRenderer {
                 this.models.set(model, data);
             }
 
-            const skeleton = entity.getComponentOfType(SkeletonComponent) ?? null;
+            const skeleton = entity.getComponentOfType(SkeletonComponent);
             if (skeleton) {
                 if (this.skeletons.indexOf(skeleton) < 0)
                 {
@@ -479,13 +503,38 @@ export class UnlitRenderer extends BaseRenderer {
                     nJoints += skeleton.joints.length;
                 }
             }
+
             data.arr.push({ transform: transform.final, skeleton });
             nInstances += 1;
         }
 
+        if (this.lights.length > 0)
+        {
+            if (this.maxLights < this.lights.length)
+            {
+                this.maxLights = this.lights.length;
+                this.lightBufferArray = new Float32Array(this.lights.length * 8);
+                this.lightBuffer = WebGPU.createBuffer(this.device, {
+                    size: this.lights.length * 32,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+
+                this.lightsBindGroup = this.device.createBindGroup({
+                    layout: this.lightingPipeline.getBindGroupLayout(2),
+                    entries: [ { binding: 0, resource: this.lightBuffer } ],
+                });
+            }
+            for (let i = 0; i < this.lights.length; i++)
+            {
+                this.lightBufferArray.set(this.lights[i].position, i * 8);
+                this.lightBufferArray.set(this.lights[i].light.emission, i * 8 + 4);
+            }
+            this.device.queue.writeBuffer(this.lightBuffer, 0, this.lightBufferArray);
+        }
+
         if (this.skeletons.length > 0)
         {
-            if (!this.maxJoints || this.maxJoints < nJoints)
+            if (this.maxJoints < nJoints)
             {
                 this.maxJoints = nJoints;
                 this.jointsBuffer = new Float32Array(nJoints * 16);
@@ -517,7 +566,7 @@ export class UnlitRenderer extends BaseRenderer {
     
         const strideFloats = 32;
         const stride = 132;
-        if (!this.maxInstances || this.maxInstances < nInstances)
+        if (this.maxInstances < nInstances)
         {
             this.maxInstances = nInstances;
             this.instanceBufferArray = new ArrayBuffer(nInstances * stride);

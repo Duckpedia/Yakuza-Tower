@@ -1,7 +1,6 @@
-import { GUI } from 'dat';
-import { mat4 } from 'glm';
+import { mat4, vec3 } from 'glm';
+import * as glm from 'glm';
 
-import { GLTFLoader } from 'engine/loaders/GLTFLoader.js';
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
 import { UpdateSystem } from 'engine/systems/UpdateSystem.js';
 import { UnlitRenderer } from 'engine/renderers/UnlitRenderer.js';
@@ -20,6 +19,7 @@ import {
 
 import { loadResources } from 'engine/loaders/resources.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
+import { LightComponent } from './src/components/LightComponent.js';
 
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
@@ -108,6 +108,28 @@ scene.push(...guy2_katana_scene);
     littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
+}
+
+console.log(glm);
+
+// stackoverflow
+function hsv2rgb(h,s,v) 
+{                              
+  let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
+  return [f(5),f(3),f(1)];       
+}  
+
+const degreesToRads = deg => (deg * Math.PI) / 180.0;
+const radsToDegrees = rad => (rad * 180.0) / Math.PI;
+for (let i = 0; i < 360; i++)
+{
+    const light = new Entity();
+    let translation = new vec3(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)));
+    vec3.scale(translation, translation, Math.random() * 5 + 2);
+    console.log(translation);
+    light.addComponent(new Transform({ translation }));
+    light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
+    scene.push(light);
 }
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
