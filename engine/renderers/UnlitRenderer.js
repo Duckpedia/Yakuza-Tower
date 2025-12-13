@@ -120,19 +120,36 @@ export class UnlitRenderer extends BaseRenderer {
     async initialize(defaultTextureImage) {
         await super.initialize(defaultTextureImage);
 
-        const code = await fetch(new URL('UnlitRenderer.wgsl', import.meta.url))
-            .then(response => response.text());
-        const module = this.device.createShaderModule({ code });
+        await this.setUpDefaults();
+        await this.setUpSkybox();
+        await this.setUpDeferred();
 
-        this.pipeline = await this.device.createRenderPipelineAsync({
+        this.recreateRenderTargets();
+    }
+
+    async setUpDefaults() {
+        this.materialBuffer = new Float32Array(6);
+        this.cameraBuffer = new Float32Array(36);
+        this.maxJoints = null;
+        this.jointsBuffer = null;
+        this.models = new Map();
+        this.skeletonToJoint = new Map();
+        this.skeletons = [];
+    }
+
+    async setUpDeferred() {
+        const deferredCode = await fetch(new URL('Deferred.wgsl', import.meta.url)).then(response => response.text());
+        const deferredModule = this.device.createShaderModule({ code: deferredCode });
+        this.deferredPipeline = await this.device.createRenderPipelineAsync({
+            label: 'deferred',
             layout: 'auto',
             vertex: {
-                module,
+                module: deferredModule,
                 buffers: [ vertexBufferLayout, instanceBufferLayout ],
             },
             fragment: {
-                module,
-                targets: [{ format: this.format }],
+                module: deferredModule,
+                targets: [{ format: 'bgra8unorm', }, { format: 'rgba16float', }, { format: 'rgba16float', }],
             },
             depthStencil: {
                 format: 'depth24plus',
@@ -141,6 +158,31 @@ export class UnlitRenderer extends BaseRenderer {
             },
         });
 
+        const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
+        const lightingModule = this.device.createShaderModule({ code: lightingCode });
+        this.lightingPipeline = await this.device.createRenderPipelineAsync({
+            label: 'lighting',
+            layout: 'auto',
+            vertex: {
+                module: lightingModule,
+            },
+            fragment: {
+                module: lightingModule,
+                targets: [{ format: this.format }],
+            },
+        });
+
+        this.dummySkeletonBuffer = WebGPU.createBuffer(this.device, {
+            data: new mat4(),
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        this.dummySkeletonBindGroup = this.device.createBindGroup({
+            layout: this.deferredPipeline.getBindGroupLayout(1),
+            entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
+        });
+    }
+
+    async setUpSkybox() {
         const skyboxCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
         const skyboxModule = this.device.createShaderModule({ code: skyboxCode });
         this.skyboxPipeline = await this.device.createRenderPipelineAsync({
@@ -150,7 +192,7 @@ export class UnlitRenderer extends BaseRenderer {
             depthStencil: {
                 format: 'depth24plus',
                 depthWriteEnabled: false,
-                depthCompare: 'less',
+                depthCompare: 'less-equal',
             },
         });
         const imageLoader = new ImageLoader();
@@ -191,41 +233,46 @@ export class UnlitRenderer extends BaseRenderer {
                 { binding: 1, resource: this.environmentSampler },
             ],
         });
-
-        this.skyboxBindGroup2 = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(3),
-            entries: [
-                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
-                { binding: 1, resource: this.environmentSampler },
-            ],
-        });
-
-        this.recreateDepthTexture();
-
-        this.materialBuffer = new Float32Array(6);
-        this.cameraBuffer = new Float32Array(36);
-        this.maxJoints = null;
-        this.jointsBuffer = null;
-        this.models = new Map();
-        this.skeletonToJoint = new Map();
-        this.skeletons = [];
-
-        this.dummySkeletonBuffer = WebGPU.createBuffer(this.device, {
-            data: new mat4(),
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        this.dummySkeletonBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(1),
-            entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
-        });
     }
 
-    recreateDepthTexture() {
-        this.depthTexture?.destroy();
-        this.depthTexture = this.device.createTexture({
+    recreateRenderTargets() {
+        this.defferedDepthTexture?.destroy();
+        this.defferedDepthTexture = this.device.createTexture({
             format: 'depth24plus',
             size: [this.canvas.width, this.canvas.height],
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.deferredAlbedoTexture = this.device.createTexture({
+            format: 'bgra8unorm',
+            size: [this.canvas.width, this.canvas.height],
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.deferredPositionTexture = this.device.createTexture({
+            format: 'rgba16float',
+            size: [this.canvas.width, this.canvas.height],
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.deferredNormalTexture = this.device.createTexture({
+            format: 'rgba16float',
+            size: [this.canvas.width, this.canvas.height],
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.deferredTargetsBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(1),
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.deferredAlbedoTexture.createView(),
+                },
+                {
+                    binding: 1,
+                    resource: this.deferredPositionTexture.createView(),
+                },
+                {
+                    binding: 2,
+                    resource: this.deferredNormalTexture.createView(),
+                },
+            ],
         });
     }
 
@@ -239,21 +286,28 @@ export class UnlitRenderer extends BaseRenderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        const cameraBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(0),
+        const deferredCameraBindGroup = this.device.createBindGroup({
+            layout: this.deferredPipeline.getBindGroupLayout(0),
             entries: [
                 { binding: 0, resource: cameraUniformBuffer },
             ],
         });
 
-        const cameraSkyboxBindGroup = this.device.createBindGroup({
+        const lightingCameraBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const skyboxCameraBindgroup = this.device.createBindGroup({
             layout: this.skyboxPipeline.getBindGroupLayout(0),
             entries: [
                 { binding: 0, resource: cameraUniformBuffer },
             ],
         });
 
-        const gpuObjects = { cameraUniformBuffer, cameraBindGroup, cameraSkyboxBindGroup };
+        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup };
         this.gpuObjects.set(camera, gpuObjects);
         return gpuObjects;
     }
@@ -285,7 +339,7 @@ export class UnlitRenderer extends BaseRenderer {
         });
 
         const materialBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(2),
+            layout: this.deferredPipeline.getBindGroupLayout(2),
             entries: [
                 { binding: 0, resource: albedoTexture.gpuTexture },
                 { binding: 1, resource: albedoTexture.gpuSampler },
@@ -299,44 +353,106 @@ export class UnlitRenderer extends BaseRenderer {
     }
 
     render(entities, camera) {
-        if (this.depthTexture.width !== this.canvas.width || this.depthTexture.height !== this.canvas.height) {
-            this.recreateDepthTexture();
+        if (this.defferedDepthTexture.width !== this.canvas.width || this.defferedDepthTexture.height !== this.canvas.height) {
+            this.recreateRenderTargets();
         }
-
-        const encoder = this.device.createCommandEncoder();
-        this.renderPass = encoder.beginRenderPass({
-            colorAttachments: [
-                {
-                    view: this.context.getCurrentTexture(),
-                    clearValue: [251.0 / 255.0, 239.0 / 255.0, 239.0 / 255, 1],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-            ],
-            depthStencilAttachment: {
-                view: this.depthTexture,
-                depthClearValue: 1,
-                depthLoadOp: 'clear',
-                depthStoreOp: 'discard',
-            },
-        });
         
         const cameraComponent = camera.getComponentOfType(Camera);
-        const { cameraUniformBuffer, cameraBindGroup, cameraSkyboxBindGroup } = this.prepareCamera(cameraComponent);
+        const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup } = this.prepareCamera(cameraComponent);
         this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
         this.cameraBuffer.set(getProjectionMatrix(camera), 16);
         this.cameraBuffer.set(camera.getComponentOfType(Transform).translation, 32);
         this.device.queue.writeBuffer(cameraUniformBuffer, 0, this.cameraBuffer.buffer);
 
-        this.renderPass.setPipeline(this.skyboxPipeline);
-        this.renderPass.setBindGroup(0, cameraSkyboxBindGroup);
-        this.renderPass.setBindGroup(1, this.skyboxBindGroup);
-        this.renderPass.draw(36);
+        const target = this.context.getCurrentTexture().createView();
+        const encoder = this.device.createCommandEncoder();
 
-        this.renderPass.setPipeline(this.pipeline);
-        this.renderPass.setBindGroup(0, cameraBindGroup);
-        this.renderPass.setBindGroup(3, this.skyboxBindGroup2);
+        { // deferred
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: this.deferredAlbedoTexture.createView(),
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                    {
+                        view: this.deferredPositionTexture.createView(),
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                    {
+                        view: this.deferredNormalTexture.createView(),
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+                depthStencilAttachment: {
+                    view: this.defferedDepthTexture.createView(),
+                    depthClearValue: 1,
+                    depthLoadOp: 'clear',
+                    depthStoreOp: 'store',
+                },
+            });
 
+            renderPass.setPipeline(this.deferredPipeline);
+            renderPass.setBindGroup(0, deferredCameraBindGroup);
+
+            this.renderEntities(entities, renderPass);
+
+            renderPass.end();
+        }
+            
+        { // lighting
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: target,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
+
+            renderPass.setPipeline(this.lightingPipeline);
+            renderPass.setBindGroup(0, lightingCameraBindGroup);
+            renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
+            renderPass.draw(6);
+
+            renderPass.end();
+        }
+            
+        { // skybox
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: target,
+                        loadOp: 'load',
+                        storeOp: 'store',
+                    },
+                ],
+                depthStencilAttachment: {
+                    view: this.defferedDepthTexture.createView(),
+                    depthLoadOp: 'load',
+                    depthStoreOp: 'discard',
+                },
+            });
+
+            renderPass.setPipeline(this.skyboxPipeline);
+            renderPass.setBindGroup(0, skyboxCameraBindgroup);
+            renderPass.setBindGroup(1, this.skyboxBindGroup);
+            renderPass.draw(36);
+
+            renderPass.end();
+        }
+
+        this.device.queue.submit([encoder.finish()]);
+    }
+    
+    renderEntities(entities, renderPass) {
         this.models.clear();
         this.skeletons.length = 0;
         this.skeletonToJoint.clear();
@@ -380,7 +496,7 @@ export class UnlitRenderer extends BaseRenderer {
                 });
 
                 this.skeletonBindGroup = this.device.createBindGroup({
-                    layout: this.pipeline.getBindGroupLayout(1),
+                    layout: this.deferredPipeline.getBindGroupLayout(1),
                     entries: [ { binding: 0, resource: this.skeletonBuffer } ],
                 });
             }
@@ -434,21 +550,18 @@ export class UnlitRenderer extends BaseRenderer {
 
         for (const [model, data] of this.models.entries())
         {
-            this.renderModel(model, data.instanceOffset, data.arr.length);
+            this.renderModel(model, data.instanceOffset, data.arr.length, renderPass);
         }
-
-        this.renderPass.end();
-        this.device.queue.submit([encoder.finish()]);
     }
-    
-    renderModel(model, instanceOffset, nInstances) {
+
+    renderModel(model, instanceOffset, nInstances, renderPass) {
         for (const primitive of model.primitives) {
-            this.renderPrimitive(primitive, instanceOffset, nInstances);
+            this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass);
         }
     }
 
-    renderPrimitive(primitive, instanceOffset, nInstances) {
-        this.renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
+    renderPrimitive(primitive, instanceOffset, nInstances, renderPass) {
+        renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
         const material = primitive.material ?? this.dummyMaterial;
         const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
         this.materialBuffer.set(material.albedoFactor, 0);
@@ -456,13 +569,13 @@ export class UnlitRenderer extends BaseRenderer {
         this.materialBuffer[4] = material.roughnessFactor;
         this.materialBuffer[5] = material.aoFactor;
         this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
-        this.renderPass.setBindGroup(2, materialBindGroup);
+        renderPass.setBindGroup(2, materialBindGroup);
 
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
-        this.renderPass.setVertexBuffer(0, vertexBuffer);
-        this.renderPass.setVertexBuffer(1, this.instanceBuffer);
-        this.renderPass.setIndexBuffer(indexBuffer, 'uint32');
+        renderPass.setVertexBuffer(0, vertexBuffer);
+        renderPass.setVertexBuffer(1, this.instanceBuffer);
+        renderPass.setIndexBuffer(indexBuffer, 'uint32');
 
-        this.renderPass.drawIndexed(primitive.mesh.indices.length, nInstances, 0, 0, instanceOffset);
+        renderPass.drawIndexed(primitive.mesh.indices.length, nInstances, 0, 0, instanceOffset);
     }
 }

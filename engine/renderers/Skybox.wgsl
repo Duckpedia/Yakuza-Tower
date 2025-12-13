@@ -78,8 +78,17 @@ const CUBE_POSITIONS : array<vec3f, 36> = array<vec3f, 36>(
 fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
     let position = CUBE_POSITIONS[v_index];
 
+    let cameraRot = mat4x4f(
+        vec4f(camera.viewMatrix[0].xyz, 0.0),
+        vec4f(camera.viewMatrix[1].xyz, 0.0),
+        vec4f(camera.viewMatrix[2].xyz, 0.0),
+        vec4f(0.0, 0.0, 0.0, 1.0),
+    );
+
+    let clip = camera.projectionMatrix * cameraRot * vec4f(position, 1.0);
+
     var output: VertexOutput;
-    output.position = camera.projectionMatrix * camera.viewMatrix * vec4(position * 10, 0) + vec4(0,0,0,1);
+    output.position = vec4f(clip.x, clip.y, clip.w, clip.w);
     output.texcoords = position;
     return output;
 }
