@@ -1,4 +1,5 @@
 import { mat4, vec3 } from 'glm';
+import { quat } from 'glm';
 import * as glm from 'glm';
 
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
@@ -39,6 +40,7 @@ const resources = await loadResources({
 const canvas = document.querySelector('canvas');
 const renderer = new UnlitRenderer(canvas);
 await renderer.initialize(resources.white_image);
+
 
 const player = new Entity();
 player.addComponent(new Transform({
@@ -115,6 +117,34 @@ scene.push(...guy2_katana_scene);
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }
+
+const player_guy_scene = resources.guy_model.loadScene();
+const player_guy = resources.katana_model.buildEntityFromScene(player_guy_scene);
+player_guy.addComponent(new EnemyComponent(player_guy, player));
+const player_guy_transform = player_guy.getComponentOfType(Transform);
+player_guy_transform.translation = [0, -1, -1];
+player_guy_transform.rotation = [0, 0, 0, 0];
+quat.setAxisAngle(
+  player_guy_transform.rotation,
+  [0, 1, 0],   // Y axis
+  Math.PI     // 180°
+);
+player_guy.parent = player.parent;
+scene.push(...player_guy_scene);
+
+
+
+
+
+
+// const player_katana_scene = resources.katana_model.loadScene();
+// const player_katana = resources.katana_model.buildEntityFromScene(player_katana_scene);
+// player_katana.addComponent(new EnemyComponent(player_katana, player));
+// const player_katana_transform = player_katana.getComponentOfType(Transform);
+// player_katana_transform.scale = [16, 16, 16];
+// player_katana.parent = player_guy;
+// scene.push(...player_katana_scene);
+
 
 // stackoverflow
 function hsv2rgb(h,s,v) 
