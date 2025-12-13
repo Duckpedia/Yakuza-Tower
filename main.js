@@ -21,6 +21,10 @@ import { loadResources } from 'engine/loaders/resources.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { LightComponent } from './src/components/LightComponent.js';
 
+
+// time scale for slow down
+window.worldTimeScale = 1; 
+
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
@@ -142,14 +146,18 @@ function updateWorldMatricesRecursive(entity, parentMatrix)
 }
 
 function update(t, dt) {
-    // full update
+    const scaledDt = dt * worldTimeScale;
+
     for (const entity of scene) {
         for (const component of entity.components) {
-            component.update?.(t, dt);
+            if (component instanceof PlayerComponent) {
+                component.update?.(t, dt);    
+            } else {
+                component.update?.(t, scaledDt); 
+            }
         }
     }
 
-    // figure out the final world matrices down the node tree
     for (const entity of scene)
         if (!entity.parent)
             updateWorldMatricesRecursive(entity, new mat4());

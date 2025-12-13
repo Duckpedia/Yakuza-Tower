@@ -12,11 +12,18 @@ export class PlayerComponent {
         maxSpeed = 5,
         decay = 0.99999,
         pointerSensitivity = 0.002,
+        isCrouching = false,
+        groundY = 1.5,
+        isGrounded = true
+
     } = {}) {
         this.entity = entity;
         this.domElement = domElement;
 
         this.keys = {};
+        this.isCrouching = isCrouching
+        this.isGrounded = isGrounded
+        this.groundY = groundY
 
         this.pitch = pitch;
         this.yaw = yaw;
@@ -26,8 +33,13 @@ export class PlayerComponent {
         this.maxSpeed = maxSpeed;
         this.decay = decay;
         this.pointerSensitivity = pointerSensitivity;
+        this.playerTimeScale = 1.0
 
         this.initHandlers();
+    }
+
+    lerp(a, b, t) {
+        return a + (b - a) * t;
     }
 
     initHandlers() {
@@ -52,11 +64,15 @@ export class PlayerComponent {
     }
 
     update(t, dt) {
+
+        const effectiveDt = dt * this.playerTimeScale;
+        
         // Calculate forward and right vectors.
         const cos = Math.cos(this.yaw);
         const sin = Math.sin(this.yaw);
         const forward = [-sin, 0, -cos];
         const right = [cos, 0, -sin];
+        const up = [0, 1, 0];
 
         // Map user input to the acceleration vector.
         const acc = vec3.create();
@@ -72,9 +88,16 @@ export class PlayerComponent {
         if (this.keys['KeyA']) {
             vec3.sub(acc, acc, right);
         }
+        if (this.keys['Space'] && this.isGrounded) {
+            this.velocity[1] = 5;
+            this.isGrounded = false;
+        }
+
+        const gravity = 22;
+        this.velocity[1] -= gravity * effectiveDt;
 
         // Update velocity based on acceleration.
-        vec3.scaleAndAdd(this.velocity, this.velocity, acc, dt * this.acceleration);
+        vec3.scaleAndAdd(this.velocity, this.velocity, acc, effectiveDt * this.acceleration);
 
         // If there is no user input, apply decay.
         if (!this.keys['KeyW'] &&
@@ -82,27 +105,40 @@ export class PlayerComponent {
             !this.keys['KeyD'] &&
             !this.keys['KeyA'])
         {
-            const decay = Math.exp(dt * Math.log(1 - this.decay));
+            const decay = Math.exp(effectiveDt * Math.log(1 - this.decay));
             vec3.scale(this.velocity, this.velocity, decay);
         }
 
-        // Limit speed to prevent accelerating to infinity and beyond.
-        const speed = vec3.length(this.velocity);
+        const speed = Math.sqrt(this.velocity[0]**2 + this.velocity[2]**2);
         if (speed > this.maxSpeed) {
-            vec3.scale(this.velocity, this.velocity, this.maxSpeed / speed);
+            const scale = this.maxSpeed / speed;
+            this.velocity[0] *= scale;
+            this.velocity[2] *= scale;
         }
 
         const transform = this.entity.getComponentOfType(Transform);
         if (transform) {
             // Update translation based on velocity.
             vec3.scaleAndAdd(transform.translation,
-                transform.translation, this.velocity, dt);
+                transform.translation, this.velocity, effectiveDt);
+
+            if (transform.translation[1] <= this.groundY) {
+                transform.translation[1] = this.groundY
+                this.velocity[1] = 0
+                this.isGrounded = true
+            }        
 
             // Update rotation based on the Euler angles.
             const rotation = quat.create();
             quat.rotateY(rotation, rotation, this.yaw);
             quat.rotateX(rotation, rotation, this.pitch);
             transform.rotation = rotation;
+
+            
+           if (this.isCrouching && this.isGrounded) {
+                transform.translation[1] = 0.8;  
+            } 
+
         }
     }
 
@@ -120,12 +156,35 @@ export class PlayerComponent {
         this.yaw = ((this.yaw % twopi) + twopi) % twopi;
     }
 
+
+    // not ctrl for crouch cuz that deletes tab D:
+
     keydownHandler(e) {
         this.keys[e.code] = true;
+
+        if (e.code === 'KeyF') {
+            this.playerTimeScale = 0.5; // slower player
+            window.worldTimeScale = 0.2; // slower enemies/world
+        }   
+
+        if (e.code === 'KeyC') {
+            this.isCrouching = true;
+        }
+        
+        
     }
 
     keyupHandler(e) {
         this.keys[e.code] = false;
+
+        if (e.code === 'KeyF') {
+            this.playerTimeScale = 1; // normal speed
+            window.worldTimeScale = 1;  // normal speed
+        }
+
+        if (e.code === 'KeyC') {
+            this.isCrouching = false;
+        }
     }
 
 }
