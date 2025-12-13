@@ -348,7 +348,6 @@ export class UnlitRenderer extends BaseRenderer {
             if (!transform) continue;
             const model = entity.getComponentOfType(Model);
             if (!model) continue;
-
             let data = this.models.get(model);
             if (!data) {
                 data = { arr: [], instanceOffset: 0 };
