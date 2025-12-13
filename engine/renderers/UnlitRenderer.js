@@ -162,6 +162,10 @@ export class UnlitRenderer extends BaseRenderer {
                 depthWriteEnabled: true,
                 depthCompare: 'less',
             },
+            primitive: {
+                frontFace: 'ccw',
+                cullMode: 'back'
+            }
         });
 
         const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
