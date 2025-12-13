@@ -31,6 +31,11 @@ export class Entity {
             this.children.map(c => c.findChildByName(name)).find(x => x);
     }
 
+    onCollision(other)
+    {
+        this.components.forEach(c => c.onCollision?.(this, other));
+    }
+
     get parent() {
        return this._parent; 
     }
