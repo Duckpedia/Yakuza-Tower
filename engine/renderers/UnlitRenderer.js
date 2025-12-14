@@ -1,4 +1,4 @@
-import { mat4 } from 'glm';
+import { mat4, vec2 } from 'glm';
 
 import * as WebGPU from '../WebGPU.js';
 
@@ -112,7 +112,30 @@ const instanceBufferLayout = {
     ],
 };
 
+
+
+const uiInstanceBufferLayout = {
+    arrayStride: 32,
+    stepMode: 'instance',
+    attributes: [
+        {
+            name: 'position',
+            shaderLocation: 0,
+            offset: 0,
+            format: 'float32x4',
+        },
+        {
+            name: 'scale',
+            shaderLocation: 1,
+            offset: 16,
+            format: 'float32x4',
+        },
+    ],
+};
+
 export class UnlitRenderer extends BaseRenderer {
+
+    static randomRectangle = {position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5)};
 
     constructor(canvas) {
         super(canvas);
@@ -124,8 +147,32 @@ export class UnlitRenderer extends BaseRenderer {
         await this.setUpDefaults();
         await this.setUpSkybox();
         await this.setUpDeferred();
+        await this.setUpUI();
 
         this.recreateRenderTargets();
+    }
+
+    async setUpUI()
+    {
+        const code = await fetch(new URL('UI.wgsl', import.meta.url)).then(response => response.text());
+        const module = this.device.createShaderModule({ code: code });
+        this.uiPipeline = await this.device.createRenderPipelineAsync({
+            label: 'ui',
+            layout: 'auto',
+            vertex: {
+                module,
+                buffers: [ uiInstanceBufferLayout ],
+            },
+            fragment: {
+                module,
+                targets: [{ format: this.format }],
+            }
+        });
+
+        this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
+            data: new Float32Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
     }
 
     async setUpDefaults() {
@@ -135,10 +182,16 @@ export class UnlitRenderer extends BaseRenderer {
         this.skeletonToJoint = new Map();
         this.maxJoints = 0;
         this.maxInstances = 0;
+        this.maxUIInstances = 0;
         this.maxLights = 0;
+        this.jointsBufferArray = null;
+        this.lightsBufferArray = null;
+        this.instancesBufferArray = null;
+        this.uiInstancesBufferArray = null;
         this.jointsBuffer = null;
         this.lightsBuffer = null;
         this.instancesBuffer = null;
+        this.uiInstancesBuffer = null;
         this.skeletons = [];
         this.lights = [];
     }
@@ -190,7 +243,6 @@ export class UnlitRenderer extends BaseRenderer {
             layout: this.deferredPipeline.getBindGroupLayout(1),
             entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
         });
-
         
         this.lightsBuffer = WebGPU.createBuffer(this.device, {
             data: new Float32Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
@@ -471,6 +523,40 @@ export class UnlitRenderer extends BaseRenderer {
             renderPass.end();
         }
 
+        { // ui
+            // collect instances (only the randomRectForNow)
+            let nUIInstances = 1;
+            if (this.maxUIInstances < nUIInstances)
+            {
+                this.maxUIInstances = nUIInstances;
+                this.uiInstancesBufferArray = new Float32Array(nUIInstances * 8);
+                this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
+                    size: nUIInstances * 8 * 4,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+            }
+
+            this.uiInstancesBufferArray.set(UnlitRenderer.randomRectangle.position, 0);
+            this.uiInstancesBufferArray.set(UnlitRenderer.randomRectangle.scale, 4);
+            this.device.queue.writeBuffer(this.uiInstancesBuffer, 0, this.uiInstancesBufferArray);
+
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: target,
+                        loadOp: 'load',
+                        storeOp: 'store',
+                    },
+                ]
+            });
+
+            renderPass.setPipeline(this.uiPipeline);
+            renderPass.setVertexBuffer(0, this.uiInstancesBuffer);
+            renderPass.draw(6, 1);
+
+            renderPass.end();
+        }
+
         this.device.queue.submit([encoder.finish()]);
     }
     
@@ -517,7 +603,7 @@ export class UnlitRenderer extends BaseRenderer {
             if (this.maxLights < this.lights.length)
             {
                 this.maxLights = this.lights.length;
-                this.lightBufferArray = new Float32Array(this.lights.length * 8);
+                this.lightsBufferArray = new Float32Array(this.lights.length * 8);
                 this.lightBuffer = WebGPU.createBuffer(this.device, {
                     size: this.lights.length * 32,
                     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -530,10 +616,10 @@ export class UnlitRenderer extends BaseRenderer {
             }
             for (let i = 0; i < this.lights.length; i++)
             {
-                this.lightBufferArray.set(this.lights[i].position, i * 8);
-                this.lightBufferArray.set(this.lights[i].light.emission, i * 8 + 4);
+                this.lightsBufferArray.set(this.lights[i].position, i * 8);
+                this.lightsBufferArray.set(this.lights[i].light.emission, i * 8 + 4);
             }
-            this.device.queue.writeBuffer(this.lightBuffer, 0, this.lightBufferArray);
+            this.device.queue.writeBuffer(this.lightBuffer, 0, this.lightsBufferArray);
         }
 
         if (this.skeletons.length > 0)
@@ -541,7 +627,7 @@ export class UnlitRenderer extends BaseRenderer {
             if (this.maxJoints < nJoints)
             {
                 this.maxJoints = nJoints;
-                this.jointsBuffer = new Float32Array(nJoints * 16);
+                this.jointsBufferArray = new Float32Array(nJoints * 16);
 
                 this.skeletonBuffer = WebGPU.createBuffer(this.device, {
                     size: nJoints * 64,
@@ -561,11 +647,11 @@ export class UnlitRenderer extends BaseRenderer {
                 for (let i = 0; i < skeleton.joints.length; i++)
                 {
                     mat4.mul(joint_mat, skeleton.joints[i].getComponentOfType(Transform).final, skeleton.inverseBindMatrices[i]);
-                    this.jointsBuffer.set(joint_mat, (jointI + i) * 16);
+                    this.jointsBufferArray.set(joint_mat, (jointI + i) * 16);
                 }
             }
 
-            this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBuffer);
+            this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBufferArray);
         }
     
         const strideFloats = 32;
@@ -573,11 +659,11 @@ export class UnlitRenderer extends BaseRenderer {
         if (this.maxInstances < nInstances)
         {
             this.maxInstances = nInstances;
-            this.instanceBufferArray = new ArrayBuffer(nInstances * stride);
-            this.floatView = new Float32Array(this.instanceBufferArray);
-            this.uintView  = new Int32Array(this.instanceBufferArray);
+            this.instancesBufferArray = new ArrayBuffer(nInstances * stride);
+            this.floatView = new Float32Array(this.instancesBufferArray);
+            this.uintView  = new Int32Array(this.instancesBufferArray);
             this.instanceBuffer = WebGPU.createBuffer(this.device, {
-                data: this.instanceBufferArray,
+                data: this.instancesBufferArray,
                 usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
             });
         }
@@ -599,7 +685,7 @@ export class UnlitRenderer extends BaseRenderer {
                 this.uintView[index + strideFloats] = skeleton ? (this.skeletonToJoint.get(skeleton) ?? -1) : -1;
             }
         }
-        this.device.queue.writeBuffer(this.instanceBuffer, 0, this.instanceBufferArray);
+        this.device.queue.writeBuffer(this.instanceBuffer, 0, this.instancesBufferArray);
 
         for (const [model, data] of this.models.entries())
         {

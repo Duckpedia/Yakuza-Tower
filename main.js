@@ -1,4 +1,4 @@
-import { mat4, vec3 } from 'glm';
+import { mat4, vec3, vec4 } from 'glm';
 import { quat } from 'glm';
 import * as glm from 'glm';
 
@@ -25,9 +25,6 @@ import { LightComponent } from './src/components/LightComponent.js';
 
 // time scale for slow down
 window.worldTimeScale = 1; 
-
-
-//test
 
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
@@ -153,15 +150,22 @@ function hsv2rgb(h,s,v)
   return [f(5),f(3),f(1)];       
 }  
 
+const rotationMat = new glm.mat4();
+glm.mat4.fromYRotation(rotationMat, .016);
+
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
 const radsToDegrees = rad => (rad * 180.0) / Math.PI;
 for (let i = 0; i < 360; i+=5)
 {
     const light = new Entity();
-    let translation = new vec3(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)));
-    vec3.scale(translation, translation, Math.random() * 5 + 2);
-    light.addComponent(new Transform({ translation }));
+    let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
+    vec3.scale(translation, translation, Math.random() * 9 + 1);
+    light.transform = new Transform({ translation });
+    light.addComponent(light.transform);
     light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
+    light.addComponent({update(t, dt) {
+        glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat);
+    }});
     scene.push(light);
 }
 

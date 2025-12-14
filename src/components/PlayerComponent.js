@@ -1,6 +1,7 @@
 import { quat, vec3, mat4 } from 'glm';
 
 import { Transform } from 'engine/core/Transform.js';
+import { UnlitRenderer } from '../../engine/renderers/UnlitRenderer.js';
 
 export class PlayerComponent {
 
@@ -61,9 +62,15 @@ export class PlayerComponent {
                 doc.removeEventListener('pointermove', this.pointermoveHandler);
             }
         });
+
+        UnlitRenderer.randomRectangle.position[0] = 0.05;
+        UnlitRenderer.randomRectangle.position[1] = 0.1;
+        UnlitRenderer.randomRectangle.scale[0] = 0;
+        UnlitRenderer.randomRectangle.scale[1] = 0.025;
     }
 
     update(t, dt) {
+        UnlitRenderer.randomRectangle.scale[0] += dt * 0.025;
 
         const effectiveDt = dt * this.playerTimeScale;
         
