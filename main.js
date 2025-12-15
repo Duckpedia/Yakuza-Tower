@@ -32,7 +32,8 @@ const resources = await loadResources({
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
-    'katana_model': new URL('./models/katana/katana.gltf', import.meta.url)
+    'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
+    'pistol_model': new URL('./models/pistol/pistol.gltf', import.meta.url)
 });
 
 
@@ -106,12 +107,13 @@ scene.push(...guy2_katana_scene);
     const littleguy_transform = littleguy.getComponentOfType(Transform);
     littleguy_transform.scale = [16, 16, 16];
 
-    const littleguy2_scene = resources.katana_model.loadScene();
-    const littleguy2 = resources.katana_model.buildEntityFromScene(littleguy2_scene);
+    const littleguy2_scene = resources.pistol_model.loadScene();
+    const littleguy2 = resources.pistol_model.buildEntityFromScene(littleguy2_scene);
     littleguy2.addComponent(new EnemyComponent(littleguy2, player));
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
-    littleguy2_transform.scale = [16, 16, 16];
+    littleguy2_transform.scale = [20, 20, 20];
 
+    
     littleguy2.parent = guy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
     scene.push(...littleguy_scene);
