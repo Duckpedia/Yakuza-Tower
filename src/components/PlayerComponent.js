@@ -15,7 +15,8 @@ export class PlayerComponent {
         pointerSensitivity = 0.002,
         isCrouching = false,
         groundY = 1.5,
-        isGrounded = true
+        isGrounded = true,
+        isSlowTime = false
 
     } = {}) {
         this.entity = entity;
@@ -35,6 +36,7 @@ export class PlayerComponent {
         this.decay = decay;
         this.pointerSensitivity = pointerSensitivity;
         this.playerTimeScale = 1.0
+        this.isSlowTime = this.isSlowTime
 
         this.initHandlers();
     }
@@ -63,14 +65,27 @@ export class PlayerComponent {
             }
         });
 
-        UnlitRenderer.randomRectangle.position[0] = 0.05;
+        UnlitRenderer.randomRectangle.position[0] = 0.33;
         UnlitRenderer.randomRectangle.position[1] = 0.1;
-        UnlitRenderer.randomRectangle.scale[0] = 0;
+        UnlitRenderer.randomRectangle.scale[0] = 0.4;
         UnlitRenderer.randomRectangle.scale[1] = 0.025;
     }
 
-    update(t, dt) {
-        UnlitRenderer.randomRectangle.scale[0] += dt * 0.025;
+    update(t, dt) { 
+
+        if (this.isSlowTime) {
+            if (UnlitRenderer.randomRectangle.scale[0] > 0) {
+                UnlitRenderer.randomRectangle.scale[0] -= dt * 0.05;
+            } else {
+                this.playerTimeScale = 1;
+                window.worldTimeScale = 1;
+                this.isSlowTime = false;
+                UnlitRenderer.randomRectangle.scale[0] = 0;
+            }
+        } else {
+            UnlitRenderer.randomRectangle.scale[0] += dt * 0.025;
+            UnlitRenderer.randomRectangle.scale[0] = Math.min(UnlitRenderer.randomRectangle.scale[0], 0.4);
+        }
 
         const effectiveDt = dt * this.playerTimeScale;
         
@@ -172,15 +187,18 @@ export class PlayerComponent {
     keydownHandler(e) {
         this.keys[e.code] = true;
 
-        if (e.code === 'KeyF') {
+        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0.015) {
             this.playerTimeScale = 0.5; // slower player
             window.worldTimeScale = 0.2; // slower enemies/world
+            this.isSlowTime = true
+            if (UnlitRenderer.randomRectangle.scale[0] >= 0.4){
+                UnlitRenderer.randomRectangle.scale[0] -= 0.020
+            }
         }   
 
         if (e.code === 'KeyC') {
             this.isCrouching = true;
         }
-        
         
     }
 
@@ -190,6 +208,7 @@ export class PlayerComponent {
         if (e.code === 'KeyF') {
             this.playerTimeScale = 1; // normal speed
             window.worldTimeScale = 1;  // normal speed
+            this.isSlowTime = false;
         }
 
         if (e.code === 'KeyC') {
