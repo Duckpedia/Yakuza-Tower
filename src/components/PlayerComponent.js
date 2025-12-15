@@ -36,7 +36,7 @@ export class PlayerComponent {
         this.decay = decay;
         this.pointerSensitivity = pointerSensitivity;
         this.playerTimeScale = 1.0
-        this.isSlowTime = this.isSlowTime
+        this.isSlowTime = isSlowTime
 
         this.initHandlers();
     }
@@ -187,13 +187,10 @@ export class PlayerComponent {
     keydownHandler(e) {
         this.keys[e.code] = true;
 
-        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0.015) {
+        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0) {
             this.playerTimeScale = 0.5; // slower player
             window.worldTimeScale = 0.2; // slower enemies/world
             this.isSlowTime = true
-            if (UnlitRenderer.randomRectangle.scale[0] >= 0.4){
-                UnlitRenderer.randomRectangle.scale[0] -= 0.020
-            }
         }   
 
         if (e.code === 'KeyC') {
@@ -209,6 +206,9 @@ export class PlayerComponent {
             this.playerTimeScale = 1; // normal speed
             window.worldTimeScale = 1;  // normal speed
             this.isSlowTime = false;
+            if(UnlitRenderer.randomRectangle.scale[0] > 0.020){ 
+                UnlitRenderer.randomRectangle.scale[0] -= 0.020
+            }
         }
 
         if (e.code === 'KeyC') {
