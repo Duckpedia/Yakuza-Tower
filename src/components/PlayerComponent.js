@@ -187,7 +187,7 @@ export class PlayerComponent {
     keydownHandler(e) {
         this.keys[e.code] = true;
 
-        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0) {
+        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0.020) {
             this.playerTimeScale = 0.5; // slower player
             window.worldTimeScale = 0.2; // slower enemies/world
             this.isSlowTime = true
