@@ -14,6 +14,10 @@ struct Light {
     emission: vec3f
 }
 
+struct Settings {
+    passIndex: u32
+}
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 
 @group(1) @binding(0) var gBufferAlbedo:   texture_2d<f32>;
@@ -21,6 +25,8 @@ struct Light {
 @group(1) @binding(2) var gBufferNormal:   texture_2d<f32>;
 
 @group(2) @binding(0) var<storage, read> lights: array<Light>;
+
+@group(3) @binding(0) var<uniform> settings: Settings;
 
 const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
     vec2f(-1.0, -1.0),
@@ -79,10 +85,9 @@ fn isnan(x: f32) -> bool {
   return x2 == highVal;
 }
 
-@fragment
-fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
+fn PBR(input: VertexOutput, loc: vec2i) -> vec3f
+{
     // PBR based on LearnOpenGl
-    let loc = vec2i(input.uv * vec2f(textureDimensions(gBufferAlbedo)));
     let albedoAndMetallic = textureLoad(gBufferAlbedo, loc, 0);
     let worldAndRoughness = textureLoad(gBufferPosWorld, loc, 0);
     let albedo = albedoAndMetallic.xyz;
@@ -126,7 +131,31 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let ambient = vec3(0.01) * albedo * ao;
     var color = ambient + l0;
+
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
+    return color;
+}
+
+@fragment
+fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
+    let loc = vec2i(input.uv * vec2f(textureDimensions(gBufferAlbedo)));
+    var color = PBR(input, loc);
+    if (settings.passIndex == 1) // albedo
+    {
+        color = textureLoad(gBufferAlbedo, loc, 0).rgb;
+    }
+    else if (settings.passIndex == 2) // metallic
+    {
+        color = textureLoad(gBufferAlbedo, loc, 0).www;
+    }
+    else if (settings.passIndex == 3) // normal
+    {
+        color = textureLoad(gBufferNormal, loc, 0).rgb;
+    }
+    else if (settings.passIndex == 4) // position
+    {
+        color = textureLoad(gBufferPosWorld, loc, 0).rgb;
+    }
     return vec4(color, 1.0);
 }

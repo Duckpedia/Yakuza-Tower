@@ -21,7 +21,8 @@ import {
 import { loadResources } from 'engine/loaders/resources.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { LightComponent } from './src/components/LightComponent.js';
-
+import { World } from './src/World.js';
+import { Inputs } from './src/Inputs.js';
 
 // time scale for slow down
 window.worldTimeScale = 1; 
@@ -34,10 +35,12 @@ const resources = await loadResources({
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url)
 });
 
+
 const canvas = document.querySelector('canvas');
 const renderer = new UnlitRenderer(canvas);
 await renderer.initialize(resources.white_image);
 
+const inputs = new Inputs(canvas);
 
 const player = new Entity();
 player.addComponent(new Transform({
@@ -180,8 +183,8 @@ function updateWorldMatricesRecursive(entity, parentMatrix)
 }
 
 function update(t, dt) {
-    const scaledDt = dt * worldTimeScale;
 
+    const scaledDt = dt * World.timeScale;
     for (const entity of scene) {
         for (const component of entity.components) {
             if (component instanceof PlayerComponent) {
@@ -195,10 +198,12 @@ function update(t, dt) {
     for (const entity of scene)
         if (!entity.parent)
             updateWorldMatricesRecursive(entity, new mat4());
+        
+    inputs.update();
 }
 
 function render() {
-    renderer.render(scene, player);
+    renderer.render(scene, player, World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {

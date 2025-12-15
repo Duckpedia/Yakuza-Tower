@@ -2,6 +2,8 @@ import { quat, vec3, mat4 } from 'glm';
 
 import { Transform } from 'engine/core/Transform.js';
 import { UnlitRenderer } from '../../engine/renderers/UnlitRenderer.js';
+import { World } from '../World.js';
+import { Inputs } from '../Inputs.js';
 
 export class PlayerComponent {
 
@@ -22,7 +24,6 @@ export class PlayerComponent {
         this.entity = entity;
         this.domElement = domElement;
 
-        this.keys = {};
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded
         this.groundY = groundY
@@ -38,47 +39,26 @@ export class PlayerComponent {
         this.playerTimeScale = 1.0
         this.isSlowTime = isSlowTime
 
-        this.initHandlers();
-    }
-
-    lerp(a, b, t) {
-        return a + (b - a) * t;
-    }
-
-    initHandlers() {
-        this.pointermoveHandler = this.pointermoveHandler.bind(this);
-        this.keydownHandler = this.keydownHandler.bind(this);
-        this.keyupHandler = this.keyupHandler.bind(this);
-
-        const element = this.domElement;
-        const doc = element.ownerDocument;
-
-        doc.addEventListener('keydown', this.keydownHandler);
-        doc.addEventListener('keyup', this.keyupHandler);
-
-        element.addEventListener('click', e => element.requestPointerLock());
-        doc.addEventListener('pointerlockchange', e => {
-            if (doc.pointerLockElement === element) {
-                doc.addEventListener('pointermove', this.pointermoveHandler);
-            } else {
-                doc.removeEventListener('pointermove', this.pointermoveHandler);
-            }
-        });
-
         UnlitRenderer.randomRectangle.position[0] = 0.33;
         UnlitRenderer.randomRectangle.position[1] = 0.1;
         UnlitRenderer.randomRectangle.scale[0] = 0.4;
         UnlitRenderer.randomRectangle.scale[1] = 0.025;
     }
 
+    lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
     update(t, dt) { 
+
+        this.updateInput();
 
         if (this.isSlowTime) {
             if (UnlitRenderer.randomRectangle.scale[0] > 0) {
                 UnlitRenderer.randomRectangle.scale[0] -= dt * 0.05;
             } else {
                 this.playerTimeScale = 1;
-                window.worldTimeScale = 1;
+                World.timeScale = 1;
                 this.isSlowTime = false;
                 UnlitRenderer.randomRectangle.scale[0] = 0;
             }
@@ -98,19 +78,19 @@ export class PlayerComponent {
 
         // Map user input to the acceleration vector.
         const acc = vec3.create();
-        if (this.keys['KeyW']) {
+        if (Inputs.isHeld('KeyW')) {
             vec3.add(acc, acc, forward);
         }
-        if (this.keys['KeyS']) {
+        if (Inputs.isHeld('KeyS')) {
             vec3.sub(acc, acc, forward);
         }
-        if (this.keys['KeyD']) {
+        if (Inputs.isHeld('KeyD')) {
             vec3.add(acc, acc, right);
         }
-        if (this.keys['KeyA']) {
+        if (Inputs.isHeld('KeyA')) {
             vec3.sub(acc, acc, right);
         }
-        if (this.keys['Space'] && this.isGrounded) {
+        if (Inputs.isHeld('Space') && this.isGrounded) {
             this.velocity[1] = 5;
             this.isGrounded = false;
         }
@@ -122,10 +102,10 @@ export class PlayerComponent {
         vec3.scaleAndAdd(this.velocity, this.velocity, acc, effectiveDt * this.acceleration);
 
         // If there is no user input, apply decay.
-        if (!this.keys['KeyW'] &&
-            !this.keys['KeyS'] &&
-            !this.keys['KeyD'] &&
-            !this.keys['KeyA'])
+        if (!Inputs.isHeld('KeyW') &&
+            !Inputs.isHeld('KeyS') &&
+            !Inputs.isHeld('KeyD') &&
+            !Inputs.isHeld('KeyA'))
         {
             const decay = Math.exp(effectiveDt * Math.log(1 - this.decay));
             const velxz = [...this.velocity];
@@ -167,9 +147,9 @@ export class PlayerComponent {
         }
     }
 
-    pointermoveHandler(e) {
-        const dx = e.movementX;
-        const dy = e.movementY;
+    updateInput()
+    {
+        const {dx, dy} = Inputs.mouseDelta();
 
         this.pitch -= dy * this.pointerSensitivity;
         this.yaw   -= dx * this.pointerSensitivity;
@@ -179,41 +159,25 @@ export class PlayerComponent {
 
         this.pitch = Math.min(Math.max(this.pitch, -halfpi), halfpi);
         this.yaw = ((this.yaw % twopi) + twopi) % twopi;
-    }
 
-
-    // not ctrl for crouch cuz that deletes tab D:
-
-    keydownHandler(e) {
-        this.keys[e.code] = true;
-
-        if (e.code === 'KeyF' && UnlitRenderer.randomRectangle.scale[0] > 0.020) {
-            this.playerTimeScale = 0.5; // slower player
-            window.worldTimeScale = 0.2; // slower enemies/world
-            this.isSlowTime = true
-        }   
-
-        if (e.code === 'KeyC') {
-            this.isCrouching = true;
-        }
-        
-    }
-
-    keyupHandler(e) {
-        this.keys[e.code] = false;
-
-        if (e.code === 'KeyF') {
-            this.playerTimeScale = 1; // normal speed
-            window.worldTimeScale = 1;  // normal speed
-            this.isSlowTime = false;
-            if(UnlitRenderer.randomRectangle.scale[0] > 0.020){ 
-                UnlitRenderer.randomRectangle.scale[0] -= 0.020
+        if (Inputs.isHeld('KeyF')) {
+            if (UnlitRenderer.randomRectangle.scale[0] > 0.020)
+            {
+                this.playerTimeScale = 0.5; // slower player
+                World.timeScale = 0.2; // slower enemies/world
+                this.isSlowTime = true
             }
         }
-
-        if (e.code === 'KeyC') {
-            this.isCrouching = false;
+        else {
+            this.playerTimeScale = 1; // normal speed
+            World.timeScale = 1;  // normal speed
+            this.isSlowTime = false;
         }
-    }
 
+        if (Inputs.isReleased('KeyF') && UnlitRenderer.randomRectangle.scale[0] > 0.020){ 
+            UnlitRenderer.randomRectangle.scale[0] -= 0.020
+        }
+
+        this.isCrouching = Inputs.isHeld('KeyC');
+    }
 }

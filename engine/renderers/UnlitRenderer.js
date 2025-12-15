@@ -112,7 +112,14 @@ const instanceBufferLayout = {
     ],
 };
 
-
+export class PoprSettings {
+    constructor()
+    {
+        this.pass = 0;
+        this.showUI = true;
+        this.showSkybox = true;
+    }
+}
 
 const uiInstanceBufferLayout = {
     arrayStride: 32,
@@ -188,12 +195,15 @@ export class UnlitRenderer extends BaseRenderer {
         this.lightsBufferArray = null;
         this.instancesBufferArray = null;
         this.uiInstancesBufferArray = null;
+        this.poprSettingsBufferArray = new Uint32Array(1);
         this.jointsBuffer = null;
         this.lightsBuffer = null;
         this.instancesBuffer = null;
         this.uiInstancesBuffer = null;
+        this.poprSettingsBuffer = null;
         this.skeletons = [];
         this.lights = [];
+        this.poprSettingsBindGroup = null;
     }
 
     async setUpDeferred() {
@@ -252,6 +262,16 @@ export class UnlitRenderer extends BaseRenderer {
         this.lightsBindGroup = this.device.createBindGroup({
             layout: this.lightingPipeline.getBindGroupLayout(2),
             entries: [ { binding: 0, resource: this.lightsBuffer } ],
+        });
+        
+        this.poprSettingsBuffer = WebGPU.createBuffer(this.device, {
+            data: this.poprSettingsBufferArray,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        this.poprSettingsBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(3),
+            entries: [ { binding: 0, resource: this.poprSettingsBuffer } ],
         });
     }
 
@@ -425,10 +445,13 @@ export class UnlitRenderer extends BaseRenderer {
         return gpuObjects;
     }
 
-    render(entities, camera) {
+    render(entities, camera, poprSettings) {
         if (this.defferedDepthTexture.width !== this.canvas.width || this.defferedDepthTexture.height !== this.canvas.height) {
             this.recreateRenderTargets();
         }
+
+        this.poprSettingsBufferArray.set(poprSettings.pass)
+        this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
         const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup } = this.prepareCamera(cameraComponent);
@@ -494,12 +517,14 @@ export class UnlitRenderer extends BaseRenderer {
             renderPass.setBindGroup(0, lightingCameraBindGroup);
             renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
             renderPass.setBindGroup(2, this.lightsBindGroup);
+            renderPass.setBindGroup(3, this.poprSettingsBindGroup);
             renderPass.draw(6);
 
             renderPass.end();
         }
             
-        { // skybox
+        if (poprSettings.showSkybox)
+        {
             const renderPass = encoder.beginRenderPass({
                 colorAttachments: [
                     {
@@ -523,7 +548,8 @@ export class UnlitRenderer extends BaseRenderer {
             renderPass.end();
         }
 
-        { // ui
+        if (poprSettings.showUI)
+        {
             // collect instances (only the randomRectForNow)
             let nUIInstances = 1;
             if (this.maxUIInstances < nUIInstances)
