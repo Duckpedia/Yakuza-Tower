@@ -84,9 +84,13 @@ export class EnemyComponent {
     faceDirection(dir) {
         if (glm.vec3.length(dir) < 0.001) return;
 
+        // mau je scam k nimas se animacij pa assetov ampak se znajdes pomoje
         const forward = glm.vec3.fromValues(0, 0, 1);
         const q = glm.quat.create();
 
+        // nared recimo da ce prides dost blizu da se zacne premikat ravno pod playerju pa playa neko animacijo
+        // lah probas mu tud dt weapon (macko alpaneki) v roko
+        // vsak entity ma funkcijo findChildByName in loh poisces "LeftHand" in parentas orozje po njega
         glm.quat.rotationTo(q, forward, dir);
         glm.quat.normalize(q, q);
 

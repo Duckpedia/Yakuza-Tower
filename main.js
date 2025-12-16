@@ -23,25 +23,61 @@ import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { LightComponent } from './src/components/LightComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
+import { Physics } from './src/Physics.js';
+
+import {
+    calculateAxisAlignedBoundingBox,
+    mergeAxisAlignedBoundingBoxes,
+} from 'engine/core/MeshUtils.js';
 
 // time scale for slow down
 window.worldTimeScale = 1; 
 
+//tukej se vsi resources dodajajo
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
-    'pistol_model': new URL('./models/pistol/pistol.gltf', import.meta.url)
+    'box_mesh' : new URL('./models/box/box.png', import.meta.url)
 });
 
+//box helper colider, da ne bo problemov z animated mesh
+function attachBoxCollider(parent, {
+  name = 'Collider',
+  offset = [0, 1.0, 0],
+  halfExtents = [0.35, 1.0, 0.35],
+  isStatic = true,
+} = {}) {
+  const c = new Entity();
+  c.name = name;
+
+  c.addComponent(new Transform({
+    translation: offset,
+  }));
+
+  c.customProperties = isStatic ? { isStatic: true } : { isDynamic: true };
+  c.aabbManual = true;
+  c.aabb = {
+    min: [-halfExtents[0], -halfExtents[1], -halfExtents[2]],
+    max: [ halfExtents[0],  halfExtents[1],  halfExtents[2]],
+  };
+
+  c.parent = parent;
+  parent.children ??= [];
+  parent.children.push(c);
+
+  return c;
+}
 
 const canvas = document.querySelector('canvas');
 const renderer = new UnlitRenderer(canvas);
 await renderer.initialize(resources.white_image);
 
 const inputs = new Inputs(canvas);
+
+//player creation
 
 const player = new Entity();
 player.addComponent(new Transform({
@@ -50,7 +86,17 @@ player.addComponent(new Transform({
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
 
+// to samo doda da dejansko dela aabb collision
+player.customProperties = { isDynamic: true };
+
+player.aabb = {
+  min: [-0.2, -0.2, -0.2],
+  max: [ 0.2,  0.2,  0.2],
+};
+
 const scene = [player];
+
+//floor creation
 
 const floor = new Entity();
 floor.addComponent(new Transform({
@@ -74,31 +120,38 @@ floor.addComponent(new Model({
         }),
     ],
 }));
+
+floor.customProperties = { isStatic: true };
+
 scene.push(floor);
 
+//box object creation
+
+const box = new Entity();
+box.addComponent(new Transform({ translation: [0, 0.5, 0] })); // collider position
+box.customProperties = { isStatic: true };
+box.aabb = { min: [-0.5,-0.5,-0.5], max: [0.5,0.5,0.5] };
+box.aabbManual = true;
+scene.push(box);
+
+
+scene.push(box);
 
 const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(3);
 guy.addComponent(new EnemyComponent(guy, player));
 const guy_transform = guy.getComponentOfType(Transform);
+//guy_transform.translation[0] += 10; 
 scene.push(...guy_scene);
 
-const guy2_scene = resources.guy_model.loadScene();
-const guy2 = resources.guy_model.buildEntityFromScene(guy2_scene);
-guy2.skeleton.playAnimationByIndex(4);
-guy2.addComponent(new EnemyComponent(guy2, player));
-const guy2_transform = guy2.getComponentOfType(Transform);
-guy2_transform.translation = [3, 0, 0];
-scene.push(...guy2_scene);
+const guyCollider = attachBoxCollider(guy, {
+  offset: [0, 1.0, 0],
+  halfExtents: [0.35, 0.9, 0.35],
+  isStatic: true,
+});
 
-const guy2_katana_scene = resources.katana_model.loadScene();
-const guy2_katana = resources.katana_model.buildEntityFromScene(guy2_katana_scene);
-guy2_katana.addComponent(new EnemyComponent(guy2_katana, player));
-const guy2_katana_transform = guy2_katana.getComponentOfType(Transform);
-guy2_katana_transform.scale = [16, 16, 16];
-guy2_katana.parent = guy2.findChildByName("mixamorig:RightHand");
-scene.push(...guy2_katana_scene);
+scene.push(guyCollider);
 
 {
     const littleguy_scene = resources.katana_model.loadScene();
@@ -119,24 +172,20 @@ scene.push(...guy2_katana_scene);
     scene.push(...littleguy2_scene);
 }
 
-const player_guy_scene = resources.guy_model.loadScene();
-const player_guy = resources.katana_model.buildEntityFromScene(player_guy_scene);
-player_guy.addComponent(new EnemyComponent(player_guy, player));
-const player_guy_transform = player_guy.getComponentOfType(Transform);
-player_guy_transform.translation = [0, -1, -1];
-player_guy_transform.rotation = [0, 0, 0, 0];
-quat.setAxisAngle(
-  player_guy_transform.rotation,
-  [0, 1, 0],   // Y axis
-  Math.PI     // 180°
-);
-player_guy.parent = player.parent;
-scene.push(...player_guy_scene);
-
-
-
-
-
+//bro we dont need himm!!!!
+// const player_guy_scene = resources.guy_model.loadScene();
+// const player_guy = resources.katana_model.buildEntityFromScene(player_guy_scene);
+// player_guy.addComponent(new EnemyComponent(player_guy, player));
+// const player_guy_transform = player_guy.getComponentOfType(Transform);
+// player_guy_transform.translation = [0, -1, -1];
+// player_guy_transform.rotation = [0, 0, 0, 0];
+// quat.setAxisAngle(
+//   player_guy_transform.rotation,
+//   [0, 1, 0],   // Y axis
+//   Math.PI     // 180°
+// );
+// player_guy.parent = player.parent;
+// scene.push(...player_guy_scene);
 
 // const player_katana_scene = resources.katana_model.loadScene();
 // const player_katana = resources.katana_model.buildEntityFromScene(player_katana_scene);
@@ -145,7 +194,6 @@ scene.push(...player_guy_scene);
 // player_katana_transform.scale = [16, 16, 16];
 // player_katana.parent = player_guy;
 // scene.push(...player_katana_scene);
-
 
 // stackoverflow
 function hsv2rgb(h,s,v) 
@@ -184,6 +232,18 @@ function updateWorldMatricesRecursive(entity, parentMatrix)
     }
 }
 
+const physics = new Physics(scene);
+for (const entity of scene) {
+  if (entity.aabbManual) continue;
+
+  const model = entity.getComponentOfType(Model);
+  if (!model) continue;
+
+  const boxes = model.primitives.map(p => calculateAxisAlignedBoundingBox(p.mesh));
+  entity.aabb = mergeAxisAlignedBoundingBoxes(boxes);
+}
+
+
 function update(t, dt) {
 
     const scaledDt = dt * World.timeScale;
@@ -202,6 +262,7 @@ function update(t, dt) {
             updateWorldMatricesRecursive(entity, new mat4());
         
     inputs.update();
+    physics.update(t, dt);
 }
 
 function render() {
