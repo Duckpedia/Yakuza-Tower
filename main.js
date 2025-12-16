@@ -40,7 +40,8 @@ const resources = await loadResources({
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
-    'box_mesh' : new URL('./models/box/box.png', import.meta.url)
+    'box_mesh' : new URL('./models/box/box.png', import.meta.url),
+    'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url)
 });
 
 //box helper colider, da ne bo problemov z animated mesh
@@ -166,8 +167,8 @@ scene.push(guyCollider);
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
     littleguy2_transform.scale = [20, 20, 20];
 
-    littleguy2.parent = guy.findChildByName("mixamorig:RightHand");
-    littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
+    littleguy2.parent = guy.findChildByName("mixamorig:LeftHand");
+    littleguy.parent = guy.findChildByName("mixamorig:RightHand");
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }

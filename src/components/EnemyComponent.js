@@ -10,7 +10,7 @@ export class EnemyComponent {
         this.speed = 1;
         this.attackRange = 1.2;
 
-        this.attackDuration = 1.0;
+        this.attackDuration = 2.0;
         this.attackTimer = 0;
 
         this.state = 'chase';
@@ -47,12 +47,15 @@ export class EnemyComponent {
         // -------------------------------
         if (this.state === 'chase') {
             // move
+            
             glm.vec3.scaleAndAdd(
                 this.transform.translation,
                 this.transform.translation,
                 dir,
                 this.speed * dt
             );
+
+            
 
             this.faceDirection(dir);
 
@@ -79,6 +82,8 @@ export class EnemyComponent {
                 this.entity.skeleton?.playAnimationByIndex(this.runAnim);
             }
         }
+
+
     }
 
     faceDirection(dir) {
