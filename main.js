@@ -113,7 +113,6 @@ scene.push(...guy2_katana_scene);
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
     littleguy2_transform.scale = [20, 20, 20];
 
-    
     littleguy2.parent = guy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:LeftHand");
     scene.push(...littleguy_scene);
