@@ -156,7 +156,7 @@ function hsv2rgb(h,s,v)
 
 const rotationMat = new glm.mat4();
 glm.mat4.fromYRotation(rotationMat, .016);
-
+/*
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
 const radsToDegrees = rad => (rad * 180.0) / Math.PI;
 for (let i = 0; i < 360; i+=5)
@@ -172,6 +172,7 @@ for (let i = 0; i < 360; i+=5)
     }});
     scene.push(light);
 }
+*/
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {
