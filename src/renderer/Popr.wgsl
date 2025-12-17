@@ -10,6 +10,13 @@ struct BloomParams {
     bloomStrength: f32,
 }
 
+struct Settings {
+    passIndex: u32,
+    bloomStrength: f32,
+    bloomDirtStrength: f32,
+    blackAndWhite: u32
+}
+
 const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
     vec2f(-1.0, -1.0),
     vec2f( 1.0, -1.0),
@@ -22,6 +29,8 @@ const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(1) @binding(0) var tex_sampler: sampler;
+@group(1) @binding(1) var dirt_tex: texture_2d<f32>;
+@group(1) @binding(2) var<uniform> settings: Settings;
 @group(2) @binding(0) var bloom_tex: texture_2d<f32>;
 @group(3) @binding(0) var<uniform> bloomParams: BloomParams;
 
@@ -36,13 +45,21 @@ fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
 
 @fragment
 fn tonemap(input: VertexOutput) -> @location(0) vec4<f32> {
-    let tex = textureSample(tex, tex_sampler, input.uv.xy);
-    let bloom = textureSample(bloom_tex, tex_sampler, input.uv.xy).rgb;
-    var color = tex.rgb;
-    let t = bloomParams.bloomStrength;
-    color = color * (1.0 - t) + bloom * t;
+    var uv = input.uv;
+    let hdr = textureSample(tex, tex_sampler, uv).rgb;
+    let bloom = textureSample(bloom_tex, tex_sampler, uv).rgb;
+    let dirt = textureSample(dirt_tex, tex_sampler, uv).rgb * settings.bloomDirtStrength;
+    var color = mix(hdr, bloom + bloom * dirt, settings.bloomStrength); 
+
+    // tonemap
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
+
+    if (settings.blackAndWhite > 0)
+    {   
+        color = color.rrr;
+    }
+
     return vec4(color, 1.0f);
 }
 

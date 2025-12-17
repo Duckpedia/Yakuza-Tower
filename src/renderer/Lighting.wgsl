@@ -15,7 +15,10 @@ struct Light {
 }
 
 struct Settings {
-    passIndex: u32
+    passIndex: u32,
+    bloomStrength: f32,
+    bloomDirtStrength: f32,
+    blackAndWhite: u32
 }
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;

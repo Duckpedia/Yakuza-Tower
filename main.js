@@ -36,11 +36,12 @@ window.worldTimeScale = 1;
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
+    'dirt_image': new URL('./textures/DirtMaskTextureExample.webp', import.meta.url),
     'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
-    'box_mesh' : new URL('./models/box/box.png', import.meta.url),
+    'soba_model' : new URL('./models/soba/soba.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url)
 });
 
@@ -74,7 +75,7 @@ function attachBoxCollider(parent, {
 
 const canvas = document.querySelector('canvas');
 const renderer = new DeferredRenderer(canvas);
-await renderer.initialize(resources.white_image);
+await renderer.initialize(resources.white_image, resources.dirt_image);
 
 const inputs = new Inputs(canvas);
 
@@ -97,34 +98,10 @@ player.aabb = {
 
 const scene = [player];
 
-//floor creation
-
-const floor = new Entity();
-floor.addComponent(new Transform({
-    scale: [10, 1, 10],
-}));
-floor.addComponent(new Model({
-    primitives: [
-        new Primitive({
-            mesh: resources.floor_mesh,
-            material: new Material({
-                albedoTexture: new Texture({
-                    image: resources.floor_image,
-                    sampler: new Sampler({
-                        minFilter: 'nearest',
-                        magFilter: 'nearest',
-                        addressModeU: 'repeat',
-                        addressModeV: 'repeat',
-                    }),
-                }),
-            }),
-        }),
-    ],
-}));
-
-floor.customProperties = { isStatic: true };
-
-scene.push(floor);
+const soba_scene = resources.soba_model.loadScene();
+const soba = resources.soba_model.buildEntityFromScene(soba_scene);
+soba.customProperties = { isStatic: true };
+scene.push(...soba_scene);
 
 //box object creation
 
@@ -142,8 +119,6 @@ const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(3);
 guy.addComponent(new EnemyComponent(guy, player));
-const guy_transform = guy.getComponentOfType(Transform);
-//guy_transform.translation[0] += 10; 
 scene.push(...guy_scene);
 
 const guyCollider = attachBoxCollider(guy, {
@@ -172,29 +147,6 @@ scene.push(guyCollider);
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }
-
-//bro we dont need himm!!!!
-// const player_guy_scene = resources.guy_model.loadScene();
-// const player_guy = resources.katana_model.buildEntityFromScene(player_guy_scene);
-// player_guy.addComponent(new EnemyComponent(player_guy, player));
-// const player_guy_transform = player_guy.getComponentOfType(Transform);
-// player_guy_transform.translation = [0, -1, -1];
-// player_guy_transform.rotation = [0, 0, 0, 0];
-// quat.setAxisAngle(
-//   player_guy_transform.rotation,
-//   [0, 1, 0],   // Y axis
-//   Math.PI     // 180°
-// );
-// player_guy.parent = player.parent;
-// scene.push(...player_guy_scene);
-
-// const player_katana_scene = resources.katana_model.loadScene();
-// const player_katana = resources.katana_model.buildEntityFromScene(player_katana_scene);
-// player_katana.addComponent(new EnemyComponent(player_katana, player));
-// const player_katana_transform = player_katana.getComponentOfType(Transform);
-// player_katana_transform.scale = [16, 16, 16];
-// player_katana.parent = player_guy;
-// scene.push(...player_katana_scene);
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {
@@ -250,6 +202,7 @@ for (const entity of scene)
 }
 let active_camera = 0;
 World.activeCamera = cameras[0];
+const defaultPoprSettings = World.poprSettings;
 
 function update(t, dt) {
     if (Inputs.isPressed('KeyG'))
@@ -261,6 +214,16 @@ function update(t, dt) {
     {
         active_camera = (active_camera + 1) % cameras.length;
         World.activeCamera = cameras[active_camera];
+        if (active_camera == 1)
+        {
+            World.poprSettings = structuredClone(World.poprSettings);
+            World.poprSettings.bloom.dirtStrength = 20.0;
+            World.poprSettings.bloom.strength = 0.05;
+            World.poprSettings.blackAndWhite = 1;
+        }
+        else{
+            World.poprSettings = defaultPoprSettings;
+        }
     }
 
     const scaledDt = dt * World.timeScale;
@@ -291,13 +254,16 @@ function render() {
 }
 
 function resize({ displaySize: { width, height }}) {
-    World.activeCamera.getComponentOfType(Camera).aspect = width / height;
+    for (const camera of cameras)
+    {
+        camera.getComponentOfType(Camera).aspect = width / height;
+    }
 }
 
 new ResizeSystem({ canvas, resize }).start();
 new UpdateSystem({ update, render }).start();
 
 const gui = new GUI();
-gui.add(World.poprSettings, 'bloomThreshold', 0.0, 10.0);
-gui.add(World.poprSettings, 'bloomFilterRadius', 0.0, 10.0);
-gui.add(World.poprSettings, 'bloomStrength', 0.0, 0.1);
+gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
+gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);
+gui.add(World.poprSettings.bloom, 'strength', 0.0, 1.0);
