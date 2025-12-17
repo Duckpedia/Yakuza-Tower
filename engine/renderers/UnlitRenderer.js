@@ -450,7 +450,7 @@ export class UnlitRenderer extends BaseRenderer {
             this.recreateRenderTargets();
         }
 
-        this.poprSettingsBufferArray.set(poprSettings.pass)
+        this.poprSettingsBufferArray[0] = poprSettings.pass;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);

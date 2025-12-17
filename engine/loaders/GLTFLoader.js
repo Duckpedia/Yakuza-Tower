@@ -1,3 +1,4 @@
+import { LightComponent } from '../../src/components/LightComponent.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 import {
     Accessor,
@@ -12,6 +13,7 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
+import * as glm from '../../lib/glm.js'
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -558,8 +560,24 @@ export class GLTFLoader {
                 entity.addComponent(skeleton);
         }
 
-        if (gltfSpec.extras) {
-            entity.customProperties = structuredClone(gltfSpec.extras);
+        if (gltfSpec.camera !== undefined)
+        {
+            const camera = this.gltf.cameras[gltfSpec.camera];
+            entity.addComponent(new Camera({ 
+                aspect: camera.perspective.aspectRatio,
+                yfov: camera.perspective.fovy,
+                near: camera.perspective.znear,
+                far: camera.perspective.zfar,
+            }));
+        }
+        
+        if (gltfSpec.extensions)
+        {
+            if (gltfSpec.extensions.KHR_lights_punctual)
+            {
+                const light = this.gltf.extensions.KHR_lights_punctual.lights[gltfSpec.extensions.KHR_lights_punctual.light];
+                entity.addComponent(new LightComponent({ emission: new glm.vec3(light.intensity) }));
+            }
         }
 
         entity.name = gltfSpec.name;
