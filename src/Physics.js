@@ -55,7 +55,9 @@ export class Physics {
     }
 
     resolveCollision(a, b) {
-        // Get global space AABBs.
+        //dodala da skipa entities brez aabb, nebodo mel physics nebo pa errorja.
+        if (!a.aabb || !b.aabb) return;
+
         const aBox = this.getTransformedAABB(a);
         const bBox = this.getTransformedAABB(b);
 

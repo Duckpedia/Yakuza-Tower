@@ -138,6 +138,14 @@ const guyCollider = attachBoxCollider(guy, {
 
 scene.push(guyCollider);
 
+const rangedGuyCollider = attachBoxCollider(rangedGuy, {
+  offset: [0, 1.0, 0],
+  halfExtents: [0.35, 0.9, 0.35],
+  isStatic: true,
+});
+
+scene.push(rangedGuyCollider);
+
 {
     const littleguy_scene = resources.katana_model.loadScene();
     const littleguy = resources.katana_model.buildEntityFromScene(littleguy_scene);
