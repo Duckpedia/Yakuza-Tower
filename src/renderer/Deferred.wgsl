@@ -87,14 +87,14 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     }
     else {
         position = model_matrix * vec4(model.position, 1.0);
-        normal = vec4f(model.normal, 0.0);
+        normal = inv_model_matrix * vec4f(model.normal, 0.0);
     }
     let worldNormal = normalize(normal.xyz);
 
     var output: VertexOutput;
     output.worldPosition = vec4(position.xyz, 1);
     output.position = camera.projectionMatrix * camera.viewMatrix * output.worldPosition;
-    output.normal = (inv_model_matrix * vec4(worldNormal, 0.0)).xyz;
+    output.normal = worldNormal.xyz;
     output.texcoords = model.texcoords;
     return output;
 }

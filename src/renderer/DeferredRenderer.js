@@ -140,7 +140,7 @@ export class DeferredRenderer extends BaseRenderer {
             },
             primitive: {
                 frontFace: 'ccw',
-                cullMode: 'none'
+                cullMode: 'front'
             }
         });
 
@@ -159,7 +159,7 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         this.dummySkeletonBuffer = WebGPU.createBuffer(this.device, {
-            data: new mat4(),
+            data: new Float32Array(16),
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         this.dummySkeletonBindGroup = this.device.createBindGroup({
@@ -201,7 +201,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.lightingBindGroup = this.device.createBindGroup({
             layout: this.lightingPipeline.getBindGroupLayout(1),
             entries: [
-                { binding: 0, resource: { buffer: this.poprSettingsBuffer } },
+                { binding: 0, resource: this.poprSettingsBuffer },
                 { binding: 1, resource: this.lightDepthTextureArray.createView({ dimension: '2d-array' }) },
                 { binding: 2, resource: this.lightDepthSampler },
             ],
@@ -904,13 +904,14 @@ export class DeferredRenderer extends BaseRenderer {
 
         if (this.skeletons.length > 0)
         {
+            const stride = 16;
             if (this.maxJoints < nJoints)
             {
                 this.maxJoints = nJoints;
-                this.jointsBufferArray = new Float32Array(nJoints * 16);
+                this.jointsBufferArray = new Float32Array(nJoints * stride);
 
                 this.skeletonBuffer = WebGPU.createBuffer(this.device, {
-                    size: nJoints * 64,
+                    size: nJoints * stride * 4,
                     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                 });
 
@@ -931,8 +932,9 @@ export class DeferredRenderer extends BaseRenderer {
                 const jointI = this.skeletonToJoint.get(skeleton);
                 for (let i = 0; i < skeleton.joints.length; i++)
                 {
-                    mat4.mul(joint_mat, skeleton.joints[i].getComponentOfType(Transform).final, skeleton.inverseBindMatrices[i]);
-                    this.jointsBufferArray.set(joint_mat, (jointI + i) * 16);
+                    const transform = skeleton.joints[i].getComponentOfType(Transform);
+                    mat4.mul(joint_mat, transform.final, skeleton.inverseBindMatrices[i]);
+                    this.jointsBufferArray.set(joint_mat, (jointI + i) * stride);
                 }
             }
 

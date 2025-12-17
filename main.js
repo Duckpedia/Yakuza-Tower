@@ -172,7 +172,7 @@ function updateWorldMatricesRecursive(entity, parentMatrix)
     }
 }
 
-// stackoverflow
+// // stackoverflow
 function hsv2rgb(h,s,v) 
 {                              
   let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
@@ -183,7 +183,7 @@ const rotationMat = new glm.mat4();
 glm.mat4.fromYRotation(rotationMat, .016);
 
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
-for (let i = 0; i < 360; i+=5)
+for (let i = 0; i < 360; i+=10)
 {
     const light = new Entity();
     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
@@ -222,6 +222,9 @@ function update(t, dt) {
     if (Inputs.isPressed('KeyG'))
     {
         World.poprSettings.pass = (World.poprSettings.pass + 1) % 5
+        World.poprSettings.showBloom = World.poprSettings.pass == 0;
+        World.poprSettings.showSkybox = World.poprSettings.pass == 0;
+        World.poprSettings.showUI = World.poprSettings.pass == 0;
     }
 
     if (Inputs.isPressed('KeyT'))

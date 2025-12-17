@@ -17,7 +17,7 @@ struct Light {
 }
 
 struct Settings {
-    passIndex: u32,
+    passIndex: f32,
     bloomStrength: f32,
     bloomDirtStrength: f32,
     blackAndWhite: u32
@@ -176,29 +176,25 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let loc = vec2i(input.uv * vec2f(textureDimensions(gBufferAlbedo)));
     let albedoAndMetallic = textureLoad(gBufferAlbedo, loc, 0);
     let worldAndRoughness = textureLoad(gBufferPosWorld, loc, 0);
+    let normal = normalize(textureLoad(gBufferNormal, loc, 0).rgb);
     let albedo = albedoAndMetallic.xyz;
     let world = worldAndRoughness.xyz;
-    let normal = normalize(textureLoad(gBufferNormal, loc, 0).rgb);
     let metallic = albedoAndMetallic.w;
     let roughness = worldAndRoughness.w;
     let ao = 1.0;//material.ao;
 
     var color = PBR(albedo, world, normal, metallic, roughness, ao, input.uv);
-    if (settings.passIndex == 1) // albedo
-    {
-        color = textureLoad(gBufferAlbedo, loc, 0).rgb;
+    if (settings.passIndex == 1) {
+        color = albedo;
     }
-    else if (settings.passIndex == 2) // metallic
-    {
-        color = textureLoad(gBufferAlbedo, loc, 0).www;
+    else if (settings.passIndex == 2) {
+        color = vec3(metallic);
     }
-    else if (settings.passIndex == 3) // normal
-    {
-        color = textureLoad(gBufferNormal, loc, 0).rgb;
+    else if (settings.passIndex == 3) {
+        color = normal;
     }
-    else if (settings.passIndex == 4) // position
-    {
-        color = textureLoad(gBufferPosWorld, loc, 0).rgb;
+    else if (settings.passIndex == 4) {
+        color = world;
     }
     return vec4(color, 1.0);
 }
