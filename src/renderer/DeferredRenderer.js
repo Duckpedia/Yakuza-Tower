@@ -77,7 +77,7 @@ export class DeferredRenderer extends BaseRenderer {
 
     async setUpDefaults() {
         this.materialBuffer = new Float32Array(6);
-        this.cameraBuffer = new Float32Array(36);
+        this.cameraBuffer = new Float32Array(16 + 16 + 4);
         this.models = new Map();
         this.skeletonToJoint = new Map();
         this.maxJoints = 0;
@@ -96,6 +96,8 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBuffer = null;
         this.skeletons = [];
         this.lights = [];
+        this.lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
+        this.nShadowCastingLights = 0;
         this.poprSettingsBindGroup = null;
     }
 
@@ -124,6 +126,24 @@ export class DeferredRenderer extends BaseRenderer {
             }
         });
 
+        this.lightsPipeline = await this.device.createRenderPipelineAsync({
+            label: 'deferred',
+            layout: 'auto',
+            vertex: {
+                module: deferredModule,
+                buffers: [ vertexBufferLayout, instanceBufferLayout ],
+            },
+            depthStencil: {
+                format: 'depth24plus',
+                depthWriteEnabled: true,
+                depthCompare: 'less',
+            },
+            primitive: {
+                frontFace: 'ccw',
+                cullMode: 'none'
+            }
+        });
+
         const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
         const lightingModule = this.device.createShaderModule({ code: lightingCode });
         this.lightingPipeline = await this.device.createRenderPipelineAsync({
@@ -146,28 +166,48 @@ export class DeferredRenderer extends BaseRenderer {
             layout: this.deferredPipeline.getBindGroupLayout(1),
             entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
         });
+        this.dummyLightsSkeletonBindGroup = this.device.createBindGroup({
+            layout: this.lightsPipeline.getBindGroupLayout(1),
+            entries: [ { binding: 0, resource: this.dummySkeletonBuffer } ],
+        });
         
         this.lightsBuffer = WebGPU.createBuffer(this.device, {
-            data: new Float32Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
+            data: new Float32Array(16 + 4 + 4 + 4),
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-
         this.lightsBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(2),
+            layout: this.lightingPipeline.getBindGroupLayout(3),
             entries: [ { binding: 0, resource: this.lightsBuffer } ],
         });
-        
+
         this.poprSettingsBuffer = WebGPU.createBuffer(this.device, {
             data: this.poprSettingsBufferArray,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        this.poprSettingsBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(3),
-            entries: [ { binding: 0, resource: this.poprSettingsBuffer } ],
+        this.lightDepthTextureArray = this.device.createTexture({
+                format: 'depth24plus',
+                size: [1000, 1000, 8],
+                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+            });
+        this.lightDepthSampler = this.device.createSampler({
+            compare: 'less',
+            magFilter: 'linear',
+            minFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+        });
+
+        this.lightingBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(1),
+            entries: [
+                { binding: 0, resource: { buffer: this.poprSettingsBuffer } },
+                { binding: 1, resource: this.lightDepthTextureArray.createView({ dimension: '2d-array' }) },
+                { binding: 2, resource: this.lightDepthSampler },
+            ],
         });
     }
-    
+
     async setUpPopr(dirtImage) {
         this.poprTextureBindGroupLayout = this.device.createBindGroupLayout({
             entries: [
@@ -432,20 +472,11 @@ export class DeferredRenderer extends BaseRenderer {
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
         this.deferredTargetsBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(1),
+            layout: this.lightingPipeline.getBindGroupLayout(2),
             entries: [
-                {
-                    binding: 0,
-                    resource: this.deferredAlbedoTexture.createView(),
-                },
-                {
-                    binding: 1,
-                    resource: this.deferredPositionTexture.createView(),
-                },
-                {
-                    binding: 2,
-                    resource: this.deferredNormalTexture.createView(),
-                },
+                { binding: 0, resource: this.deferredAlbedoTexture.createView(), },
+                { binding: 1, resource: this.deferredPositionTexture.createView(), },
+                { binding: 2, resource: this.deferredNormalTexture.createView(), },
             ],
         });
         
@@ -502,6 +533,8 @@ export class DeferredRenderer extends BaseRenderer {
 
         this.renderDeferred(encoder, entities, deferredCameraBindGroup);
             
+        this.renderLights(encoder);
+
         this.renderLighting(encoder, lightingCameraBindGroup);
 
         if (poprSettings.showBloom)
@@ -563,6 +596,87 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.end();
     }
 
+    renderLights(encoder)
+    {
+        if (this.lights.length <= 0)
+            return;
+        
+        const stride = 16 + 4 + 4 + 4;
+        if (this.maxLights < this.lights.length)
+        {
+            this.maxLights = this.lights.length;
+            this.lightsBufferArray = new Float32Array(this.lights.length * stride);
+            this.lightsBuffer = WebGPU.createBuffer(this.device, {
+                size: this.lightsBufferArray.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            });
+
+            this.lightsBindGroup = this.device.createBindGroup({
+                layout: this.lightingPipeline.getBindGroupLayout(3),
+                entries: [ { binding: 0, resource: this.lightsBuffer } ],
+            });
+        }
+
+        let nShadowCastingLights = 0;
+        const viewProj = mat4.create();
+        for (let i = 0; i < this.lights.length; i++)
+        {
+            const { transform, light, view } = this.lights[i];
+            const bufI = i * stride;
+            const shadowindex = light.shadows ? nShadowCastingLights++ : -1;
+            mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, view);
+            this.lightsBufferArray.set(viewProj, bufI);
+            this.lightsBufferArray.set(light.emission, bufI + 16);
+            this.lightsBufferArray.set(transform.final_position, bufI + 16 + 4);
+            this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 4);
+        }
+
+        this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
+
+        nShadowCastingLights = 0;
+        for (let i = 0; i < this.lights.length; i++)
+        {
+            const { light, view} = this.lights[i];
+            if (light.type !== "directional" || !light.shadows)
+                continue;
+            if (nShadowCastingLights > 8)
+            {
+                break;
+            }
+
+            const {lightUniformBuffer, lightUniformBufferArray, lightBindGroup} = this.prepareLight(light);
+            lightUniformBufferArray.set(view, 0);
+            lightUniformBufferArray.set(this.lightsDefaultProjectionMatrix, 16);
+            this.device.queue.writeBuffer(lightUniformBuffer, 0, lightUniformBufferArray);
+
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [],
+                depthStencilAttachment: {
+                    view: this.lightDepthTextureArray.createView({ 
+                        dimension: '2d', 
+                        baseArrayLayer: nShadowCastingLights  
+                    }),
+                    depthClearValue: 1,
+                    depthLoadOp: 'clear',
+                    depthStoreOp: 'store',
+                },
+            });
+
+            renderPass.setPipeline(this.lightsPipeline);
+            renderPass.setBindGroup(0, lightBindGroup);
+            renderPass.setBindGroup(1, this.lightsSkeletonBindGroup ?? this.dummyLightsSkeletonBindGroup);
+
+            for (const [model, data] of this.models.entries())
+            {
+                this.renderModel(model, data.instanceOffset, data.arr.length, renderPass, false);
+            }
+
+            renderPass.end();
+            
+            nShadowCastingLights++;
+        }
+    }
+
     renderLighting(encoder, lightingCameraBindGroup)
     {
         const renderPass = encoder.beginRenderPass({
@@ -578,9 +692,9 @@ export class DeferredRenderer extends BaseRenderer {
 
         renderPass.setPipeline(this.lightingPipeline);
         renderPass.setBindGroup(0, lightingCameraBindGroup);
-        renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
-        renderPass.setBindGroup(2, this.lightsBindGroup);
-        renderPass.setBindGroup(3, this.poprSettingsBindGroup);
+        renderPass.setBindGroup(1, this.lightingBindGroup);
+        renderPass.setBindGroup(2, this.deferredTargetsBindGroup);
+        renderPass.setBindGroup(3, this.lightsBindGroup);
         renderPass.draw(6);
 
         renderPass.end();
@@ -758,14 +872,13 @@ export class DeferredRenderer extends BaseRenderer {
         let nInstances = 0;
         let nJoints = 0;
         this.lights.length = 0;
-
         for (const entity of entities) {
             if (entity.hidden) continue;
             const transform = entity.getComponentOfType(Transform);
             if (!transform) continue;
             const light = entity.getComponentOfType(LightComponent);
             if (light) {
-                this.lights.push({position: transform.final_position, light});
+                this.lights.push({entity, transform, light, view: new mat4(transform.final).invert()});
             }
             const model = entity.getComponentOfType(Model);
             if (!model) continue;
@@ -789,30 +902,6 @@ export class DeferredRenderer extends BaseRenderer {
             nInstances += 1;
         }
 
-        if (this.lights.length > 0)
-        {
-            if (this.maxLights < this.lights.length)
-            {
-                this.maxLights = this.lights.length;
-                this.lightsBufferArray = new Float32Array(this.lights.length * 8);
-                this.lightsBuffer = WebGPU.createBuffer(this.device, {
-                    size: this.lights.length * 32,
-                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-                });
-
-                this.lightsBindGroup = this.device.createBindGroup({
-                    layout: this.lightingPipeline.getBindGroupLayout(2),
-                    entries: [ { binding: 0, resource: this.lightsBuffer } ],
-                });
-            }
-            for (let i = 0; i < this.lights.length; i++)
-            {
-                this.lightsBufferArray.set(this.lights[i].position, i * 8);
-                this.lightsBufferArray.set(this.lights[i].light.emission, i * 8 + 4);
-            }
-            this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
-        }
-
         if (this.skeletons.length > 0)
         {
             if (this.maxJoints < nJoints)
@@ -827,6 +916,11 @@ export class DeferredRenderer extends BaseRenderer {
 
                 this.skeletonBindGroup = this.device.createBindGroup({
                     layout: this.deferredPipeline.getBindGroupLayout(1),
+                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
+                });
+
+                this.lightsSkeletonBindGroup = this.device.createBindGroup({
+                    layout: this.lightsPipeline.getBindGroupLayout(1),
                     entries: [ { binding: 0, resource: this.skeletonBuffer } ],
                 });
             }
@@ -844,7 +938,9 @@ export class DeferredRenderer extends BaseRenderer {
 
             this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBufferArray);
         }
-    
+
+        renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
+
         const strideFloats = 32;
         const stride = 132;
         if (this.maxInstances < nInstances)
@@ -880,26 +976,28 @@ export class DeferredRenderer extends BaseRenderer {
 
         for (const [model, data] of this.models.entries())
         {
-            this.renderModel(model, data.instanceOffset, data.arr.length, renderPass);
+            this.renderModel(model, data.instanceOffset, data.arr.length, renderPass, true);
         }
     }
 
-    renderModel(model, instanceOffset, nInstances, renderPass) {
+    renderModel(model, instanceOffset, nInstances, renderPass, materials) {
         for (const primitive of model.primitives) {
-            this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass);
+            this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass, materials);
         }
     }
 
-    renderPrimitive(primitive, instanceOffset, nInstances, renderPass) {
-        renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
-        const material = primitive.material ?? this.dummyMaterial;
-        const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
-        this.materialBuffer.set(material.albedoFactor, 0);
-        this.materialBuffer[3] = material.metalnessFactor;
-        this.materialBuffer[4] = material.roughnessFactor;
-        this.materialBuffer[5] = material.aoFactor;
-        this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
-        renderPass.setBindGroup(2, materialBindGroup);
+    renderPrimitive(primitive, instanceOffset, nInstances, renderPass, materials) {
+        if (materials)
+        {
+            const material = primitive.material ?? this.dummyMaterial;
+            const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
+            this.materialBuffer.set(material.albedoFactor, 0);
+            this.materialBuffer[3] = material.metalnessFactor;
+            this.materialBuffer[4] = material.roughnessFactor;
+            this.materialBuffer[5] = material.aoFactor;
+            this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
+            renderPass.setBindGroup(2, materialBindGroup);
+        }
 
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
         renderPass.setVertexBuffer(0, vertexBuffer);
@@ -919,6 +1017,7 @@ export class DeferredRenderer extends BaseRenderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
+        // layout: 'auto' my beloved
         const deferredCameraBindGroup = this.device.createBindGroup({
             layout: this.deferredPipeline.getBindGroupLayout(0),
             entries: [
@@ -942,6 +1041,29 @@ export class DeferredRenderer extends BaseRenderer {
 
         const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup };
         this.gpuObjects.set(camera, gpuObjects);
+        return gpuObjects;
+    }
+
+    prepareLight(light)
+    {
+        if (this.gpuObjects.has(light)) {
+            return this.gpuObjects.get(light);
+        }
+
+        const lightUniformBufferArray = new Float32Array(16 + 16 + 4);
+        const lightUniformBuffer = WebGPU.createBuffer(this.device, {
+            data: lightUniformBufferArray,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        const lightBindGroup = this.device.createBindGroup({
+            layout: this.lightsPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: lightUniformBuffer },
+            ],
+        });
+
+        const gpuObjects = { lightUniformBuffer, lightBindGroup, lightUniformBufferArray };
+        this.gpuObjects.set(light, gpuObjects);
         return gpuObjects;
     }
 

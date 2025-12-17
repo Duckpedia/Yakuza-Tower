@@ -9,11 +9,7 @@ import { PlayerComponent } from 'src/components/PlayerComponent.js';
 import {
     Camera,
     Entity,
-    Material,
     Model,
-    Primitive,
-    Sampler,
-    Texture,
     Transform,
 } from 'engine/core/core.js';
 
@@ -29,9 +25,6 @@ import {
     calculateAxisAlignedBoundingBox,
     mergeAxisAlignedBoundingBoxes,
 } from 'engine/core/MeshUtils.js';
-
-// time scale for slow down
-window.worldTimeScale = 1; 
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -111,6 +104,10 @@ box.customProperties = { isStatic: true };
 box.aabb = { min: [-0.5,-0.5,-0.5], max: [0.5,0.5,0.5] };
 box.aabbManual = true;
 scene.push(box);
+{
+    const camera = soba.findChildByName("Camera");
+    camera.addComponent(new LightComponent({ type: 'directional', shadows: true, emission: [5000, 5000, 5000] }));
+}
 
 
 scene.push(box);

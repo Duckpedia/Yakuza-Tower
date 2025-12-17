@@ -10,8 +10,10 @@ struct CameraUniforms {
 }
 
 struct Light {
+    viewProjMatrix: mat4x4f, // wasteful but meh
+    emission: vec4f,
     position: vec4f,
-    emission: vec3f
+    shadowIndex: f32
 }
 
 struct Settings {
@@ -21,15 +23,17 @@ struct Settings {
     blackAndWhite: u32
 }
 
-@group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(0) var<uniform>         camera: CameraUniforms;
 
-@group(1) @binding(0) var gBufferAlbedo:   texture_2d<f32>;
-@group(1) @binding(1) var gBufferPosWorld: texture_2d<f32>;
-@group(1) @binding(2) var gBufferNormal:   texture_2d<f32>;
+@group(1) @binding(0) var<uniform>         settings: Settings;
+@group(1) @binding(1) var lightsDepthMaps: texture_depth_2d_array;
+@group(1) @binding(2) var lightsDepthMapsSampler: sampler_comparison;
 
-@group(2) @binding(0) var<storage, read> lights: array<Light>;
+@group(2) @binding(0) var gBufferAlbedo:   texture_2d<f32>;
+@group(2) @binding(1) var gBufferPosWorld: texture_2d<f32>;
+@group(2) @binding(2) var gBufferNormal:   texture_2d<f32>;
 
-@group(3) @binding(0) var<uniform> settings: Settings;
+@group(3) @binding(0) var<storage, read>   lights: array<Light>;
 
 const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
     vec2f(-1.0, -1.0),
@@ -88,7 +92,45 @@ fn isnan(x: f32) -> bool {
   return x2 == highVal;
 }
 
-fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32, ao: f32) -> vec3f
+fn calculateShadow(light: Light, world: vec3f) -> f32
+{
+    let shadowIndex = i32(light.shadowIndex);
+    if (shadowIndex < 0)
+    {
+        return 1.0;
+    }
+
+    var shadow = 1.0;
+    let clip = light.viewProjMatrix * vec4(world, 1.0);
+    var ndc = clip.xyz / clip.w;
+    var uv = vec2(ndc.x, -ndc.y) * 0.5 + 0.5;
+
+    var avg_sampled_depth = 0.0;
+    var resolution = textureDimensions(lightsDepthMaps);
+    let tex_d = 1.0 / vec2f(resolution);
+    for (var i = -1; i <= 1; i++) {
+        for (var j = -1; j <= 1; j++) {
+            let diff = vec2f(f32(i), f32(j)) * tex_d * 2.0;
+            avg_sampled_depth += textureSampleCompare(
+                lightsDepthMaps,
+                lightsDepthMapsSampler, 
+                uv + diff,
+                shadowIndex,
+                ndc.z - 0.00001
+            );
+        }
+    }
+    var sampled_depth = avg_sampled_depth / 9.0;
+
+    if (any(ndc.xy < vec2(-1.0)) || any(ndc.xy > vec2(1.0)))
+    {
+        sampled_depth = 1.0;
+    }
+
+    return sampled_depth;
+}
+
+fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32, ao: f32, uv : vec2f) -> vec3f
 {
     // PBR based on LearnOpenGl
     let view = normalize(camera.position.xyz - world.xyz);
@@ -96,14 +138,14 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
     var l0 = vec3(0.0);
     let nLights = arrayLength(&lights);
     for (var i = 0u; i < nLights; i++) {
-        let lightPosition = lights[i].position.xyz;
-        let lightEmission = lights[i].emission.rgb;
+        let lightt = lights[i];
+        let lightPosition = lightt.position.xyz;
+        let lightEmission = lightt.emission.rgb;
         let toLight = lightPosition - world.xyz;
         let light = normalize(toLight);
         let half = normalize(view + light);
         let distance = length(toLight);
-        let attenuation = 1.0 / (distance * distance);
-        let radiance = lightEmission * attenuation;
+        var attenuation = 1.0 / (distance * distance);
 
         let ndf = distributionGGX(normal, half, roughness);
         let g = geometrySmith(normal, view, light, roughness);
@@ -116,8 +158,11 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
         let ks = f;
         let kd = (vec3(1.0) - ks) * (1.0 - metallic);
 
+        let shadow = calculateShadow(lightt, world);
+
+        let radiance = lightEmission * attenuation;
         let normalDotLight = positiveDot(normal, light);
-        l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight;
+        l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight * shadow;
     }
 
     let ambient = vec3(0.01) * albedo * ao;
@@ -138,7 +183,7 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let roughness = worldAndRoughness.w;
     let ao = 1.0;//material.ao;
 
-    var color = PBR(albedo, world, normal, metallic, roughness, ao);
+    var color = PBR(albedo, world, normal, metallic, roughness, ao, input.uv);
     if (settings.passIndex == 1) // albedo
     {
         color = textureLoad(gBufferAlbedo, loc, 0).rgb;
