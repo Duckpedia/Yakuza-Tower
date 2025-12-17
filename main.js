@@ -121,6 +121,15 @@ guy.skeleton.playAnimationByIndex(3);
 guy.addComponent(new EnemyComponent(guy, player));
 scene.push(...guy_scene);
 
+
+const rangedGuyScene = resources.guy_model.loadScene();
+const rangedGuy = resources.guy_model.buildEntityFromScene(rangedGuyScene);
+rangedGuy.skeleton.playAnimationByIndex(3);
+rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, 'Ranged'));
+const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
+rangedGuy_transform.translation = [1, 0, 1];
+scene.push(...rangedGuyScene);
+
 const guyCollider = attachBoxCollider(guy, {
   offset: [0, 1.0, 0],
   halfExtents: [0.35, 0.9, 0.35],
@@ -142,7 +151,7 @@ scene.push(guyCollider);
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
     littleguy2_transform.scale = [20, 20, 20];
 
-    littleguy2.parent = guy.findChildByName("mixamorig:LeftHand");
+    littleguy2.parent = rangedGuy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:RightHand");
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
