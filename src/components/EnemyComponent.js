@@ -7,7 +7,7 @@ export class EnemyComponent {
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
 
-        this.speed = 1;
+        this.speed = 3;
         this.attackRange = 1.2;
 
         this.attackDuration = 2.0;
@@ -15,13 +15,21 @@ export class EnemyComponent {
 
         this.state = 'chase';
 
-        this.runAnim = 5;
-        this.attackAnim = 4;
+        this.runAnim = 1;  //animacija 1 je running with sword in veli bolj smooth, kot 5. Animacija 5 je sam running.
+        this.OutwardAttackAnim = 4;
+        this.InwardAttackAnim = 3;
 
         entity.skeleton?.playAnimationByIndex(this.runAnim);
     }
 
     update(t, dt) {
+        
+        this.MeleeEnemyBehaviour(t, dt);
+
+    }
+
+
+    MeleeEnemyBehaviour(t, dt){
         if (!this.player) return;
 
         const playerTransform = this.player.getComponentOfType(Transform);
@@ -64,7 +72,9 @@ export class EnemyComponent {
                 this.state = 'attack';
                 this.attackTimer = this.attackDuration;
 
-                this.entity.skeleton?.playAnimationByIndex(this.attackAnim);
+
+                let attackAnim = Math.floor(Math.random() * 2 + 3);
+                this.entity.skeleton?.playAnimationByIndex(attackAnim);
             }
         }
 
@@ -82,8 +92,6 @@ export class EnemyComponent {
                 this.entity.skeleton?.playAnimationByIndex(this.runAnim);
             }
         }
-
-
     }
 
     faceDirection(dir) {
