@@ -1,6 +1,6 @@
-import { mat4, vec3, vec4 } from 'glm';
-import { quat } from 'glm';
+import { mat4, vec4, vec3 } from 'glm';
 import * as glm from 'glm';
+import { GUI } from 'dat';
 
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
 import { UpdateSystem } from 'engine/systems/UpdateSystem.js';
@@ -206,6 +206,31 @@ function updateWorldMatricesRecursive(entity, parentMatrix)
     }
 }
 
+// stackoverflow
+function hsv2rgb(h,s,v) 
+{                              
+  let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
+  return [f(5),f(3),f(1)];       
+}  
+
+const rotationMat = new glm.mat4();
+glm.mat4.fromYRotation(rotationMat, .016);
+
+const degreesToRads = deg => (deg * Math.PI) / 180.0;
+for (let i = 0; i < 360; i+=5)
+{
+    const light = new Entity();
+    let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
+    vec3.scale(translation, translation, Math.random() * 9 + 1);
+    light.transform = new Transform({ translation });
+    light.addComponent(light.transform);
+    light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
+    light.addComponent({update(t, dt) {
+        glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat);
+    }});
+    scene.push(light);
+}
+
 const physics = new Physics(scene);
 for (const entity of scene) {
   if (entity.aabbManual) continue;
@@ -224,11 +249,7 @@ for (const entity of scene)
     if (c) cameras.push(entity);
 }
 let active_camera = 0;
-function getActiveCamera()
-{
-    return cameras[active_camera];
-}
-
+World.activeCamera = cameras[0];
 
 function update(t, dt) {
     if (Inputs.isPressed('KeyG'))
@@ -239,6 +260,7 @@ function update(t, dt) {
     if (Inputs.isPressed('KeyT'))
     {
         active_camera = (active_camera + 1) % cameras.length;
+        World.activeCamera = cameras[active_camera];
     }
 
     const scaledDt = dt * World.timeScale;
@@ -261,12 +283,17 @@ function update(t, dt) {
 }
 
 function render() {
-    renderer.render(scene, getActiveCamera(), World.poprSettings);
+    renderer.render(scene, World.activeCamera, World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {
-    getActiveCamera().getComponentOfType(Camera).aspect = width / height;
+    World.activeCamera.getComponentOfType(Camera).aspect = width / height;
 }
 
 new ResizeSystem({ canvas, resize }).start();
 new UpdateSystem({ update, render }).start();
+
+const gui = new GUI();
+gui.add(World.poprSettings, 'bloomThreshold', 0.0, 10.0);
+gui.add(World.poprSettings, 'bloomFilterRadius', 0.0, 10.0);
+gui.add(World.poprSettings, 'bloomStrength', 0.0, 0.1);

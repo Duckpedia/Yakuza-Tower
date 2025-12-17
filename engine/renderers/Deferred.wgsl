@@ -107,6 +107,6 @@ fn fragment(input: VertexOutput) -> Output {
     var output: Output;
     output.colorAndMetallic = vec4f(albedo, material.metallic);
     output.positionAndRoughness = vec4f(world.xyz, material.roughness);
-    output.normal = vec4f(normal, 0.0);
+    output.normal = vec4f(normal, 1.0);
     return output;
 }

@@ -85,24 +85,12 @@ fn isnan(x: f32) -> bool {
   return x2 == highVal;
 }
 
-fn PBR(input: VertexOutput, loc: vec2i) -> vec3f
+fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32, ao: f32) -> vec3f
 {
     // PBR based on LearnOpenGl
-    let albedoAndMetallic = textureLoad(gBufferAlbedo, loc, 0);
-    let worldAndRoughness = textureLoad(gBufferPosWorld, loc, 0);
-    let albedo = albedoAndMetallic.xyz;
-    let world = worldAndRoughness.xyz;
-    let normal = normalize(textureLoad(gBufferNormal, loc, 0).rgb);
-    let metallic = albedoAndMetallic.w;
-    let roughness = worldAndRoughness.w;
-    let ao = 1.0;//material.ao;
-
     let view = normalize(camera.position.xyz - world.xyz);
-
     let f0 = mix(vec3(0.04), albedo, metallic);
-
     var l0 = vec3(0.0);
-
     let nLights = arrayLength(&lights);
     for (var i = 0u; i < nLights; i++) {
         let lightPosition = lights[i].position.xyz;
@@ -132,15 +120,22 @@ fn PBR(input: VertexOutput, loc: vec2i) -> vec3f
     let ambient = vec3(0.01) * albedo * ao;
     var color = ambient + l0;
 
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));
     return color;
 }
 
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let loc = vec2i(input.uv * vec2f(textureDimensions(gBufferAlbedo)));
-    var color = PBR(input, loc);
+    let albedoAndMetallic = textureLoad(gBufferAlbedo, loc, 0);
+    let worldAndRoughness = textureLoad(gBufferPosWorld, loc, 0);
+    let albedo = albedoAndMetallic.xyz;
+    let world = worldAndRoughness.xyz;
+    let normal = normalize(textureLoad(gBufferNormal, loc, 0).rgb);
+    let metallic = albedoAndMetallic.w;
+    let roughness = worldAndRoughness.w;
+    let ao = 1.0;//material.ao;
+
+    var color = PBR(albedo, world, normal, metallic, roughness, ao);
     if (settings.passIndex == 1) // albedo
     {
         color = textureLoad(gBufferAlbedo, loc, 0).rgb;

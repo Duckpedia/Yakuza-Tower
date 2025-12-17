@@ -14,131 +14,18 @@ import { ImageLoader } from '../loaders/ImageLoader.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 import { LightComponent } from '../../src/components/LightComponent.js';
 
-const vertexBufferLayout = {
-    arrayStride: 48,
-    stepMode: 'vertex',
-    attributes: [
-        {
-            name: 'position',
-            shaderLocation: 0,
-            offset: 0,
-            format: 'float32x3',
-        },
-        {
-            name: 'normal',
-            shaderLocation: 1,
-            offset: 16,
-            format: 'float32x3',
-        },
-        {
-            name: 'texcoords',
-            shaderLocation: 2,
-            offset: 32,
-            format: 'float32x2',
-        },
-        {
-            name: 'joints',
-            shaderLocation: 3,
-            offset: 40,
-            format: 'uint8x4',
-        },
-        {
-            name: 'weights',
-            shaderLocation: 4,
-            offset: 44,
-            format: 'unorm8x4',
-        },
-    ],
-};
-
-const instanceBufferLayout = {
-    arrayStride: 132,
-    stepMode: 'instance',
-    attributes: [
-        {
-            name: 'row1',
-            shaderLocation: 5,
-            offset: 0,
-            format: 'float32x4',
-        },
-        {
-            name: 'row2',
-            shaderLocation: 6,
-            offset: 16,
-            format: 'float32x4',
-        },
-        {
-            name: 'row3',
-            shaderLocation: 7,
-            offset: 32,
-            format: 'float32x4',
-        },
-        {
-            name: 'row4',
-            shaderLocation: 8,
-            offset: 48,
-            format: 'float32x4',
-        },
-        {
-            name: 'inv_row1',
-            shaderLocation: 9,
-            offset: 64,
-            format: 'float32x4',
-        },
-        {
-            name: 'inv_row2',
-            shaderLocation: 10,
-            offset: 80,
-            format: 'float32x4',
-        },
-        {
-            name: 'inv_row3',
-            shaderLocation: 11,
-            offset: 96,
-            format: 'float32x4',
-        },
-        {
-            name: 'inv_row4',
-            shaderLocation: 12,
-            offset: 112,
-            format: 'float32x4',
-        },
-        {
-            name: 'jointI',
-            shaderLocation: 13,
-            offset: 128,
-            format: 'sint32',
-        },
-    ],
-};
-
 export class PoprSettings {
     constructor()
     {
         this.pass = 0;
         this.showUI = true;
         this.showSkybox = true;
+        this.bloomThreshold = 1.3;
+        this.bloomStrength = 0.012;
+        this.bloomFilterRadius = 1.0;
+        this.bloom = true;
     }
 }
-
-const uiInstanceBufferLayout = {
-    arrayStride: 32,
-    stepMode: 'instance',
-    attributes: [
-        {
-            name: 'position',
-            shaderLocation: 0,
-            offset: 0,
-            format: 'float32x4',
-        },
-        {
-            name: 'scale',
-            shaderLocation: 1,
-            offset: 16,
-            format: 'float32x4',
-        },
-    ],
-};
 
 export class UnlitRenderer extends BaseRenderer {
 
@@ -154,6 +41,7 @@ export class UnlitRenderer extends BaseRenderer {
         await this.setUpDefaults();
         await this.setUpSkybox();
         await this.setUpDeferred();
+        await this.setUpPopr();
         await this.setUpUI();
 
         this.recreateRenderTargets();
@@ -241,7 +129,7 @@ export class UnlitRenderer extends BaseRenderer {
             },
             fragment: {
                 module: lightingModule,
-                targets: [{ format: this.format }],
+                targets: [{ format: 'rgba16float' }],
             },
         });
 
@@ -274,6 +162,153 @@ export class UnlitRenderer extends BaseRenderer {
             entries: [ { binding: 0, resource: this.poprSettingsBuffer } ],
         });
     }
+    
+    async setUpPopr() {
+        this.poprTextureBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {
+                        sampleType: "float",
+                        viewDimension: "2d",
+                        multisampled: false,
+                    },
+                },
+            ],
+        });
+
+        const poprSamplerBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: {
+                        type: "filtering",
+                    },
+                },
+            ],
+        });
+
+        const bloomParamsBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "uniform",
+                        hasDynamicOffset: true,
+                        minBindingSize: 24, 
+                    },
+                },
+            ],
+        });
+
+        const tonemapLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [
+                this.poprTextureBindGroupLayout,
+                poprSamplerBindGroupLayout,
+                this.poprTextureBindGroupLayout,
+                bloomParamsBindGroupLayout,
+            ],
+        });
+
+        const bloomLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [
+                this.poprTextureBindGroupLayout,
+                poprSamplerBindGroupLayout,
+                null,
+                bloomParamsBindGroupLayout,
+            ],
+        });
+
+        const code = await fetch(new URL('Popr.wgsl', import.meta.url)).then(response => response.text());
+        const module = this.device.createShaderModule({ code });
+        this.tonemapPipeline = await this.device.createRenderPipelineAsync({
+            label: 'tonemap',
+            layout: tonemapLayout,
+            vertex: {
+                module,
+            },
+            fragment: {
+                module,
+                entryPoint: 'tonemap',
+                targets: [{ format: this.format }],
+            },
+        });
+
+        this.downsamplePipeline = await this.device.createRenderPipelineAsync({
+            label: 'downsample',
+            layout: bloomLayout,
+            vertex: {
+                module,
+            },
+            fragment: {
+                module,
+                entryPoint: 'downsample',
+                targets: [{ format: 'rgba16float' }],
+            },
+        });
+
+        this.upsamplePipeline = await this.device.createRenderPipelineAsync({
+            label: 'upsample',
+            layout: bloomLayout,
+            vertex: {
+                module,
+            },
+            fragment: {
+                module,
+                entryPoint: 'upsample',
+                targets: [{ 
+                    format: 'rgba16float',
+                    blend: {
+                        color: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                        alpha: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                    },
+                    writeMask: GPUColorWrite.ALL,
+                }],
+            },
+        });
+
+        this.linearTextureSampler = this.device.createSampler({
+            minFilter: 'linear',
+            magFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+        });
+
+        this.linearTextureSamplerBindGroup = this.device.createBindGroup({
+            layout: poprSamplerBindGroupLayout,
+            entries: [
+                { binding: 0, resource: this.linearTextureSampler },
+            ],
+        });
+
+        this.bloomParamsStride = this.device.limits.minUniformBufferOffsetAlignment;
+        this.maxBloomPasses = 5 * 2;
+        this.bloomParamsBufferArray = new Float32Array((this.bloomParamsStride / 4) * this.maxBloomPasses);
+
+        this.bloomParamsBuffer = this.device.createBuffer({
+            size: this.bloomParamsStride * this.maxBloomPasses,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        this.bloomParamsBindGroup = this.device.createBindGroup({
+            layout: bloomParamsBindGroupLayout,
+            entries: [{
+                binding: 0,
+                resource: { buffer: this.bloomParamsBuffer, offset: 0, size: 24 },
+            }],
+        });
+    }
 
     async setUpSkybox() {
         const skyboxCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
@@ -281,7 +316,25 @@ export class UnlitRenderer extends BaseRenderer {
         this.skyboxPipeline = await this.device.createRenderPipelineAsync({
             layout: 'auto',
             vertex: { module: skyboxModule },
-            fragment: { module: skyboxModule, targets: [{ format: this.format }], },
+            fragment: { 
+                module: skyboxModule,
+                targets: [{
+                    format: this.format,
+                    blend: {
+                        color: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                        alpha: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                    },
+                    writeMask: GPUColorWrite.ALL,
+                }], 
+            },
             depthStencil: {
                 format: 'depth24plus',
                 depthWriteEnabled: false,
@@ -367,82 +420,35 @@ export class UnlitRenderer extends BaseRenderer {
                 },
             ],
         });
-    }
+        
+        this.lightingTexture = this.device.createTexture({
+            format: 'rgba16float',
+            size: [this.canvas.width, this.canvas.height],
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.lightingTextureBindGroup = this.device.createBindGroup({
+            layout: this.tonemapPipeline.getBindGroupLayout(0),
+            entries: [ { binding: 0, resource: this.lightingTexture.createView() } ],
+        });
 
-    prepareCamera(camera) {
-        if (this.gpuObjects.has(camera)) {
-            return this.gpuObjects.get(camera);
+        this.bloomTextures = [];
+        let width = this.canvas.width;
+        let height = this.canvas.height;
+        for (let i = 0; i < 5; i++)
+        {
+            width /= 2;
+            height /= 2;
+            const tex = this.device.createTexture({
+                format: 'rgba16float',
+                size: [width, height],
+                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+            });
+            const bindGroup = this.device.createBindGroup({
+                layout: this.poprTextureBindGroupLayout,
+                entries: [ { binding: 0, resource: tex.createView() } ],
+            });
+            this.bloomTextures.push({ tex, bindGroup, width, height });
         }
-
-        const cameraUniformBuffer = this.device.createBuffer({
-            size: 144,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        const deferredCameraBindGroup = this.device.createBindGroup({
-            layout: this.deferredPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const lightingCameraBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const skyboxCameraBindgroup = this.device.createBindGroup({
-            layout: this.skyboxPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup };
-        this.gpuObjects.set(camera, gpuObjects);
-        return gpuObjects;
-    }
-
-    prepareTexture(texture) {
-        if (this.gpuObjects.has(texture)) {
-            return this.gpuObjects.get(texture);
-        }
-
-        const { gpuTexture } = this.prepareImage(texture.image); // ignore sRGB
-        const { gpuSampler } = this.prepareSampler(texture.sampler);
-
-        const gpuObjects = { gpuTexture, gpuSampler };
-        this.gpuObjects.set(texture, gpuObjects);
-        return gpuObjects;
-    }
-
-    prepareMaterial(material) {
-        if (this.gpuObjects.has(material)) {
-            return this.gpuObjects.get(material);
-        }
-
-        if (!material.albedoTexture) material.albedoTexture = this.dummyMaterial.albedoTexture;
-        const albedoTexture = this.prepareTexture(material.albedoTexture);
-
-        const materialUniformBuffer = this.device.createBuffer({
-            size: 32,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        const materialBindGroup = this.device.createBindGroup({
-            layout: this.deferredPipeline.getBindGroupLayout(2),
-            entries: [
-                { binding: 0, resource: albedoTexture.gpuTexture },
-                { binding: 1, resource: albedoTexture.gpuSampler },
-                { binding: 2, resource: materialUniformBuffer },
-            ],
-        });
-
-        const gpuObjects = { materialBindGroup, materialUniformBuffer };
-        this.gpuObjects.set(material, gpuObjects);
-        return gpuObjects;
     }
 
     render(entities, camera, poprSettings) {
@@ -505,7 +511,7 @@ export class UnlitRenderer extends BaseRenderer {
             const renderPass = encoder.beginRenderPass({
                 colorAttachments: [
                     {
-                        view: target,
+                        view: this.lightingTexture.createView(),
                         clearValue: [0.0, 0.0, 0.0, 1.0 ],
                         loadOp: 'clear',
                         storeOp: 'store',
@@ -518,6 +524,111 @@ export class UnlitRenderer extends BaseRenderer {
             renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
             renderPass.setBindGroup(2, this.lightsBindGroup);
             renderPass.setBindGroup(3, this.poprSettingsBindGroup);
+            renderPass.draw(6);
+
+            renderPass.end();
+        }
+
+        if (poprSettings.bloom)
+        { // bloom
+            const updateBuffer = (width, height, filterRadius, threshold, bufferOffset) =>
+            {
+                this.bloomParamsBufferArray[0] = width;
+                this.bloomParamsBufferArray[1] = height;
+                this.bloomParamsBufferArray[2] = filterRadius;
+                this.bloomParamsBufferArray[3] = threshold;
+                this.bloomParamsBufferArray[4] = poprSettings.bloomStrength;
+                this.device.queue.writeBuffer(
+                    this.bloomParamsBuffer,
+                    bufferOffset,
+                    this.bloomParamsBufferArray,
+                    0,
+                    24
+                );
+            }
+            let paramsBufferOffset = 0;
+
+            { // downsample
+
+                let input = { 
+                    bindGroup: this.lightingTextureBindGroup, 
+                    width: this.bloomTextures[0].width * 2, 
+                    height: this.bloomTextures[1].height * 2
+                };
+
+                for (let i = 0; i < this.bloomTextures.length; i++)
+                {
+                    updateBuffer(input.width, input.height, 0.0, i == 0 ? poprSettings.bloomThreshold : 0.0, paramsBufferOffset);
+
+                    const output = this.bloomTextures[i];
+                    const renderPass = encoder.beginRenderPass({
+                        colorAttachments: [
+                            {
+                                view: output.tex.createView(),
+                                clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                                loadOp: 'clear',
+                                storeOp: 'store',
+                            },
+                        ],
+                    });
+                    renderPass.setPipeline(this.downsamplePipeline);
+                    renderPass.setBindGroup(0, input.bindGroup);
+                    renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+                    renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                    renderPass.draw(6);
+                    renderPass.end();
+
+                    paramsBufferOffset += this.bloomParamsStride;
+                    input = output;
+                }
+            }
+            
+            { // upsample
+                for (let i = this.bloomTextures.length - 1; i > 0; i--)
+                {
+                    const input = this.bloomTextures[i];
+                    const output = this.bloomTextures[i - 1];
+
+                    updateBuffer(input.width, input.height, poprSettings.bloomFilterRadius * (1.0 / input.width), 0.0, paramsBufferOffset);
+
+                    const renderPass = encoder.beginRenderPass({
+                        colorAttachments: [
+                            {
+                                view: output.tex.createView(),
+                                loadOp: 'load',
+                                storeOp: 'store',
+                            },
+                        ],
+                    });
+                    renderPass.setPipeline(this.upsamplePipeline);
+                    renderPass.setBindGroup(0, input.bindGroup);
+                    renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+                    renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                    renderPass.draw(6);
+                    renderPass.end();
+
+                    paramsBufferOffset += this.bloomParamsStride;
+                }
+            }
+        }
+
+        { // tonemap
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: target,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
+
+            renderPass.setPipeline(this.tonemapPipeline);
+            renderPass.setBindGroup(0, this.lightingTextureBindGroup);
+            renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+            renderPass.setBindGroup(2, this.bloomTextures[0].bindGroup);
+            renderPass.setBindGroup(3, this.bloomParamsBindGroup, [0]);
             renderPass.draw(6);
 
             renderPass.end();
@@ -630,14 +741,14 @@ export class UnlitRenderer extends BaseRenderer {
             {
                 this.maxLights = this.lights.length;
                 this.lightsBufferArray = new Float32Array(this.lights.length * 8);
-                this.lightBuffer = WebGPU.createBuffer(this.device, {
+                this.lightsBuffer = WebGPU.createBuffer(this.device, {
                     size: this.lights.length * 32,
                     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
                 });
 
                 this.lightsBindGroup = this.device.createBindGroup({
                     layout: this.lightingPipeline.getBindGroupLayout(2),
-                    entries: [ { binding: 0, resource: this.lightBuffer } ],
+                    entries: [ { binding: 0, resource: this.lightsBuffer } ],
                 });
             }
             for (let i = 0; i < this.lights.length; i++)
@@ -645,7 +756,7 @@ export class UnlitRenderer extends BaseRenderer {
                 this.lightsBufferArray.set(this.lights[i].position, i * 8);
                 this.lightsBufferArray.set(this.lights[i].light.emission, i * 8 + 4);
             }
-            this.device.queue.writeBuffer(this.lightBuffer, 0, this.lightsBufferArray);
+            this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
         }
 
         if (this.skeletons.length > 0)
@@ -743,4 +854,198 @@ export class UnlitRenderer extends BaseRenderer {
 
         renderPass.drawIndexed(primitive.mesh.indices.length, nInstances, 0, 0, instanceOffset);
     }
+
+    prepareCamera(camera) {
+        if (this.gpuObjects.has(camera)) {
+            return this.gpuObjects.get(camera);
+        }
+
+        const cameraUniformBuffer = this.device.createBuffer({
+            size: 144,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        const deferredCameraBindGroup = this.device.createBindGroup({
+            layout: this.deferredPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const lightingCameraBindGroup = this.device.createBindGroup({
+            layout: this.lightingPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const skyboxCameraBindgroup = this.device.createBindGroup({
+            layout: this.skyboxPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup };
+        this.gpuObjects.set(camera, gpuObjects);
+        return gpuObjects;
+    }
+
+    prepareTexture(texture) {
+        if (this.gpuObjects.has(texture)) {
+            return this.gpuObjects.get(texture);
+        }
+
+        const { gpuTexture } = this.prepareImage(texture.image); // ignore sRGB
+        const { gpuSampler } = this.prepareSampler(texture.sampler);
+
+        const gpuObjects = { gpuTexture, gpuSampler };
+        this.gpuObjects.set(texture, gpuObjects);
+        return gpuObjects;
+    }
+
+    prepareMaterial(material) {
+        if (this.gpuObjects.has(material)) {
+            return this.gpuObjects.get(material);
+        }
+
+        if (!material.albedoTexture) material.albedoTexture = this.dummyMaterial.albedoTexture;
+        const albedoTexture = this.prepareTexture(material.albedoTexture);
+
+        const materialUniformBuffer = this.device.createBuffer({
+            size: 32,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        const materialBindGroup = this.device.createBindGroup({
+            layout: this.deferredPipeline.getBindGroupLayout(2),
+            entries: [
+                { binding: 0, resource: albedoTexture.gpuTexture },
+                { binding: 1, resource: albedoTexture.gpuSampler },
+                { binding: 2, resource: materialUniformBuffer },
+            ],
+        });
+
+        const gpuObjects = { materialBindGroup, materialUniformBuffer };
+        this.gpuObjects.set(material, gpuObjects);
+        return gpuObjects;
+    }
+
 }
+
+const vertexBufferLayout = {
+    arrayStride: 48,
+    stepMode: 'vertex',
+    attributes: [
+        {
+            name: 'position',
+            shaderLocation: 0,
+            offset: 0,
+            format: 'float32x3',
+        },
+        {
+            name: 'normal',
+            shaderLocation: 1,
+            offset: 16,
+            format: 'float32x3',
+        },
+        {
+            name: 'texcoords',
+            shaderLocation: 2,
+            offset: 32,
+            format: 'float32x2',
+        },
+        {
+            name: 'joints',
+            shaderLocation: 3,
+            offset: 40,
+            format: 'uint8x4',
+        },
+        {
+            name: 'weights',
+            shaderLocation: 4,
+            offset: 44,
+            format: 'unorm8x4',
+        },
+    ],
+};
+
+const instanceBufferLayout = {
+    arrayStride: 132,
+    stepMode: 'instance',
+    attributes: [
+        {
+            name: 'row1',
+            shaderLocation: 5,
+            offset: 0,
+            format: 'float32x4',
+        },
+        {
+            name: 'row2',
+            shaderLocation: 6,
+            offset: 16,
+            format: 'float32x4',
+        },
+        {
+            name: 'row3',
+            shaderLocation: 7,
+            offset: 32,
+            format: 'float32x4',
+        },
+        {
+            name: 'row4',
+            shaderLocation: 8,
+            offset: 48,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row1',
+            shaderLocation: 9,
+            offset: 64,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row2',
+            shaderLocation: 10,
+            offset: 80,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row3',
+            shaderLocation: 11,
+            offset: 96,
+            format: 'float32x4',
+        },
+        {
+            name: 'inv_row4',
+            shaderLocation: 12,
+            offset: 112,
+            format: 'float32x4',
+        },
+        {
+            name: 'jointI',
+            shaderLocation: 13,
+            offset: 128,
+            format: 'sint32',
+        },
+    ],
+};
+
+const uiInstanceBufferLayout = {
+    arrayStride: 32,
+    stepMode: 'instance',
+    attributes: [
+        {
+            name: 'position',
+            shaderLocation: 0,
+            offset: 0,
+            format: 'float32x4',
+        },
+        {
+            name: 'scale',
+            shaderLocation: 1,
+            offset: 16,
+            format: 'float32x4',
+        },
+    ],
+};
