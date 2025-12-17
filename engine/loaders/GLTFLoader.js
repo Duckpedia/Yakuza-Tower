@@ -559,17 +559,6 @@ export class GLTFLoader {
             if (skeleton)
                 entity.addComponent(skeleton);
         }
-
-        if (gltfSpec.camera !== undefined)
-        {
-            const camera = this.gltf.cameras[gltfSpec.camera];
-            entity.addComponent(new Camera({ 
-                aspect: camera.perspective.aspectRatio,
-                yfov: camera.perspective.fovy,
-                near: camera.perspective.znear,
-                far: camera.perspective.zfar,
-            }));
-        }
         
         if (gltfSpec.extensions)
         {

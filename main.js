@@ -196,33 +196,6 @@ scene.push(guyCollider);
 // player_katana.parent = player_guy;
 // scene.push(...player_katana_scene);
 
-// stackoverflow
-function hsv2rgb(h,s,v) 
-{                              
-  let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
-  return [f(5),f(3),f(1)];       
-}  
-
-const rotationMat = new glm.mat4();
-glm.mat4.fromYRotation(rotationMat, .016);
-/*
-const degreesToRads = deg => (deg * Math.PI) / 180.0;
-const radsToDegrees = rad => (rad * 180.0) / Math.PI;
-for (let i = 0; i < 360; i+=5)
-{
-    const light = new Entity();
-    let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
-    vec3.scale(translation, translation, Math.random() * 9 + 1);
-    light.transform = new Transform({ translation });
-    light.addComponent(light.transform);
-    light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
-    light.addComponent({update(t, dt) {
-        glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat);
-    }});
-    scene.push(light);
-}
-*/
-
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {
     const transform = entity.getComponentOfType(Transform);
@@ -244,8 +217,29 @@ for (const entity of scene) {
   entity.aabb = mergeAxisAlignedBoundingBoxes(boxes);
 }
 
+const cameras = []
+for (const entity of scene)
+{
+    const c = entity.getComponentOfType(Camera);
+    if (c) cameras.push(entity);
+}
+let active_camera = 0;
+function getActiveCamera()
+{
+    return cameras[active_camera];
+}
+
 
 function update(t, dt) {
+    if (Inputs.isPressed('KeyG'))
+    {
+        World.poprSettings.pass = (World.poprSettings.pass + 1) % 5
+    }
+
+    if (Inputs.isPressed('KeyT'))
+    {
+        active_camera = (active_camera + 1) % cameras.length;
+    }
 
     const scaledDt = dt * World.timeScale;
     for (const entity of scene) {
@@ -267,11 +261,11 @@ function update(t, dt) {
 }
 
 function render() {
-    renderer.render(scene, player, World.poprSettings);
+    renderer.render(scene, getActiveCamera(), World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {
-    player.getComponentOfType(Camera).aspect = width / height;
+    getActiveCamera().getComponentOfType(Camera).aspect = width / height;
 }
 
 new ResizeSystem({ canvas, resize }).start();
