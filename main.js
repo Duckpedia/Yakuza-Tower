@@ -4,7 +4,6 @@ import { GUI } from 'dat';
 
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
 import { UpdateSystem } from 'engine/systems/UpdateSystem.js';
-import { UnlitRenderer } from 'engine/renderers/UnlitRenderer.js';
 import { PlayerComponent } from 'src/components/PlayerComponent.js';
 
 import {
@@ -19,6 +18,7 @@ import {
 } from 'engine/core/core.js';
 
 import { loadResources } from 'engine/loaders/resources.js';
+import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { LightComponent } from './src/components/LightComponent.js';
 import { World } from './src/World.js';
@@ -73,7 +73,7 @@ function attachBoxCollider(parent, {
 }
 
 const canvas = document.querySelector('canvas');
-const renderer = new UnlitRenderer(canvas);
+const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image);
 
 const inputs = new Inputs(canvas);
@@ -275,8 +275,12 @@ function update(t, dt) {
     }
 
     for (const entity of scene)
+    {
         if (!entity.parent)
+        {
             updateWorldMatricesRecursive(entity, new mat4());
+        }
+    }
         
     inputs.update();
     physics.update(t, dt);

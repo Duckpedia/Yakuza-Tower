@@ -1,7 +1,7 @@
 import { quat, vec3, mat4 } from 'glm';
 
 import { Transform } from 'engine/core/Transform.js';
-import { UnlitRenderer } from '../../engine/renderers/UnlitRenderer.js';
+import { DeferredRenderer } from '../renderer/DeferredRenderer.js';
 import { World } from '../World.js';
 import { Inputs } from '../Inputs.js';
 
@@ -39,10 +39,10 @@ export class PlayerComponent {
         this.playerTimeScale = 1.0
         this.isSlowTime = isSlowTime
 
-        UnlitRenderer.randomRectangle.position[0] = 0.33;
-        UnlitRenderer.randomRectangle.position[1] = 0.1;
-        UnlitRenderer.randomRectangle.scale[0] = 0.4;
-        UnlitRenderer.randomRectangle.scale[1] = 0.025;
+        DeferredRenderer.randomRectangle.position[0] = 0.33;
+        DeferredRenderer.randomRectangle.position[1] = 0.1;
+        DeferredRenderer.randomRectangle.scale[0] = 0.4;
+        DeferredRenderer.randomRectangle.scale[1] = 0.025;
     }
 
     lerp(a, b, t) {
@@ -54,17 +54,17 @@ export class PlayerComponent {
         this.updateInput();
 
         if (this.isSlowTime) {
-            if (UnlitRenderer.randomRectangle.scale[0] > 0) {
-                UnlitRenderer.randomRectangle.scale[0] -= dt * 0.05;
+            if (DeferredRenderer.randomRectangle.scale[0] > 0) {
+                DeferredRenderer.randomRectangle.scale[0] -= dt * 0.05;
             } else {
                 this.playerTimeScale = 1;
                 World.timeScale = 1;
                 this.isSlowTime = false;
-                UnlitRenderer.randomRectangle.scale[0] = 0;
+                DeferredRenderer.randomRectangle.scale[0] = 0;
             }
         } else {
-            UnlitRenderer.randomRectangle.scale[0] += dt * 0.025;
-            UnlitRenderer.randomRectangle.scale[0] = Math.min(UnlitRenderer.randomRectangle.scale[0], 0.4);
+            DeferredRenderer.randomRectangle.scale[0] += dt * 0.025;
+            DeferredRenderer.randomRectangle.scale[0] = Math.min(DeferredRenderer.randomRectangle.scale[0], 0.4);
         }
 
         const effectiveDt = dt * this.playerTimeScale;
@@ -161,7 +161,7 @@ export class PlayerComponent {
         this.yaw = ((this.yaw % twopi) + twopi) % twopi;
 
         if (Inputs.isHeld('KeyF')) {
-            if (UnlitRenderer.randomRectangle.scale[0] > 0.020)
+            if (DeferredRenderer.randomRectangle.scale[0] > 0.020)
             {
                 this.playerTimeScale = 0.5; // slower player
                 World.timeScale = 0.2; // slower enemies/world
@@ -174,8 +174,8 @@ export class PlayerComponent {
             this.isSlowTime = false;
         }
 
-        if (Inputs.isReleased('KeyF') && UnlitRenderer.randomRectangle.scale[0] > 0.020){ 
-            UnlitRenderer.randomRectangle.scale[0] -= 0.020
+        if (Inputs.isReleased('KeyF') && DeferredRenderer.randomRectangle.scale[0] > 0.020){ 
+            DeferredRenderer.randomRectangle.scale[0] -= 0.020
         }
 
         this.isCrouching = Inputs.isHeld('KeyC');

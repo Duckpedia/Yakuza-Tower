@@ -1,35 +1,35 @@
 import { mat4, vec2 } from 'glm';
 
-import * as WebGPU from '../WebGPU.js';
+import * as WebGPU from '../../engine/WebGPU.js';
 
-import { Camera, Model, Transform } from '../core/core.js';
+import { Camera, Model, Transform } from '../../engine/core/core.js';
 
 import {
     getGlobalViewMatrix,
     getProjectionMatrix,
-} from '../core/SceneUtils.js';
+} from '../../engine/core/SceneUtils.js';
 
-import { BaseRenderer } from './BaseRenderer.js';
-import { ImageLoader } from '../loaders/ImageLoader.js';
-import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
-import { LightComponent } from '../../src/components/LightComponent.js';
+import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
+import { ImageLoader } from '../../engine/loaders/ImageLoader.js';
+import { SkeletonComponent } from '../components/SkeletonComponent.js';
+import { LightComponent } from '../components/LightComponent.js';
 
-export class PoprSettings {
+export class DeferredRendererSettings {
     constructor()
     {
         this.pass = 0;
         this.showUI = true;
         this.showSkybox = true;
+        this.showBloom = true;
         this.bloomThreshold = 1.3;
         this.bloomStrength = 0.012;
         this.bloomFilterRadius = 1.0;
-        this.bloom = true;
     }
 }
 
-export class UnlitRenderer extends BaseRenderer {
+export class DeferredRenderer extends BaseRenderer {
 
-    static randomRectangle = {position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5)};
+    static randomRectangle = { position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5) };
 
     constructor(canvas) {
         super(canvas);
@@ -469,232 +469,255 @@ export class UnlitRenderer extends BaseRenderer {
         const target = this.context.getCurrentTexture().createView();
         const encoder = this.device.createCommandEncoder();
 
-        { // deferred
-            const renderPass = encoder.beginRenderPass({
-                colorAttachments: [
-                    {
-                        view: this.deferredAlbedoTexture.createView(),
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
-                    {
-                        view: this.deferredPositionTexture.createView(),
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
-                    {
-                        view: this.deferredNormalTexture.createView(),
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
-                ],
-                depthStencilAttachment: {
-                    view: this.defferedDepthTexture.createView(),
-                    depthClearValue: 1,
-                    depthLoadOp: 'clear',
-                    depthStoreOp: 'store',
-                },
-            });
-
-            renderPass.setPipeline(this.deferredPipeline);
-            renderPass.setBindGroup(0, deferredCameraBindGroup);
-
-            this.renderEntities(entities, renderPass);
-
-            renderPass.end();
-        }
+        this.renderDeferred(encoder, entities, deferredCameraBindGroup);
             
-        { // lighting
-            const renderPass = encoder.beginRenderPass({
-                colorAttachments: [
-                    {
-                        view: this.lightingTexture.createView(),
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
-                ],
-            });
+        this.renderLighting(encoder, lightingCameraBindGroup);
 
-            renderPass.setPipeline(this.lightingPipeline);
-            renderPass.setBindGroup(0, lightingCameraBindGroup);
-            renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
-            renderPass.setBindGroup(2, this.lightsBindGroup);
-            renderPass.setBindGroup(3, this.poprSettingsBindGroup);
-            renderPass.draw(6);
-
-            renderPass.end();
+        if (poprSettings.showBloom)
+        {
+            this.renderBloom(encoder, poprSettings);
         }
 
-        if (poprSettings.bloom)
-        { // bloom
-            const updateBuffer = (width, height, filterRadius, threshold, bufferOffset) =>
-            {
-                this.bloomParamsBufferArray[0] = width;
-                this.bloomParamsBufferArray[1] = height;
-                this.bloomParamsBufferArray[2] = filterRadius;
-                this.bloomParamsBufferArray[3] = threshold;
-                this.bloomParamsBufferArray[4] = poprSettings.bloomStrength;
-                this.device.queue.writeBuffer(
-                    this.bloomParamsBuffer,
-                    bufferOffset,
-                    this.bloomParamsBufferArray,
-                    0,
-                    24
-                );
-            }
-            let paramsBufferOffset = 0;
-
-            { // downsample
-
-                let input = { 
-                    bindGroup: this.lightingTextureBindGroup, 
-                    width: this.bloomTextures[0].width * 2, 
-                    height: this.bloomTextures[1].height * 2
-                };
-
-                for (let i = 0; i < this.bloomTextures.length; i++)
-                {
-                    updateBuffer(input.width, input.height, 0.0, i == 0 ? poprSettings.bloomThreshold : 0.0, paramsBufferOffset);
-
-                    const output = this.bloomTextures[i];
-                    const renderPass = encoder.beginRenderPass({
-                        colorAttachments: [
-                            {
-                                view: output.tex.createView(),
-                                clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                                loadOp: 'clear',
-                                storeOp: 'store',
-                            },
-                        ],
-                    });
-                    renderPass.setPipeline(this.downsamplePipeline);
-                    renderPass.setBindGroup(0, input.bindGroup);
-                    renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
-                    renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
-                    renderPass.draw(6);
-                    renderPass.end();
-
-                    paramsBufferOffset += this.bloomParamsStride;
-                    input = output;
-                }
-            }
-            
-            { // upsample
-                for (let i = this.bloomTextures.length - 1; i > 0; i--)
-                {
-                    const input = this.bloomTextures[i];
-                    const output = this.bloomTextures[i - 1];
-
-                    updateBuffer(input.width, input.height, poprSettings.bloomFilterRadius * (1.0 / input.width), 0.0, paramsBufferOffset);
-
-                    const renderPass = encoder.beginRenderPass({
-                        colorAttachments: [
-                            {
-                                view: output.tex.createView(),
-                                loadOp: 'load',
-                                storeOp: 'store',
-                            },
-                        ],
-                    });
-                    renderPass.setPipeline(this.upsamplePipeline);
-                    renderPass.setBindGroup(0, input.bindGroup);
-                    renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
-                    renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
-                    renderPass.draw(6);
-                    renderPass.end();
-
-                    paramsBufferOffset += this.bloomParamsStride;
-                }
-            }
-        }
-
-        { // tonemap
-            const renderPass = encoder.beginRenderPass({
-                colorAttachments: [
-                    {
-                        view: target,
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
-                ],
-            });
-
-            renderPass.setPipeline(this.tonemapPipeline);
-            renderPass.setBindGroup(0, this.lightingTextureBindGroup);
-            renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
-            renderPass.setBindGroup(2, this.bloomTextures[0].bindGroup);
-            renderPass.setBindGroup(3, this.bloomParamsBindGroup, [0]);
-            renderPass.draw(6);
-
-            renderPass.end();
-        }
+        this.renderTonemap(encoder, target);
             
         if (poprSettings.showSkybox)
         {
-            const renderPass = encoder.beginRenderPass({
-                colorAttachments: [
-                    {
-                        view: target,
-                        loadOp: 'load',
-                        storeOp: 'store',
-                    },
-                ],
-                depthStencilAttachment: {
-                    view: this.defferedDepthTexture.createView(),
-                    depthLoadOp: 'load',
-                    depthStoreOp: 'discard',
-                },
-            });
-
-            renderPass.setPipeline(this.skyboxPipeline);
-            renderPass.setBindGroup(0, skyboxCameraBindgroup);
-            renderPass.setBindGroup(1, this.skyboxBindGroup);
-            renderPass.draw(36);
-
-            renderPass.end();
+            this.renderSkybox(encoder, target, skyboxCameraBindgroup);
         }
 
         if (poprSettings.showUI)
         {
-            // collect instances (only the randomRectForNow)
-            let nUIInstances = 1;
-            if (this.maxUIInstances < nUIInstances)
-            {
-                this.maxUIInstances = nUIInstances;
-                this.uiInstancesBufferArray = new Float32Array(nUIInstances * 8);
-                this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
-                    size: nUIInstances * 8 * 4,
-                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-                });
-            }
-
-            this.uiInstancesBufferArray.set(UnlitRenderer.randomRectangle.position, 0);
-            this.uiInstancesBufferArray.set(UnlitRenderer.randomRectangle.scale, 4);
-            this.device.queue.writeBuffer(this.uiInstancesBuffer, 0, this.uiInstancesBufferArray);
-
-            const renderPass = encoder.beginRenderPass({
-                colorAttachments: [
-                    {
-                        view: target,
-                        loadOp: 'load',
-                        storeOp: 'store',
-                    },
-                ]
-            });
-
-            renderPass.setPipeline(this.uiPipeline);
-            renderPass.setVertexBuffer(0, this.uiInstancesBuffer);
-            renderPass.draw(6, 1);
-
-            renderPass.end();
+            this.renderUI(encoder, target);
         }
 
         this.device.queue.submit([encoder.finish()]);
+    }
+
+    renderDeferred(encoder, entities, deferredCameraBindGroup)
+    {
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: this.deferredAlbedoTexture.createView(),
+                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+                {
+                    view: this.deferredPositionTexture.createView(),
+                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+                {
+                    view: this.deferredNormalTexture.createView(),
+                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+            ],
+            depthStencilAttachment: {
+                view: this.defferedDepthTexture.createView(),
+                depthClearValue: 1,
+                depthLoadOp: 'clear',
+                depthStoreOp: 'store',
+            },
+        });
+
+        renderPass.setPipeline(this.deferredPipeline);
+        renderPass.setBindGroup(0, deferredCameraBindGroup);
+
+        this.renderEntities(entities, renderPass);
+
+        renderPass.end();
+    }
+
+    renderLighting(encoder, lightingCameraBindGroup)
+    {
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: this.lightingTexture.createView(),
+                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+            ],
+        });
+
+        renderPass.setPipeline(this.lightingPipeline);
+        renderPass.setBindGroup(0, lightingCameraBindGroup);
+        renderPass.setBindGroup(1, this.deferredTargetsBindGroup);
+        renderPass.setBindGroup(2, this.lightsBindGroup);
+        renderPass.setBindGroup(3, this.poprSettingsBindGroup);
+        renderPass.draw(6);
+
+        renderPass.end();
+    }
+
+    renderBloom(encoder, poprSettings)
+    {
+        let paramsBufferOffset = 0;
+        const updateBuffer = (width, height, filterRadius, threshold, bufferOffset) =>
+        {
+            this.bloomParamsBufferArray[0] = width;
+            this.bloomParamsBufferArray[1] = height;
+            this.bloomParamsBufferArray[2] = filterRadius;
+            this.bloomParamsBufferArray[3] = threshold;
+            this.bloomParamsBufferArray[4] = poprSettings.bloomStrength;
+            this.device.queue.writeBuffer(
+                this.bloomParamsBuffer,
+                bufferOffset,
+                this.bloomParamsBufferArray,
+                0,
+                24
+            );
+        }
+
+        { // downsample
+            let input = { 
+                bindGroup: this.lightingTextureBindGroup, 
+                width: this.bloomTextures[0].width * 2, 
+                height: this.bloomTextures[1].height * 2
+            };
+
+            for (let i = 0; i < this.bloomTextures.length; i++)
+            {
+                updateBuffer(input.width, input.height, 0.0, i == 0 ? poprSettings.bloomThreshold : 0.0, paramsBufferOffset);
+
+                const output = this.bloomTextures[i];
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments: [
+                        {
+                            view: output.tex.createView(),
+                            clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                            loadOp: 'clear',
+                            storeOp: 'store',
+                        },
+                    ],
+                });
+                renderPass.setPipeline(this.downsamplePipeline);
+                renderPass.setBindGroup(0, input.bindGroup);
+                renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+                renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                renderPass.draw(6);
+                renderPass.end();
+
+                paramsBufferOffset += this.bloomParamsStride;
+                input = output;
+            }
+        }
+        
+        { // upsample
+            for (let i = this.bloomTextures.length - 1; i > 0; i--)
+            {
+                const input = this.bloomTextures[i];
+                const output = this.bloomTextures[i - 1];
+
+                updateBuffer(input.width, input.height, poprSettings.bloomFilterRadius * (1.0 / input.width), 0.0, paramsBufferOffset);
+
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments: [
+                        {
+                            view: output.tex.createView(),
+                            loadOp: 'load',
+                            storeOp: 'store',
+                        },
+                    ],
+                });
+                renderPass.setPipeline(this.upsamplePipeline);
+                renderPass.setBindGroup(0, input.bindGroup);
+                renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+                renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                renderPass.draw(6);
+                renderPass.end();
+
+                paramsBufferOffset += this.bloomParamsStride;
+            }
+        }
+    }
+
+    renderTonemap(encoder, target)
+    {
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: target,
+                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+            ],
+        });
+
+        renderPass.setPipeline(this.tonemapPipeline);
+        renderPass.setBindGroup(0, this.lightingTextureBindGroup);
+        renderPass.setBindGroup(1, this.linearTextureSamplerBindGroup);
+        renderPass.setBindGroup(2, this.bloomTextures[0].bindGroup);
+        renderPass.setBindGroup(3, this.bloomParamsBindGroup, [0]);
+        renderPass.draw(6);
+
+        renderPass.end();
+    }
+
+    renderSkybox(encoder, target, skyboxCameraBindgroup)
+    {
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: target,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+            ],
+            depthStencilAttachment: {
+                view: this.defferedDepthTexture.createView(),
+                depthLoadOp: 'load',
+                depthStoreOp: 'discard',
+            },
+        });
+
+        renderPass.setPipeline(this.skyboxPipeline);
+        renderPass.setBindGroup(0, skyboxCameraBindgroup);
+        renderPass.setBindGroup(1, this.skyboxBindGroup);
+        renderPass.draw(36);
+
+        renderPass.end();
+    }
+
+    renderUI(encoder, target)
+    {
+        // collect instances (only the randomRectForNow)
+        let nUIInstances = 1;
+        if (this.maxUIInstances < nUIInstances)
+        {
+            this.maxUIInstances = nUIInstances;
+            this.uiInstancesBufferArray = new Float32Array(nUIInstances * 8);
+            this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
+                size: nUIInstances * 8 * 4,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            });
+        }
+
+        this.uiInstancesBufferArray.set(DeferredRenderer.randomRectangle.position, 0);
+        this.uiInstancesBufferArray.set(DeferredRenderer.randomRectangle.scale, 4);
+        this.device.queue.writeBuffer(this.uiInstancesBuffer, 0, this.uiInstancesBufferArray);
+
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: target,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+            ]
+        });
+
+        renderPass.setPipeline(this.uiPipeline);
+        renderPass.setVertexBuffer(0, this.uiInstancesBuffer);
+        renderPass.draw(6, 1);
+
+        renderPass.end();
     }
     
     renderEntities(entities, renderPass) {
@@ -930,7 +953,6 @@ export class UnlitRenderer extends BaseRenderer {
         this.gpuObjects.set(material, gpuObjects);
         return gpuObjects;
     }
-
 }
 
 const vertexBufferLayout = {

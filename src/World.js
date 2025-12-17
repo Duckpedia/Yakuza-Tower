@@ -1,8 +1,8 @@
-import { PoprSettings } from "../engine/renderers/UnlitRenderer.js";
+import { DeferredRendererSettings } from "./renderer/DeferredRenderer.js";
 
 export class World {
     static timeScale = 1.0;
-    static poprSettings = new PoprSettings();
+    static poprSettings = new DeferredRendererSettings();
 
     static activeCamera = null;
 }
