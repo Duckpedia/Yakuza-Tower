@@ -27,6 +27,10 @@ export class PlayerComponent {
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded
         this.groundY = groundY
+        this.standY = 1.5;
+        this.crouchY = 0.8;
+        this.currentY = this.standY;
+        this.crouchSpeed = 10;
 
         this.pitch = pitch;
         this.yaw = yaw;
@@ -97,6 +101,7 @@ export class PlayerComponent {
 
         const gravity = 22;
         this.velocity[1] -= gravity * effectiveDt;
+        
 
         // Update velocity based on acceleration.
         vec3.scaleAndAdd(this.velocity, this.velocity, acc, effectiveDt * this.acceleration);
@@ -140,9 +145,20 @@ export class PlayerComponent {
             transform.rotation = rotation;
 
             
-           if (this.isCrouching && this.isGrounded) {
-                transform.translation[1] = 0.8;  
-            } 
+        if (this.isGrounded) {
+
+            const targetY = this.isCrouching
+                ? this.crouchY
+                : this.standY;
+
+            this.currentY = this.lerp(
+                this.currentY,
+                targetY,
+                Math.min(1, this.crouchSpeed * effectiveDt)
+            );
+
+            transform.translation[1] = this.currentY;
+        }
 
         }
     }
