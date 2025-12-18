@@ -14,11 +14,21 @@
 			"lights":[
 				{
 					"color":[
+						0.8188204765319824,
+						0.9974614381790161,
+						1
+					],
+					"intensity":3435.490143299103,
+					"type":"directional",
+					"name":"Sun"
+				},
+				{
+					"color":[
 						1,
 						1,
 						1
 					],
-					"intensity":2.7175706937890713,
+					"intensity":22596.598323467053,
 					"type":"point",
 					"name":"Point.002"
 				},
@@ -28,7 +38,7 @@
 						1,
 						1
 					],
-					"intensity":5.435141387578143,
+					"intensity":14448.80551555644,
 					"type":"point",
 					"name":"Point.004"
 				},
@@ -38,7 +48,7 @@
 						1,
 						1
 					],
-					"intensity":10.870282775156285,
+					"intensity":6250.4120879080865,
 					"type":"point",
 					"name":"Point.005"
 				},
@@ -48,7 +58,7 @@
 						1,
 						1
 					],
-					"intensity":43.481127861028476,
+					"intensity":9571.283343299818,
 					"type":"point",
 					"name":"Point.006"
 				}
@@ -60,13 +70,24 @@
 		{
 			"name":"Scene",
 			"nodes":[
-				14
+				16
 			]
 		}
 	],
 	"nodes":[
 		{
+			"extensions":{
+				"KHR_lights_punctual":{
+					"light":0
+				}
+			},
+			"name":"Sun"
+		},
+		{
 			"camera":0,
+			"children":[
+				0
+			],
 			"name":"Camera",
 			"rotation":[
 				-0.2261674851179123,
@@ -83,7 +104,7 @@
 		{
 			"extensions":{
 				"KHR_lights_punctual":{
-					"light":0
+					"light":1
 				}
 			},
 			"name":"Point",
@@ -101,7 +122,7 @@
 		},
 		{
 			"children":[
-				1
+				2
 			],
 			"mesh":0,
 			"name":"Cube",
@@ -119,7 +140,7 @@
 		{
 			"extensions":{
 				"KHR_lights_punctual":{
-					"light":1
+					"light":2
 				}
 			},
 			"name":"Point.001",
@@ -137,7 +158,7 @@
 		},
 		{
 			"children":[
-				3
+				4
 			],
 			"mesh":1,
 			"name":"Cube.001",
@@ -155,7 +176,7 @@
 		{
 			"extensions":{
 				"KHR_lights_punctual":{
-					"light":2
+					"light":3
 				}
 			},
 			"name":"Point.002",
@@ -173,7 +194,7 @@
 		},
 		{
 			"children":[
-				5
+				6
 			],
 			"mesh":2,
 			"name":"Cube.002",
@@ -191,7 +212,7 @@
 		{
 			"extensions":{
 				"KHR_lights_punctual":{
-					"light":3
+					"light":4
 				}
 			},
 			"name":"Point.003",
@@ -209,7 +230,7 @@
 		},
 		{
 			"children":[
-				7
+				8
 			],
 			"mesh":3,
 			"name":"Cube.003",
@@ -314,17 +335,38 @@
 			]
 		},
 		{
-			"children":[
+			"mesh":9,
+			"name":"Torus",
+			"rotation":[
+				0.6532815098762512,
+				-0.27059805393218994,
+				0.2705981433391571,
+				0.6532814502716064
+			],
+			"scale":[
+				3.9861483573913574,
+				3.9861483573913574,
+				3.9861481189727783
+			],
+			"translation":[
+				-5.057569980621338,
 				0,
-				2,
-				4,
-				6,
-				8,
+				4.831785678863525
+			]
+		},
+		{
+			"children":[
+				1,
+				3,
+				5,
+				7,
 				9,
 				10,
 				11,
 				12,
-				13
+				13,
+				14,
+				15
 			],
 			"name":"Root"
 		}
@@ -457,6 +499,20 @@
 				"metallicFactor":0.7963917255401611,
 				"roughnessFactor":0.3041236996650696
 			}
+		},
+		{
+			"doubleSided":true,
+			"name":"Material.009",
+			"pbrMetallicRoughness":{
+				"baseColorFactor":[
+					0.8000074625015259,
+					0.5159906148910522,
+					0.4608384668827057,
+					1
+				],
+				"metallicFactor":0.8863049149513245,
+				"roughnessFactor":0.46640825271606445
+			}
 		}
 	],
 	"meshes":[
@@ -583,6 +639,20 @@
 					},
 					"indices":26,
 					"material":8
+				}
+			]
+		},
+		{
+			"name":"Torus",
+			"primitives":[
+				{
+					"attributes":{
+						"POSITION":30,
+						"NORMAL":31,
+						"TEXCOORD_0":32
+					},
+					"indices":33,
+					"material":9
 				}
 			]
 		}
@@ -870,6 +940,40 @@
 			"componentType":5126,
 			"count":1966,
 			"type":"VEC2"
+		},
+		{
+			"bufferView":30,
+			"componentType":5126,
+			"count":637,
+			"max":[
+				1.25,
+				0.25,
+				1.25
+			],
+			"min":[
+				-1.25,
+				-0.25,
+				-1.25
+			],
+			"type":"VEC3"
+		},
+		{
+			"bufferView":31,
+			"componentType":5126,
+			"count":637,
+			"type":"VEC3"
+		},
+		{
+			"bufferView":32,
+			"componentType":5126,
+			"count":637,
+			"type":"VEC2"
+		},
+		{
+			"bufferView":33,
+			"componentType":5123,
+			"count":3456,
+			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
@@ -1052,6 +1156,30 @@
 			"byteLength":15728,
 			"byteOffset":119444,
 			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":7644,
+			"byteOffset":135172,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":7644,
+			"byteOffset":142816,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":5096,
+			"byteOffset":150460,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":6912,
+			"byteOffset":155556,
+			"target":34963
 		}
 	],
 	"samplers":[
@@ -1062,7 +1190,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":135172,
+			"byteLength":162468,
 			"uri":"soba.bin"
 		}
 	]

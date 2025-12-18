@@ -173,14 +173,14 @@ const rotationMat = new glm.mat4();
 glm.mat4.fromYRotation(rotationMat, .016);
 
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
-for (let i = 0; i < 360; i+=20)
+for (let i = 0; i < 360; i+=30)
 {
     const light = new Entity();
     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
     vec3.scale(translation, translation, Math.random() * 9 + 1);
     light.transform = new Transform({ translation });
     light.addComponent(light.transform);
-    light.addComponent(new LightComponent({ emission: hsv2rgb(Math.random() * 360, 1.0, 1.0) }));
+    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 120.0 }));
     light.addComponent({update(t, dt) {
         glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat);
     }});
@@ -286,3 +286,11 @@ const gui = new GUI();
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'strength', 0.0, 1.0);
+gui.add(World.poprSettings.tonemapping, 'index', 0, 1);
+gui.add(World.poprSettings.tonemapping.agxSlope, 0, 0.0, 1.0).name('slopeX');
+gui.add(World.poprSettings.tonemapping.agxSlope, 1, 0.0, 1.0).name('slopeY');
+gui.add(World.poprSettings.tonemapping.agxSlope, 2, 0.0, 1.0).name('slopeZ');
+gui.add(World.poprSettings.tonemapping.agxPower, 0, 0.0, 2.0).name('powerX');
+gui.add(World.poprSettings.tonemapping.agxPower, 1, 0.0, 2.0).name('powerY');
+gui.add(World.poprSettings.tonemapping.agxPower, 2, 0.0, 2.0).name('powerZ');
+gui.add(World.poprSettings.tonemapping, 'agxSat', 0.0, 5.0);

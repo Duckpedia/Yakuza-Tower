@@ -11,9 +11,11 @@ struct CameraUniforms {
 
 struct Light {
     viewProjMatrix: mat4x4f, // wasteful but meh
-    emission: vec4f,
+    color: vec3f,
+    intensity: f32,
     position: vec4f,
-    shadowIndex: f32
+    shadowIndex: f32,
+    falloff: u32,
 }
 
 struct Settings {
@@ -144,11 +146,16 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
     for (var i = 0u; i < nLights; i++) {
         let lightt = lights[i];
         let lightPosition = lightt.position.xyz;
-        let lightEmission = lightt.emission.rgb;
+        let lightColor = lightt.color;
+        let lightIntensity = lightt.intensity;
         let toLight = lightPosition - world.xyz;
         let light = normalize(toLight);
         let half = normalize(view + light);
-        var attenuation = 1.0f / length2(toLight);
+        var attenuation = 1.0f;
+        if (lightt.falloff > 0)
+        {
+            attenuation = 1.0f / length2(toLight);
+        }
 
         let ndf = distributionGGX(normal, half, roughness);
         let g = geometrySmith(normal, view, light, roughness);
@@ -163,7 +170,7 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
 
         let shadow = calculateShadow(lightt, world);
 
-        let radiance = lightEmission * attenuation;
+        let radiance = lightColor * lightIntensity * attenuation;
         let normalDotLight = positiveDot(normal, light);
         l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight * shadow;
     }

@@ -544,6 +544,8 @@ export class GLTFLoader {
     loadNode(gltfSpec) {
         const entity = new Entity();
 
+        entity.name = gltfSpec.name;
+
         entity.addComponent(new Transform(gltfSpec));
 
         if (gltfSpec.camera !== undefined) {
@@ -565,11 +567,12 @@ export class GLTFLoader {
             if (gltfSpec.extensions.KHR_lights_punctual)
             {
                 const light = this.gltf.extensions.KHR_lights_punctual.lights[gltfSpec.extensions.KHR_lights_punctual.light];
-                entity.addComponent(new LightComponent({ emission: new glm.vec3(light.intensity) }));
+                const intensity = light.intensity;
+                const color = light.color;
+                const shadows = entity.name === "Sun"; // idk
+                entity.addComponent(new LightComponent({ type: light.type, intensity, shadows, color}));
             }
         }
-
-        entity.name = gltfSpec.name;
 
         return entity;
     }

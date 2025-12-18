@@ -2,7 +2,7 @@ import { mat4, vec2 } from 'glm';
 
 import * as WebGPU from '../../engine/WebGPU.js';
 
-import { Camera, Model, Transform } from '../../engine/core/core.js';
+import { Camera } from '../../engine/core/core.js';
 
 import {
     getGlobalViewMatrix,
@@ -11,8 +11,6 @@ import {
 
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
 import { ImageLoader } from '../../engine/loaders/ImageLoader.js';
-import { SkeletonComponent } from '../components/SkeletonComponent.js';
-import { LightComponent } from '../components/LightComponent.js';
 
 export class DeferredRendererSettings {
     constructor()
@@ -26,6 +24,12 @@ export class DeferredRendererSettings {
             strength: 0.012,
             filterRadius: 1.0,
             dirtStrength: 0.0,
+        },
+        this.tonemapping = {
+            index: 1,
+            agxSlope: [1.0, 1.0, 1.0],
+            agxPower: [1.35, 1.35, 1.35],
+            agxSat: 1.4
         }
         this.blackAndWhite = false;
     }
@@ -88,7 +92,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.lightsBufferArray = null;
         this.instancesBufferArray = null;
         this.uiInstancesBufferArray = null;
-        this.poprSettingsBufferArray = new Float32Array(4);
+        this.poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
         this.jointsBuffer = null;
         this.lightsBuffer = null;
         this.instancesBuffer = null;
@@ -552,7 +556,11 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[0] = poprSettings.pass;
         this.poprSettingsBufferArray[1] = poprSettings.bloom.strength;
         this.poprSettingsBufferArray[2] = poprSettings.bloom.dirtStrength;
-        this.poprSettingsBufferArray[3] = poprSettings.blackAndWhite;
+        this.poprSettingsBufferArray[3] = poprSettings.tonemapping.index;
+        this.poprSettingsBufferArray.set(poprSettings.tonemapping.agxSlope, 4);
+        this.poprSettingsBufferArray.set(poprSettings.tonemapping.agxPower, 4 + 4);
+        this.poprSettingsBufferArray[12] = poprSettings.tonemapping.agxSat;
+        this.poprSettingsBufferArray[13] = poprSettings.blackAndWhite;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
@@ -658,11 +666,14 @@ export class DeferredRenderer extends BaseRenderer {
             const light = this.lights[i];
             const bufI = i * stride;
             const shadowindex = light._light.shadows ? nShadowCastingLights++ : -1;
+            const hasFalloff = light._light.type === 'point' ? 1 : 0;
             mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, light._transform.inv_final);
             this.lightsBufferArray.set(viewProj, bufI);
-            this.lightsBufferArray.set(light._light.emission, bufI + 16);
+            this.lightsBufferArray.set(light._light.color, bufI + 16);
+            this.lightsBufferArray.set([light._light.intensity], bufI + 16 + 3);
             this.lightsBufferArray.set(light._transform.final_position, bufI + 16 + 4);
             this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 4);
+            this.lightsBufferArray.set([hasFalloff], bufI + 16 + 4 + 4 + 1);
         }
 
         this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
