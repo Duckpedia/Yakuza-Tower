@@ -1099,12 +1099,12 @@ export class DeferredRenderer extends BaseRenderer {
         return gpuObjects;
     }
 
-    prepareTexture(texture) {
+    prepareTexture(texture, isSRGB) {
         if (this.gpuObjects.has(texture)) {
             return this.gpuObjects.get(texture);
         }
 
-        const { gpuTexture } = this.prepareImage(texture.image); // ignore sRGB
+        const { gpuTexture } = this.prepareImage(texture.image, isSRGB);
         const { gpuSampler } = this.prepareSampler(texture.sampler);
 
         const gpuObjects = { gpuTexture, gpuSampler };
@@ -1118,7 +1118,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
 
         if (!material.albedoTexture) material.albedoTexture = this.dummyMaterial.albedoTexture;
-        const albedoTexture = this.prepareTexture(material.albedoTexture);
+        const albedoTexture = this.prepareTexture(material.albedoTexture, true); // albedo is always srgb
 
         const materialUniformBuffer = this.device.createBuffer({
             size: 32,

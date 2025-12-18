@@ -410,12 +410,9 @@
 			"doubleSided":true,
 			"name":"Material.008",
 			"pbrMetallicRoughness":{
-				"baseColorFactor":[
-					0.8000074625015259,
-					0.7952970266342163,
-					0.7682101726531982,
-					1
-				],
+				"baseColorTexture":{
+					"index":0
+				},
 				"metallicFactor":0
 			}
 		},
@@ -588,6 +585,19 @@
 					"material":8
 				}
 			]
+		}
+	],
+	"textures":[
+		{
+			"sampler":0,
+			"source":0
+		}
+	],
+	"images":[
+		{
+			"mimeType":"image/png",
+			"name":"Bliss_(Windows_XP)",
+			"uri":"Bliss_%28Windows_XP%29.png"
 		}
 	],
 	"accessors":[
@@ -1042,6 +1052,12 @@
 			"byteLength":15728,
 			"byteOffset":119444,
 			"target":34962
+		}
+	],
+	"samplers":[
+		{
+			"magFilter":9729,
+			"minFilter":9987
 		}
 	],
 	"buffers":[
