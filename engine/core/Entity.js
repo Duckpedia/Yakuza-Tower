@@ -8,14 +8,12 @@ export class Entity {
 
     addComponent(component) {
         this.components.push(component);
+        component.onAttach?.(this);
     }
 
     removeComponent(component) {
         this.components = this.components.filter(c => c !== component);
-    }
-
-    removeComponentsOfType(type) {
-        this.components = this.components.filter(component => !(component instanceof type));
+        component.onDetach?.(this);
     }
 
     getComponentOfType(type) {

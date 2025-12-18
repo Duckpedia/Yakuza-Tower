@@ -4,4 +4,14 @@ export class LightComponent {
         this.type = type;
         this.shadows = shadows
     }
+    
+    onAttach(entity)
+    {
+        entity._light = this;
+    }
+
+    onDetach(entity)
+    {
+        entity._light = undefined;
+    }
 }

@@ -34,7 +34,7 @@ export class SkeletonComponent {
         const anim = this.currentAnimation;
         if (!anim)
             return;
-
+        
         this.time += dt;
         if (this.time > anim.duration)
         {
@@ -76,7 +76,7 @@ export class SkeletonComponent {
             const jointEntity = this.joints[channel.targetNodeIndex];
             if (!jointEntity) continue;
 
-            const transform = jointEntity.getComponentOfType(Transform);
+            const transform = jointEntity._transform;
             if (!transform) continue;
 
             switch (channel.targetPath) {
@@ -91,5 +91,15 @@ export class SkeletonComponent {
                     break;
             }
         }
+    }
+    
+    onAttach(entity)
+    {
+        entity._skeleton = this;
+    }
+
+    onDetach(entity)
+    {
+        entity._skeleton = undefined;
     }
 }

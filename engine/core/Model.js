@@ -8,4 +8,13 @@ export class Model {
         this.i = Model.i++;
     }
 
+    onAttach(entity)
+    {
+        entity._model = this;
+    }
+
+    onDetach(entity)
+    {
+        entity._model = undefined;
+    }
 }

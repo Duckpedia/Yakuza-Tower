@@ -50,28 +50,28 @@ fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
     var output: VertexOutput;
     output.position = vec4(FULLSCREEN_QUAD_POSITIONS[v_index], 0.0, 1.0);
     output.uv = output.position.xy * 0.5 + 0.5;
-    output.uv.y = 1.0 - output.uv.y;
+    output.uv.y = 1.0f - output.uv.y;
     return output;
 }
 
 fn positiveDot(a: vec3f, b: vec3f) -> f32
 {
-    return max(dot(a, b), 0.0);
+    return max(dot(a, b), 0.0f);
 }
 
 fn distributionGGX(normal: vec3f, half: vec3f, roughness: f32) -> f32
 {
     let a = roughness * roughness * roughness * roughness;
     let d = positiveDot(normal, half);
-    var denom = d * d * (a - 1.0) + 1.0;
-    return a / (3.14159265359 * denom * denom);
+    var denom = d * d * (a - 1.0f) + 1.0f;
+    return a / (3.14159265359f * denom * denom);
 }
 
 fn geometrySchlickGGX(normalDotView: f32 , roughness: f32) -> f32
 {
-    let r = roughness + 1.0;
-    let k = (r * r) / 8.0;
-    return normalDotView / (normalDotView * (1.0 - k) + k);
+    let r = roughness + 1.0f;
+    let k = (r * r) / 8.0f;
+    return normalDotView / (normalDotView * (1.0f - k) + k);
 }
 
 fn geometrySmith(normal: vec3f, view: vec3f, light: vec3f, roughness: f32) -> f32
@@ -83,11 +83,11 @@ fn geometrySmith(normal: vec3f, view: vec3f, light: vec3f, roughness: f32) -> f3
 
 fn fresnelSchlick(halfDotView: f32, f0: vec3f) -> vec3f
 {
-    return f0 + (1.0 - f0) * pow(clamp(1.0 - halfDotView, 0.0, 1.0), 5.0);
+    return f0 + (1.0f - f0) * pow(clamp(1.0f - halfDotView, 0.0f, 1.0f), 5.0f);
 }
 
 fn isnan(x: f32) -> bool {
-  let highVal = 1000000.0;
+  let highVal = 1000000.0f;
   let x2 = min(x, highVal);
   return x2 == highVal;
 }
@@ -97,37 +97,41 @@ fn calculateShadow(light: Light, world: vec3f) -> f32
     let shadowIndex = i32(light.shadowIndex);
     if (shadowIndex < 0)
     {
-        return 1.0;
+        return 1.0f;
     }
 
     var shadow = 1.0;
-    let clip = light.viewProjMatrix * vec4(world, 1.0);
+    let clip = light.viewProjMatrix * vec4(world, 1.0f);
     var ndc = clip.xyz / clip.w;
-    var uv = vec2(ndc.x, -ndc.y) * 0.5 + 0.5;
+    var uv = vec2(ndc.x, -ndc.y) * 0.5f + 0.5f;
 
     var avg_sampled_depth = 0.0;
     var resolution = textureDimensions(lightsDepthMaps);
-    let tex_d = 1.0 / vec2f(resolution);
+    let tex_d = 1.0f / vec2f(resolution);
     for (var i = -1; i <= 1; i++) {
         for (var j = -1; j <= 1; j++) {
-            let diff = vec2f(f32(i), f32(j)) * tex_d * 2.0;
+            let diff = vec2f(f32(i), f32(j)) * tex_d * 2.0f;
             avg_sampled_depth += textureSampleCompare(
                 lightsDepthMaps,
                 lightsDepthMapsSampler, 
                 uv + diff,
                 shadowIndex,
-                ndc.z - 0.00001
+                ndc.z - 0.00001f
             );
         }
     }
-    var sampled_depth = avg_sampled_depth / 9.0;
+    var sampled_depth = avg_sampled_depth / 9.0f;
 
     if (any(ndc.xy < vec2(-1.0)) || any(ndc.xy > vec2(1.0)))
     {
-        sampled_depth = 1.0;
+        sampled_depth = 1.0f;
     }
 
     return sampled_depth;
+}
+
+fn length2(v: vec3f) -> f32 {
+    return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
 fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32, ao: f32, uv : vec2f) -> vec3f
@@ -144,19 +148,18 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
         let toLight = lightPosition - world.xyz;
         let light = normalize(toLight);
         let half = normalize(view + light);
-        let distance = length(toLight);
-        var attenuation = 1.0 / (distance * distance);
+        var attenuation = 1.0f / length2(toLight);
 
         let ndf = distributionGGX(normal, half, roughness);
         let g = geometrySmith(normal, view, light, roughness);
         let f = fresnelSchlick(positiveDot(half, view), f0);
 
         let numerator = ndf * g * f;
-        let denominator = 4.0 * positiveDot(normal, view) * positiveDot(normal, light) + 0.0001;
+        let denominator = 4.0f * positiveDot(normal, view) * positiveDot(normal, light) + 0.0001f;
         let specular = numerator / denominator;
 
         let ks = f;
-        let kd = (vec3(1.0) - ks) * (1.0 - metallic);
+        let kd = (vec3(1.0f) - ks) * (1.0f - metallic);
 
         let shadow = calculateShadow(lightt, world);
 

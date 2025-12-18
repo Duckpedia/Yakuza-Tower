@@ -12,6 +12,7 @@ export class Transform {
         this.translation = translation;
         this.scale = scale;
         this.final = new mat4();
+        this.inv_final = new mat4();
         if (matrix) {
             this.matrix = matrix;
         }
@@ -32,4 +33,13 @@ export class Transform {
         mat4.getScaling(this.scale, matrix);
     }
 
+    onAttach(entity)
+    {
+        entity._transform = this;
+    }
+
+    onDetach(entity)
+    {
+        entity._transform = undefined;
+    }
 }

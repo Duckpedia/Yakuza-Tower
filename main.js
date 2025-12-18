@@ -162,16 +162,6 @@ scene.push(rangedGuyCollider);
     scene.push(...littleguy2_scene);
 }
 
-function updateWorldMatricesRecursive(entity, parentMatrix)
-{
-    const transform = entity.getComponentOfType(Transform);
-    // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
-    transform.final = mat4.mul(transform.final, parentMatrix, transform.matrix);
-    for (const child of entity.children) {
-        updateWorldMatricesRecursive(child, transform.final);
-    }
-}
-
 // // stackoverflow
 function hsv2rgb(h,s,v) 
 {                              
@@ -183,7 +173,7 @@ const rotationMat = new glm.mat4();
 glm.mat4.fromYRotation(rotationMat, .016);
 
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
-for (let i = 0; i < 360; i+=10)
+for (let i = 0; i < 360; i+=20)
 {
     const light = new Entity();
     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
@@ -265,6 +255,18 @@ function update(t, dt) {
     inputs.update();
     physics.update(t, dt);
 }
+
+function updateWorldMatricesRecursive(entity, parentMatrix)
+{
+    const transform = entity.getComponentOfType(Transform);
+    // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
+    mat4.mul(transform.final, parentMatrix, transform.matrix);
+    mat4.invert(transform.inv_final, transform.final);
+    for (const child of entity.children) {
+        updateWorldMatricesRecursive(child, transform.final);
+    }
+}
+
 
 function render() {
     renderer.render(scene, World.activeCamera, World.poprSettings);

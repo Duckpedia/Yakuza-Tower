@@ -99,6 +99,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
         this.nShadowCastingLights = 0;
         this.poprSettingsBindGroup = null;
+        this.bloomTextures = [];
     }
 
     async setUpDeferred() {
@@ -190,6 +191,18 @@ export class DeferredRenderer extends BaseRenderer {
                 size: [1000, 1000, 8],
                 usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             });
+        this.lightDepthTextureArrayView = this.lightDepthTextureArray.createView({ dimension: '2d-array' });
+        
+        this.lightDepthTextureArrayViews = [];
+        for (let i = 0; i < 8; i++)
+        {
+            const view = this.lightDepthTextureArray.createView({ 
+                    dimension: '2d', 
+                    baseArrayLayer: i  
+                });
+            this.lightDepthTextureArrayViews.push(view);
+        }
+        
         this.lightDepthSampler = this.device.createSampler({
             compare: 'less',
             magFilter: 'linear',
@@ -202,9 +215,15 @@ export class DeferredRenderer extends BaseRenderer {
             layout: this.lightingPipeline.getBindGroupLayout(1),
             entries: [
                 { binding: 0, resource: this.poprSettingsBuffer },
-                { binding: 1, resource: this.lightDepthTextureArray.createView({ dimension: '2d-array' }) },
+                { binding: 1, resource: this.lightDepthTextureArrayView },
                 { binding: 2, resource: this.lightDepthSampler },
             ],
+        });
+
+        this.instancesBufferArray = new ArrayBuffer(16 + 16 + 4);
+        this.instanceBuffer = WebGPU.createBuffer(this.device, {
+            data: this.instancesBufferArray,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
     }
 
@@ -456,41 +475,55 @@ export class DeferredRenderer extends BaseRenderer {
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
+        this.defferedDepthTextureView = this.defferedDepthTexture.createView();
+
+        this.deferredAlbedoTexture?.destroy();
         this.deferredAlbedoTexture = this.device.createTexture({
             format: 'bgra8unorm',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
+        this.deferredAlbedoTextureView = this.deferredAlbedoTexture.createView();
+
+        this.deferredPositionTexture?.destroy();
         this.deferredPositionTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
+        this.deferredPositionTextureView = this.deferredPositionTexture.createView();
+
+        this.deferredNormalTexture?.destroy();
         this.deferredNormalTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
+        this.deferredNormalTextureView = this.deferredNormalTexture.createView();
+
         this.deferredTargetsBindGroup = this.device.createBindGroup({
             layout: this.lightingPipeline.getBindGroupLayout(2),
             entries: [
-                { binding: 0, resource: this.deferredAlbedoTexture.createView(), },
-                { binding: 1, resource: this.deferredPositionTexture.createView(), },
-                { binding: 2, resource: this.deferredNormalTexture.createView(), },
+                { binding: 0, resource: this.deferredAlbedoTextureView, },
+                { binding: 1, resource: this.deferredPositionTextureView, },
+                { binding: 2, resource: this.deferredNormalTextureView, },
             ],
         });
         
+        this.lightingTexture?.destroy();
         this.lightingTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
+        this.lightingTextureView = this.lightingTexture.createView();
+
         this.lightingTextureBindGroup = this.device.createBindGroup({
             layout: this.tonemapPipeline.getBindGroupLayout(0),
-            entries: [ { binding: 0, resource: this.lightingTexture.createView() } ],
+            entries: [ { binding: 0, resource: this.lightingTextureView } ],
         });
 
-        this.bloomTextures = [];
+        this.bloomTextures.length = 0;
         let width = this.canvas.width;
         let height = this.canvas.height;
         for (let i = 0; i < 5; i++)
@@ -502,11 +535,12 @@ export class DeferredRenderer extends BaseRenderer {
                 size: [width, height],
                 usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
             });
+            const view = tex.createView();
             const bindGroup = this.device.createBindGroup({
                 layout: this.poprTextureBindGroupLayout,
-                entries: [ { binding: 0, resource: tex.createView() } ],
+                entries: [ { binding: 0, resource: view } ],
             });
-            this.bloomTextures.push({ tex, bindGroup, width, height });
+            this.bloomTextures.push({ tex, bindGroup, view, width, height });
         }
     }
 
@@ -525,7 +559,7 @@ export class DeferredRenderer extends BaseRenderer {
         const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup } = this.prepareCamera(cameraComponent);
         this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
         this.cameraBuffer.set(getProjectionMatrix(camera), 16);
-        this.cameraBuffer.set(camera.getComponentOfType(Transform).final_position, 32);
+        this.cameraBuffer.set(camera._transform.final_position, 32);
         this.device.queue.writeBuffer(cameraUniformBuffer, 0, this.cameraBuffer.buffer);
 
         const target = this.context.getCurrentTexture().createView();
@@ -562,26 +596,26 @@ export class DeferredRenderer extends BaseRenderer {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
                 {
-                    view: this.deferredAlbedoTexture.createView(),
+                    view: this.deferredAlbedoTextureView,
                     clearValue: [0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
                 {
-                    view: this.deferredPositionTexture.createView(),
+                    view: this.deferredPositionTextureView,
                     clearValue: [0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
                 {
-                    view: this.deferredNormalTexture.createView(),
+                    view: this.deferredNormalTextureView,
                     clearValue: [0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
             ],
             depthStencilAttachment: {
-                view: this.defferedDepthTexture.createView(),
+                view: this.defferedDepthTextureView,
                 depthClearValue: 1,
                 depthLoadOp: 'clear',
                 depthStoreOp: 'store',
@@ -621,13 +655,13 @@ export class DeferredRenderer extends BaseRenderer {
         const viewProj = mat4.create();
         for (let i = 0; i < this.lights.length; i++)
         {
-            const { transform, light, view } = this.lights[i];
+            const light = this.lights[i];
             const bufI = i * stride;
-            const shadowindex = light.shadows ? nShadowCastingLights++ : -1;
-            mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, view);
+            const shadowindex = light._light.shadows ? nShadowCastingLights++ : -1;
+            mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, light._transform.inv_final);
             this.lightsBufferArray.set(viewProj, bufI);
-            this.lightsBufferArray.set(light.emission, bufI + 16);
-            this.lightsBufferArray.set(transform.final_position, bufI + 16 + 4);
+            this.lightsBufferArray.set(light._light.emission, bufI + 16);
+            this.lightsBufferArray.set(light._transform.final_position, bufI + 16 + 4);
             this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 4);
         }
 
@@ -636,26 +670,23 @@ export class DeferredRenderer extends BaseRenderer {
         nShadowCastingLights = 0;
         for (let i = 0; i < this.lights.length; i++)
         {
-            const { light, view} = this.lights[i];
-            if (light.type !== "directional" || !light.shadows)
+            const light = this.lights[i];
+            if (light._light.type !== "directional" || !light._light.shadows)
                 continue;
             if (nShadowCastingLights > 8)
             {
                 break;
             }
 
-            const {lightUniformBuffer, lightUniformBufferArray, lightBindGroup} = this.prepareLight(light);
-            lightUniformBufferArray.set(view, 0);
+            const {lightUniformBuffer, lightUniformBufferArray, lightBindGroup} = this.prepareLight(light._light);
+            lightUniformBufferArray.set(light._transform.inv_final, 0);
             lightUniformBufferArray.set(this.lightsDefaultProjectionMatrix, 16);
             this.device.queue.writeBuffer(lightUniformBuffer, 0, lightUniformBufferArray);
 
             const renderPass = encoder.beginRenderPass({
                 colorAttachments: [],
                 depthStencilAttachment: {
-                    view: this.lightDepthTextureArray.createView({ 
-                        dimension: '2d', 
-                        baseArrayLayer: nShadowCastingLights  
-                    }),
+                    view: this.lightDepthTextureArrayViews[nShadowCastingLights],
                     depthClearValue: 1,
                     depthLoadOp: 'clear',
                     depthStoreOp: 'store',
@@ -682,7 +713,7 @@ export class DeferredRenderer extends BaseRenderer {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
                 {
-                    view: this.lightingTexture.createView(),
+                    view: this.lightingTextureView,
                     clearValue: [0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
@@ -734,7 +765,7 @@ export class DeferredRenderer extends BaseRenderer {
                 const renderPass = encoder.beginRenderPass({
                     colorAttachments: [
                         {
-                            view: output.tex.createView(),
+                            view: output.view,
                             clearValue: [0.0, 0.0, 0.0, 1.0 ],
                             loadOp: 'clear',
                             storeOp: 'store',
@@ -764,7 +795,7 @@ export class DeferredRenderer extends BaseRenderer {
                 const renderPass = encoder.beginRenderPass({
                     colorAttachments: [
                         {
-                            view: output.tex.createView(),
+                            view: output.view,
                             loadOp: 'load',
                             storeOp: 'store',
                         },
@@ -816,7 +847,7 @@ export class DeferredRenderer extends BaseRenderer {
                 },
             ],
             depthStencilAttachment: {
-                view: this.defferedDepthTexture.createView(),
+                view: this.defferedDepthTextureView,
                 depthLoadOp: 'load',
                 depthStoreOp: 'discard',
             },
@@ -874,13 +905,13 @@ export class DeferredRenderer extends BaseRenderer {
         this.lights.length = 0;
         for (const entity of entities) {
             if (entity.hidden) continue;
-            const transform = entity.getComponentOfType(Transform);
+            const transform = entity._transform;
             if (!transform) continue;
-            const light = entity.getComponentOfType(LightComponent);
+            const light = entity._light;
             if (light) {
-                this.lights.push({entity, transform, light, view: new mat4(transform.final).invert()});
+                this.lights.push(entity);
             }
-            const model = entity.getComponentOfType(Model);
+            const model = entity._model;
             if (!model) continue;
             let data = this.models.get(model);
             if (!data) {
@@ -888,7 +919,7 @@ export class DeferredRenderer extends BaseRenderer {
                 this.models.set(model, data);
             }
 
-            const skeleton = entity.getComponentOfType(SkeletonComponent);
+            const skeleton = entity._skeleton;
             if (skeleton) {
                 if (this.skeletons.indexOf(skeleton) < 0)
                 {
@@ -898,7 +929,7 @@ export class DeferredRenderer extends BaseRenderer {
                 }
             }
 
-            data.arr.push({ transform: transform.final, skeleton });
+            data.arr.push({ transform, skeleton });
             nInstances += 1;
         }
 
@@ -932,7 +963,7 @@ export class DeferredRenderer extends BaseRenderer {
                 const jointI = this.skeletonToJoint.get(skeleton);
                 for (let i = 0; i < skeleton.joints.length; i++)
                 {
-                    const transform = skeleton.joints[i].getComponentOfType(Transform);
+                    const transform = skeleton.joints[i]._transform;
                     mat4.mul(joint_mat, transform.final, skeleton.inverseBindMatrices[i]);
                     this.jointsBufferArray.set(joint_mat, (jointI + i) * stride);
                 }
@@ -966,10 +997,9 @@ export class DeferredRenderer extends BaseRenderer {
             for (let i = 0; i < data.arr.length; i++)
             {
                 const { transform, skeleton } = data.arr[i];
-                mat4.invert(inv_mat, transform);
-                mat4.transpose(inv_mat, inv_mat);
+                mat4.transpose(inv_mat, transform.inv_final);
                 const index = (stride * (data.instanceOffset + i)) / 4;
-                this.floatView.set(transform, index);
+                this.floatView.set(transform.final, index);
                 this.floatView.set(inv_mat, index + 16);
                 this.uintView[index + strideFloats] = skeleton ? (this.skeletonToJoint.get(skeleton) ?? -1) : -1;
             }
