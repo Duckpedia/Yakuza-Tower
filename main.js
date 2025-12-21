@@ -91,6 +91,26 @@ player.aabb = {
 
 const scene = [player];
 
+const pickupKatanaScene = resources.katana_model.loadScene();
+const pickupKatana = resources.katana_model.buildEntityFromScene(pickupKatanaScene);
+
+const kt = pickupKatana.getComponentOfType(Transform);
+kt.translation = [2, 0.05, 0];
+kt.scale = [0.2, 0.2, 0.2];
+glm.quat.setAxisAngle(kt.rotation, [1, 0, 0], Math.PI * 0.5);
+
+scene.push(...pickupKatanaScene);
+
+const katanaCollider = attachBoxCollider(pickupKatana, {
+  name: 'KatanaCollider',
+  offset: [0, 2, 0],
+  halfExtents: [0.1, 0.2, 3.6],
+  isStatic: true,
+});
+
+scene.push(katanaCollider);
+
+
 const soba_scene = resources.soba_model.loadScene();
 const soba = resources.soba_model.buildEntityFromScene(soba_scene);
 soba.customProperties = { isStatic: true };
@@ -107,7 +127,6 @@ guy.skeleton.playAnimationByIndex(3);
 guy.addComponent(new EnemyComponent(guy, player));
 scene.push(...guy_scene);
 
-
 const rangedGuyScene = resources.guy_model.loadScene();
 const rangedGuy = resources.guy_model.buildEntityFromScene(rangedGuyScene);
 rangedGuy.skeleton.playAnimationByIndex(3);
@@ -117,17 +136,19 @@ rangedGuy_transform.translation = [1, 0, 1];
 scene.push(...rangedGuyScene);
 
 const guyCollider = attachBoxCollider(guy, {
-  offset: [0, 1.0, 0],
-  halfExtents: [0.35, 0.9, 0.35],
-  isStatic: true,
+    name: 'GuyCollider',
+    offset: [0, 1.0, 0],
+    halfExtents: [0.35, 0.9, 0.35],
+    isStatic: true,
 });
 
 scene.push(guyCollider);
 
 const rangedGuyCollider = attachBoxCollider(rangedGuy, {
-  offset: [0, 1.0, 0],
-  halfExtents: [0.35, 0.9, 0.35],
-  isStatic: true,
+    name: 'RangedGuyCollider',
+    offset: [0, 1.0, 0],
+    halfExtents: [0.35, 0.9, 0.35],
+    isStatic: true,
 });
 
 scene.push(rangedGuyCollider);
@@ -231,7 +252,27 @@ function update(t, dt) {
             World.poprSettings = defaultPoprSettings;
         }
     }
-    if (Inputs.isPressed('KeyR')){
+
+    const scaledDt = dt * World.timeScale;
+    for (const entity of scene) {
+        for (const component of entity.components) {
+            if (component instanceof PlayerComponent) {
+                component.update?.(t, dt);    
+            } else {
+                component.update?.(t, scaledDt); 
+            }
+        }
+    }
+
+    for (const entity of scene)
+    {
+        if (!entity.parent)
+        {
+            updateWorldMatricesRecursive(entity, new mat4());
+        }
+    }
+
+     if (Inputs.isPressed('KeyR')){
         const camEntity = World.activeCamera;
         const camTransform = camEntity.getComponentOfType(Transform);
 
@@ -257,25 +298,6 @@ function update(t, dt) {
         } 
         else{
             console.log("MISS");
-        }
-    }
-
-    const scaledDt = dt * World.timeScale;
-    for (const entity of scene) {
-        for (const component of entity.components) {
-            if (component instanceof PlayerComponent) {
-                component.update?.(t, dt);    
-            } else {
-                component.update?.(t, scaledDt); 
-            }
-        }
-    }
-
-    for (const entity of scene)
-    {
-        if (!entity.parent)
-        {
-            updateWorldMatricesRecursive(entity, new mat4());
         }
     }
         
