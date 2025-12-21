@@ -96,21 +96,10 @@ const soba = resources.soba_model.buildEntityFromScene(soba_scene);
 soba.customProperties = { isStatic: true };
 scene.push(...soba_scene);
 
-//box object creation
-
-const box = new Entity();
-box.addComponent(new Transform({ translation: [0, 0.5, 0] })); // collider position
-box.customProperties = { isStatic: true };
-box.aabb = { min: [-0.5,-0.5,-0.5], max: [0.5,0.5,0.5] };
-box.aabbManual = true;
-scene.push(box);
 {
     const camera = soba.findChildByName("Camera");
     camera.addComponent(new LightComponent({ type: 'directional', shadows: true, emission: [5000, 5000, 5000] }));
 }
-
-
-scene.push(box);
 
 const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
