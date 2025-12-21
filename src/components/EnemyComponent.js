@@ -1,8 +1,11 @@
 import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
 
+import { BulletComponent } from './BulletComponent.js';
+
+
 export class EnemyComponent {
-    constructor(entity, player, type = 'Melee') {
+    constructor(scene, entity, player, bulletModel = null, type = 'Melee') {
         this.entity = entity;
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
@@ -18,11 +21,21 @@ export class EnemyComponent {
 
         this.state = 'chase';
 
-        this.runAnim = 1;  //animacija 1 je running with sword in veli bolj smooth, kot 5. Animacija 5 je sam running.
-        this.outwardAttackAnim = 4;
-        this.inwardAttackAnim = 3;
+        this.runAnim = 2;  //animacija 2 je running with sword in veli bolj smooth, kot 6. Animacija 6 je sam running.
+        this.outwardAttackAnim = 5;
+        this.inwardAttackAnim = 4;
+
+        this.gunShootingAnim = 0;
 
         this.enemyType = type;
+
+
+        this.shootTime = 0.2;
+        this.shootTimer = 0;
+        this.hasFired = false;
+
+        this.bulletModel = bulletModel;
+        this.scene = scene;
 
         entity.skeleton?.playAnimationByIndex(this.runAnim);
     }
@@ -89,7 +102,7 @@ export class EnemyComponent {
                 this.attackTimer = this.attackDuration;
 
 
-                let attackAnim = Math.floor(Math.random() * 2 + 3);
+                let attackAnim = Math.floor(Math.random() * 2 + 4);
                 this.entity.skeleton?.playAnimationByIndex(attackAnim);
             }
         }
@@ -156,8 +169,7 @@ export class EnemyComponent {
                 this.attackTimer = this.attackDuration;
 
 
-                let attackAnim = Math.floor(Math.random() * 2 + 3);
-                this.entity.skeleton?.playAnimationByIndex(attackAnim);
+                this.entity.skeleton?.playAnimationByIndex(this.gunShootingAnim);
             }
         }
 
@@ -166,12 +178,16 @@ export class EnemyComponent {
         // -------------------------------
         else if (this.state === 'attack') {
             this.attackTimer -= dt;
+            this.shootTimer += dt;
 
-            // rotate only
-            this.faceDirection(dir, dt);
+            if (!this.hasFired && this.shootTimer >= this.shootTime) {
+                this.spawnBullet();
+                this.hasFired = true;
+            }
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
+                this.hasFired = false;
                 this.entity.skeleton?.playAnimationByIndex(this.runAnim);
             }
         }
@@ -200,6 +216,32 @@ export class EnemyComponent {
         this.transform.rotation = current;
 
     }
+
+      spawnBullet() {
+        const gun = this.entity.findChildByName("Gun_Muzzle") 
+            ?? this.entity.findChildByName("mixamorig:LeftHand");
+
+        if (!gun) return;
+
+        const bullet_scene = this.bulletModel.loadScene();
+        const bullet = this.bulletModel.buildEntityFromScene(bullet_scene);
+
+        bullet.addComponent(new Transform({
+            translation: [...gun.getComponentOfType(Transform).final_position],
+        }));
+
+        const dir = glm.vec3.sub(
+            glm.vec3.create(),
+            this.player.getComponentOfType(Transform).final_position,
+            gun.getComponentOfType(Transform).final_position
+        );
+
+        dir[1] = 0;
+
+        bullet.addComponent(new BulletComponent(bullet, dir));
+
+        this.scene.push(...bullet_scene);
+}
 
 
 

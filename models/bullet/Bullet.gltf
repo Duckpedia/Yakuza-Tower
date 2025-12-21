@@ -1,0 +1,172 @@
+{
+  "asset": {
+    "generator": "glTF-Transform v4.2.1",
+    "version": "2.0"
+  },
+  "accessors": [
+    {
+      "type": "VEC3",
+      "componentType": 5126,
+      "count": 1473,
+      "max": [
+        25.508708953857422,
+        165.04119873046875,
+        25.70242691040039
+      ],
+      "min": [
+        -25.569721221923828,
+        108.72672271728516,
+        -25.375953674316406
+      ],
+      "bufferView": 0,
+      "byteOffset": 0
+    },
+    {
+      "type": "SCALAR",
+      "componentType": 5123,
+      "count": 8640,
+      "bufferView": 1,
+      "byteOffset": 0
+    },
+    {
+      "type": "SCALAR",
+      "componentType": 5123,
+      "count": 52800,
+      "bufferView": 1,
+      "byteOffset": 17280
+    },
+    {
+      "type": "VEC3",
+      "componentType": 5126,
+      "count": 8833,
+      "max": [
+        27.34687614440918,
+        108.72672271728516,
+        27.70775032043457
+      ],
+      "min": [
+        -27.500652313232422,
+        0,
+        -27.13977813720703
+      ],
+      "bufferView": 2,
+      "byteOffset": 0
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 17676,
+      "byteStride": 12,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 17676,
+      "byteLength": 122880,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 140556,
+      "byteLength": 105996,
+      "byteStride": 12,
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "buffer.bin",
+      "byteLength": 246552
+    }
+  ],
+  "materials": [
+    {
+      "name": "Gold",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.8,
+          0.51,
+          0.04,
+          1
+        ],
+        "roughnessFactor": 0.95,
+        "metallicFactor": 0
+      }
+    },
+    {
+      "name": "Mat.5",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.05,
+          0.07,
+          0.11,
+          1
+        ],
+        "roughnessFactor": 0.95,
+        "metallicFactor": 0
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "mode": 4,
+          "material": 0,
+          "indices": 1
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 3
+          },
+          "mode": 4,
+          "material": 1,
+          "indices": 2
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ]
+    },
+    {
+      "name": "Bullet",
+      "extras": {
+        "name": "Bullet"
+      },
+      "children": [
+        2,
+        3
+      ]
+    },
+    {
+      "name": "Bullet-Mesh",
+      "mesh": 0
+    },
+    {
+      "name": "Bullet-Mesh_1",
+      "mesh": 1
+    }
+  ],
+  "scenes": [
+    {
+      "name": "AuxScene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0
+}
