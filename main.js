@@ -95,20 +95,24 @@ const pickupKatanaScene = resources.katana_model.loadScene();
 const pickupKatana = resources.katana_model.buildEntityFromScene(pickupKatanaScene);
 
 const kt = pickupKatana.getComponentOfType(Transform);
-kt.translation = [2, 0.05, 0];
+kt.translation = [2, 0.1, 0];
 kt.scale = [0.2, 0.2, 0.2];
+
 glm.quat.setAxisAngle(kt.rotation, [1, 0, 0], Math.PI * 0.5);
 
 scene.push(...pickupKatanaScene);
 
-const katanaCollider = attachBoxCollider(pickupKatana, {
-  name: 'KatanaCollider',
-  offset: [0, 2, 0],
-  halfExtents: [0.1, 0.2, 3.6],
-  isStatic: true,
-});
-
+const katanaCollider = new Entity();
+katanaCollider.name = 'KatanaCollider';
+katanaCollider.addComponent(new Transform({ translation: [2, 0.1, 0] }));
+katanaCollider.customProperties = { isStatic: true };
+katanaCollider.aabbManual = true;
+katanaCollider.aabb = {
+  min: [-0.05, -0.1, -0.4],
+  max: [ 0.05, 0.1, 1.1]
+};
 scene.push(katanaCollider);
+
 
 
 const soba_scene = resources.soba_model.loadScene();
