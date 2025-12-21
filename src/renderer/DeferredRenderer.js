@@ -52,6 +52,7 @@ export class DeferredRenderer extends BaseRenderer {
         await this.setUpDefaults();
         await this.setUpSkybox();
         await this.setUpDeferred();
+        await this.setUpLighting();
         await this.setUpAABB();
         await this.setUpPopr(dirtImage);
         await this.setUpUI();
@@ -83,6 +84,8 @@ export class DeferredRenderer extends BaseRenderer {
     }
 
     async setUpDefaults() {
+        console.log("setting up defaults");
+
         this.materialBuffer = new Float32Array(6);
         this.cameraBuffer = new Float32Array(16 + 16 + 4);
         this.models = new Map();
@@ -111,20 +114,113 @@ export class DeferredRenderer extends BaseRenderer {
         this.nShadowCastingLights = 0;
         this.poprSettingsBindGroup = null;
         this.bloomTextures = [];
+
+        this.cameraBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry]);
+    }
+
+    async setUpSkybox() {
+        console.log("setting up skybox");
+
+        const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
+        const layout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.cameraBindGroupLayout, envBindGroupLayout],
+        });
+
+        const skyboxCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
+        const skyboxModule = this.device.createShaderModule({ code: skyboxCode });
+        this.skyboxPipeline = await this.device.createRenderPipelineAsync({
+            label: 'skybox',
+            layout,
+            vertex: { module: skyboxModule },
+            fragment: { 
+                module: skyboxModule,
+                targets: [{
+                    format: this.format,
+                    blend: {
+                        color: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                        alpha: {
+                            operation: "add",
+                            srcFactor: "one",
+                            dstFactor: "one",
+                        },
+                    },
+                    writeMask: GPUColorWrite.ALL,
+                }], 
+            },
+            depthStencil: {
+                format: 'depth24plus',
+                depthWriteEnabled: false,
+                depthCompare: 'less-equal',
+            },
+        });
+        const imageLoader = new ImageLoader();
+        const environmentImages = await Promise.all([
+            'posx.jpg',
+            'negx.jpg',
+            'posy.jpg',
+            'negy.jpg',
+            'posz.jpg',
+            'negz.jpg',
+        ].map(url => imageLoader.load(url)));
+
+        this.environmentSampler = this.device.createSampler({
+            minFilter: 'linear',
+            magFilter: 'linear',
+        });
+        this.environmentTexture = this.device.createTexture({
+            size: [environmentImages[0].width, environmentImages[0].height, 6],
+            format: 'rgba8unorm',
+            usage:
+                GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+
+        for (let i = 0; i < environmentImages.length; i++) {
+            this.device.queue.copyExternalImageToTexture(
+                { source: environmentImages[i] },
+                { texture: this.environmentTexture, origin: [0, 0, i] },
+                [environmentImages[i].width, environmentImages[i].height],
+            );
+        }
+
+        this.skyboxBindGroup = this.device.createBindGroup({
+            layout: envBindGroupLayout,
+            entries: [
+                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
+                { binding: 1, resource: this.environmentSampler },
+            ],
+        });
     }
 
     async setUpDeferred() {
-        const deferredCode = await fetch(new URL('Deferred.wgsl', import.meta.url)).then(response => response.text());
-        const deferredModule = this.device.createShaderModule({ code: deferredCode });
+        console.log("setting up deferred");
+
+        this.jointsBindGroupLayout = this.createBindGroupLayout([storageBufferBindGroupEntry]);
+        this.materialBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry, filteringSamplerBindGroupEntry, uniformBufferBindGroupEntry]);
+        const deferredLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.cameraBindGroupLayout, this.jointsBindGroupLayout, this.materialBindGroupLayout],
+        });
+
+        const lightsLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.cameraBindGroupLayout, this.jointsBindGroupLayout],
+        });
+
+        const code = await fetch(new URL('Deferred.wgsl', import.meta.url)).then(response => response.text());
+        const module = this.device.createShaderModule({ code });
         const deferredPipelineOptions = {
             label: 'deferred',
-            layout: 'auto',
+            layout: deferredLayout,
             vertex: {
-                module: deferredModule,
+                module,
                 buffers: [ vertexBufferLayout, instanceBufferLayout ],
             },
             fragment: {
-                module: deferredModule,
+                module,
                 targets: [{ format: 'bgra8unorm', }, { format: 'rgba16float', }, { format: 'rgba16float', }],
             },
             depthStencil: {
@@ -138,14 +234,12 @@ export class DeferredRenderer extends BaseRenderer {
             }
         };
         this.deferredPipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
-        deferredPipelineOptions.primitive.topology = 'line-list';
-        this.deferredWireframePipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
 
         this.lightsPipeline = await this.device.createRenderPipelineAsync({
-            label: 'deferred',
-            layout: 'auto',
+            label: 'lights',
+            layout: lightsLayout,
             vertex: {
-                module: deferredModule,
+                module,
                 buffers: [ vertexBufferLayout, instanceBufferLayout ],
             },
             depthStencil: {
@@ -159,40 +253,13 @@ export class DeferredRenderer extends BaseRenderer {
             }
         });
 
-        const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
-        const lightingModule = this.device.createShaderModule({ code: lightingCode });
-        this.lightingPipeline = await this.device.createRenderPipelineAsync({
-            label: 'lighting',
-            layout: 'auto',
-            vertex: {
-                module: lightingModule,
-            },
-            fragment: {
-                module: lightingModule,
-                targets: [{ format: 'rgba16float' }],
-            },
-        });
-
         this.dummySkeletonBuffer = WebGPU.createBuffer(this.device, {
             data: new Float32Array(16),
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         this.dummySkeletonBindGroup = this.device.createBindGroup({
-            layout: this.deferredPipeline.getBindGroupLayout(1),
+            layout: this.jointsBindGroupLayout,
             entries: [ { binding: 0, resource: { buffer: this.dummySkeletonBuffer } } ],
-        });
-        this.dummyLightsSkeletonBindGroup = this.device.createBindGroup({
-            layout: this.lightsPipeline.getBindGroupLayout(1),
-            entries: [ { binding: 0, resource: this.dummySkeletonBuffer } ],
-        });
-        
-        this.lightsBuffer = WebGPU.createBuffer(this.device, {
-            data: new Float32Array(16 + 4 + 4 + 4),
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        this.lightsBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(3),
-            entries: [ { binding: 0, resource: this.lightsBuffer } ],
         });
 
         this.poprSettingsBuffer = WebGPU.createBuffer(this.device, {
@@ -225,15 +292,6 @@ export class DeferredRenderer extends BaseRenderer {
             addressModeV: 'clamp-to-edge',
         });
 
-        this.lightingBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(1),
-            entries: [
-                { binding: 0, resource: this.poprSettingsBuffer },
-                { binding: 1, resource: this.lightDepthTextureArrayView },
-                { binding: 2, resource: this.lightDepthSampler },
-            ],
-        });
-
         this.instancesBufferArray = new ArrayBuffer(16 + 16 + 4);
         this.instanceBuffer = WebGPU.createBuffer(this.device, {
             data: this.instancesBufferArray,
@@ -241,13 +299,60 @@ export class DeferredRenderer extends BaseRenderer {
         });
     }
 
+    async setUpLighting()
+    {
+        console.log("setting up lighting");
+        const secondBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry, depthArrayTextureBindGroupEntry, comparisonSamplerBindGroupEntry]);
+        this.deferredtargetsBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry, textureBindGroupEntry, textureBindGroupEntry]);
+        this.lightsBindGroupLayout = this.createBindGroupLayout([storageBufferBindGroupEntry]);
+        const layout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.cameraBindGroupLayout, secondBindGroupLayout, this.deferredtargetsBindGroupLayout, this.lightsBindGroupLayout],
+        });
+
+        const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
+        const lightingModule = this.device.createShaderModule({ code: lightingCode });
+        this.lightingPipeline = await this.device.createRenderPipelineAsync({
+            label: 'lighting',
+            layout,
+            vertex: {
+                module: lightingModule,
+            },
+            fragment: {
+                module: lightingModule,
+                targets: [{ format: 'rgba16float' }],
+            },
+        });
+
+        this.lightsBuffer = WebGPU.createBuffer(this.device, {
+            data: new Float32Array(16 + 4 + 4 + 4),
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        this.lightsBindGroup = this.device.createBindGroup({
+            layout: this.lightsBindGroupLayout,
+            entries: [ { binding: 0, resource: this.lightsBuffer } ],
+        });
+
+        this.lightingBindGroup = this.device.createBindGroup({
+            layout: secondBindGroupLayout,
+            entries: [
+                { binding: 0, resource: this.poprSettingsBuffer },
+                { binding: 1, resource: this.lightDepthTextureArrayView },
+                { binding: 2, resource: this.lightDepthSampler },
+            ],
+        });
+    }
+
     async setUpAABB()
     {
+        console.log("setting up aabb");
+
+        const layout = this.device.createPipelineLayout({ bindGroupLayouts: [this.cameraBindGroupLayout] });
+
         const code = await fetch(new URL('AABB.wgsl', import.meta.url)).then(response => response.text());
         const module = this.device.createShaderModule({ code });
         this.aabbPipeline = await this.device.createRenderPipelineAsync({
             label: 'aabb',
-            layout: 'auto',
+            layout,
             vertex: {
                 module,
                 buffers: [ aabbInstanceBufferLayout ],
@@ -266,60 +371,16 @@ export class DeferredRenderer extends BaseRenderer {
     }
 
     async setUpPopr(dirtImage) {
-        this.poprTextureBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    texture: {
-                        sampleType: "float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    },
-                },
-            ],
-        });
+        console.log("setting up popr");
 
-        const poprConstantsBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    sampler: {
-                        type: "filtering",
-                    },
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    texture: {
-                        sampleType: "float",
-                        viewDimension: "2d",
-                        multisampled: false,
-                    },
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "uniform"
-                    },
-                },
-            ],
-        });
-
+        this.poprTextureBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry]);
+        const poprConstantsBindGroupLayout = this.createBindGroupLayout([filteringSamplerBindGroupEntry, textureBindGroupEntry, uniformBufferBindGroupEntry]);
         const bloomParamsBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
+            entries: [ {
                     binding: 0,
                     visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "uniform",
-                        hasDynamicOffset: true,
-                        minBindingSize: 24, 
-                    },
-                },
-            ],
+                    buffer: { type: "uniform", hasDynamicOffset: true, minBindingSize: 24,  },
+            } ] 
         });
 
         const tonemapLayout = this.device.createPipelineLayout({
@@ -435,77 +496,6 @@ export class DeferredRenderer extends BaseRenderer {
         });
     }
 
-    async setUpSkybox() {
-        const skyboxCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
-        const skyboxModule = this.device.createShaderModule({ code: skyboxCode });
-        this.skyboxPipeline = await this.device.createRenderPipelineAsync({
-            layout: 'auto',
-            vertex: { module: skyboxModule },
-            fragment: { 
-                module: skyboxModule,
-                targets: [{
-                    format: this.format,
-                    blend: {
-                        color: {
-                            operation: "add",
-                            srcFactor: "one",
-                            dstFactor: "one",
-                        },
-                        alpha: {
-                            operation: "add",
-                            srcFactor: "one",
-                            dstFactor: "one",
-                        },
-                    },
-                    writeMask: GPUColorWrite.ALL,
-                }], 
-            },
-            depthStencil: {
-                format: 'depth24plus',
-                depthWriteEnabled: false,
-                depthCompare: 'less-equal',
-            },
-        });
-        const imageLoader = new ImageLoader();
-        const environmentImages = await Promise.all([
-            'posx.jpg',
-            'negx.jpg',
-            'posy.jpg',
-            'negy.jpg',
-            'posz.jpg',
-            'negz.jpg',
-        ].map(url => imageLoader.load(url)));
-
-        this.environmentSampler = this.device.createSampler({
-            minFilter: 'linear',
-            magFilter: 'linear',
-        });
-        this.environmentTexture = this.device.createTexture({
-            size: [environmentImages[0].width, environmentImages[0].height, 6],
-            format: 'rgba8unorm',
-            usage:
-                GPUTextureUsage.TEXTURE_BINDING |
-                GPUTextureUsage.COPY_DST |
-                GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-
-        for (let i = 0; i < environmentImages.length; i++) {
-            this.device.queue.copyExternalImageToTexture(
-                { source: environmentImages[i] },
-                { texture: this.environmentTexture, origin: [0, 0, i] },
-                [environmentImages[i].width, environmentImages[i].height],
-            );
-        }
-
-        this.skyboxBindGroup = this.device.createBindGroup({
-            layout: this.skyboxPipeline.getBindGroupLayout(1),
-            entries: [
-                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
-                { binding: 1, resource: this.environmentSampler },
-            ],
-        });
-    }
-
     recreateRenderTargets() {
         this.defferedDepthTexture = this.device.createTexture({
             format: 'depth24plus',
@@ -536,7 +526,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.deferredNormalTextureView = this.deferredNormalTexture.createView();
 
         this.deferredTargetsBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(2),
+            layout: this.deferredtargetsBindGroupLayout,
             entries: [
                 { binding: 0, resource: this.deferredAlbedoTextureView, },
                 { binding: 1, resource: this.deferredPositionTextureView, },
@@ -552,7 +542,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.lightingTextureView = this.lightingTexture.createView();
 
         this.lightingTextureBindGroup = this.device.createBindGroup({
-            layout: this.tonemapPipeline.getBindGroupLayout(0),
+            layout: this.poprTextureBindGroupLayout,
             entries: [ { binding: 0, resource: this.lightingTextureView } ],
         });
 
@@ -593,7 +583,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
-        const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup, aabbCameraBindGroup } = this.prepareCamera(cameraComponent);
+        const { cameraUniformBuffer, cameraBindGroup } = this.prepareCamera(cameraComponent);
         this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
         this.cameraBuffer.set(getProjectionMatrix(camera), 16);
         this.cameraBuffer.set(camera._transform.final_position, 32);
@@ -602,11 +592,11 @@ export class DeferredRenderer extends BaseRenderer {
         const target = this.context.getCurrentTexture().createView();
         const encoder = this.device.createCommandEncoder();
 
-        this.renderDeferred(encoder, entities, deferredCameraBindGroup, poprSettings);
+        this.renderDeferred(encoder, entities, cameraBindGroup, poprSettings);
             
         this.renderLights(encoder);
 
-        this.renderLighting(encoder, lightingCameraBindGroup);
+        this.renderLighting(encoder, cameraBindGroup);
 
         if (poprSettings.showBloom)
         {
@@ -617,12 +607,12 @@ export class DeferredRenderer extends BaseRenderer {
             
         if (poprSettings.showSkybox)
         {
-            this.renderSkybox(encoder, target, skyboxCameraBindgroup);
+            this.renderSkybox(encoder, target, cameraBindGroup);
         }
         
         if (poprSettings.aabbs)
         {
-            this.renderAABBs(encoder, target, aabbCameraBindGroup);
+            this.renderAABBs(encoder, target, cameraBindGroup);
         }
 
         if (poprSettings.showUI)
@@ -688,7 +678,7 @@ export class DeferredRenderer extends BaseRenderer {
             });
 
             this.lightsBindGroup = this.device.createBindGroup({
-                layout: this.lightingPipeline.getBindGroupLayout(3),
+                layout: this.lightsBindGroupLayout,
                 entries: [ { binding: 0, resource: this.lightsBuffer } ],
             });
         }
@@ -740,7 +730,7 @@ export class DeferredRenderer extends BaseRenderer {
 
             renderPass.setPipeline(this.lightsPipeline);
             renderPass.setBindGroup(0, lightBindGroup);
-            renderPass.setBindGroup(1, this.lightsSkeletonBindGroup ?? this.dummyLightsSkeletonBindGroup);
+            renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
 
             for (const [model, data] of this.models.entries())
             {
@@ -1064,12 +1054,7 @@ export class DeferredRenderer extends BaseRenderer {
                 });
 
                 this.skeletonBindGroup = this.device.createBindGroup({
-                    layout: this.deferredPipeline.getBindGroupLayout(1),
-                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
-                });
-
-                this.lightsSkeletonBindGroup = this.device.createBindGroup({
-                    layout: this.lightsPipeline.getBindGroupLayout(1),
+                    layout: this.jointsBindGroupLayout,
                     entries: [ { binding: 0, resource: this.skeletonBuffer } ],
                 });
             }
@@ -1170,36 +1155,12 @@ export class DeferredRenderer extends BaseRenderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        // layout: 'auto' my beloved
-        const deferredCameraBindGroup = this.device.createBindGroup({
-            layout: this.deferredPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
+        const cameraBindGroup = this.device.createBindGroup({
+            layout: this.cameraBindGroupLayout,
+            entries: [ { binding: 0, resource: cameraUniformBuffer } ],
         });
 
-        const lightingCameraBindGroup = this.device.createBindGroup({
-            layout: this.lightingPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const skyboxCameraBindgroup = this.device.createBindGroup({
-            layout: this.skyboxPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const aabbCameraBindGroup = this.device.createBindGroup({
-            layout: this.aabbPipeline.getBindGroupLayout(0),
-            entries: [
-                { binding: 0, resource: cameraUniformBuffer },
-            ],
-        });
-
-        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup, aabbCameraBindGroup };
+        const gpuObjects = { cameraUniformBuffer, cameraBindGroup };
         this.gpuObjects.set(camera, gpuObjects);
         return gpuObjects;
     }
@@ -1216,7 +1177,7 @@ export class DeferredRenderer extends BaseRenderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
         const lightBindGroup = this.device.createBindGroup({
-            layout: this.lightsPipeline.getBindGroupLayout(0),
+            layout: this.cameraBindGroupLayout,
             entries: [
                 { binding: 0, resource: lightUniformBuffer },
             ],
@@ -1261,7 +1222,7 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         const materialBindGroup = this.device.createBindGroup({
-            layout: this.deferredPipeline.getBindGroupLayout(2),
+            layout: this.materialBindGroupLayout,
             entries: [
                 { binding: 0, resource: albedoTexture.gpuTexture },
                 { binding: 1, resource: albedoTexture.gpuSampler },
@@ -1272,6 +1233,12 @@ export class DeferredRenderer extends BaseRenderer {
         const gpuObjects = { materialBindGroup, materialUniformBuffer };
         this.gpuObjects.set(material, gpuObjects);
         return gpuObjects;
+    }
+
+    createBindGroupLayout(entries)
+    {
+        const indexed = entries.map((e, i) => ({ ...e, binding: i }));
+        return this.device.createBindGroupLayout({ entries: indexed });
     }
 }
 
@@ -1421,4 +1388,50 @@ const aabbInstanceBufferLayout = {
             format: 'float32x4',
         },
     ],
+};
+
+const uniformBufferBindGroupEntry = {
+    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+    buffer: { type: "uniform" },
+};
+
+const storageBufferBindGroupEntry = {
+    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+    buffer: {
+        type: "read-only-storage",
+    },
+};
+
+const textureBindGroupEntry = {
+    visibility: GPUShaderStage.FRAGMENT,
+    texture: {
+        viewDimension: "2d",
+        sampleType: "float",
+    },
+};
+
+const depthArrayTextureBindGroupEntry = {
+    visibility: GPUShaderStage.FRAGMENT,
+    texture: {
+        sampleType: "depth",
+        viewDimension: "2d-array",
+    },
+};
+
+const cubemapBindGroupEntry = {
+    visibility: GPUShaderStage.FRAGMENT,
+    texture: {
+        viewDimension: "cube",
+        sampleType: "float",
+    },
+};
+
+const filteringSamplerBindGroupEntry =  {
+    visibility: GPUShaderStage.FRAGMENT,
+    sampler: { type: "filtering" },
+};
+
+const comparisonSamplerBindGroupEntry = {
+    visibility: GPUShaderStage.FRAGMENT,
+    sampler: { type: "comparison" },
 };
