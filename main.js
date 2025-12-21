@@ -113,7 +113,16 @@ katanaCollider.aabb = {
 };
 scene.push(katanaCollider);
 
-
+const invisibleWallCollider = new Entity();
+invisibleWallCollider.name = 'InvisibleWall';
+invisibleWallCollider.addComponent(new Transform({ translation: [4, 0.1, 0] }));
+invisibleWallCollider.customProperties = { isStatic: true };
+invisibleWallCollider.aabbManual = true;
+invisibleWallCollider.aabb = {
+  min: [-0.05, -0.1, -2.0],
+  max: [ 0.05, 10.0, 2.0]
+};
+scene.push(invisibleWallCollider);
 
 const soba_scene = resources.soba_model.loadScene();
 const soba = resources.soba_model.buildEntityFromScene(soba_scene);
@@ -129,6 +138,9 @@ const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(3);
 guy.addComponent(new EnemyComponent(guy, player));
+guy.customProperties = { isDynamic: true };
+guy.aabbManual = true;
+guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 scene.push(...guy_scene);
 
 const rangedGuyScene = resources.guy_model.loadScene();
@@ -137,25 +149,10 @@ rangedGuy.skeleton.playAnimationByIndex(3);
 rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, 'Ranged'));
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = [1, 0, 1];
+rangedGuy.customProperties = { isDynamic: true };
+rangedGuy.aabbManual = true;
+rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 scene.push(...rangedGuyScene);
-
-const guyCollider = attachBoxCollider(guy, {
-    name: 'GuyCollider',
-    offset: [0, 1.0, 0],
-    halfExtents: [0.35, 0.9, 0.35],
-    isStatic: true,
-});
-
-scene.push(guyCollider);
-
-const rangedGuyCollider = attachBoxCollider(rangedGuy, {
-    name: 'RangedGuyCollider',
-    offset: [0, 1.0, 0],
-    halfExtents: [0.35, 0.9, 0.35],
-    isStatic: true,
-});
-
-scene.push(rangedGuyCollider);
 
 {
     const littleguy_scene = resources.katana_model.loadScene();
