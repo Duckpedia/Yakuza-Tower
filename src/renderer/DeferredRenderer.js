@@ -34,6 +34,7 @@ export class DeferredRendererSettings {
         }
         this.blackAndWhite = false;
         this.wireframe = false;
+        this.aabbs = false;
     }
 }
 
@@ -619,7 +620,10 @@ export class DeferredRenderer extends BaseRenderer {
             this.renderSkybox(encoder, target, skyboxCameraBindgroup);
         }
         
-        this.renderAABBs(encoder, target, aabbCameraBindGroup);
+        if (poprSettings.aabbs)
+        {
+            this.renderAABBs(encoder, target, aabbCameraBindGroup);
+        }
 
         if (poprSettings.showUI)
         {

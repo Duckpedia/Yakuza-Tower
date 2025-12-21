@@ -222,6 +222,11 @@ function update(t, dt) {
         World.poprSettings.wireframe = !World.poprSettings.wireframe;
     }
 
+    if (Inputs.isPressed('KeyI'))
+    {
+        World.poprSettings.aabbs = !World.poprSettings.aabbs;
+    }
+
     if (Inputs.isPressed('KeyT'))
     {
         active_camera = (active_camera + 1) % cameras.length;
