@@ -106,4 +106,74 @@ export class Physics {
         vec3.add(transform.translation, transform.translation, minDirection);
     }
 
+    rayAABB(origin, dir, aabb){
+    //slab metoda (P(t) = origin + t · dir) in potrebujemo intersection vseh tri axis
+    let tmin = -Infinity;
+    let tmax = Infinity;
+
+        for(let i = 0; i < 3; i++){
+            if(Math.abs(dir[i]) < 1e-6){ //tole prepreci napako pr ful mejhnih spremembah
+                if(origin[i] < aabb.min[i] || origin[i] > aabb.max[i]){
+                    return null;
+                }
+            }
+            else{
+                let inverseD = 1/dir[i];
+                let t1 = (aabb.min[i] - origin[i]) * inverseD;
+                let t2 = (aabb.max[i] - origin[i]) * inverseD;
+
+                if (t1 > t2) [t1, t2] = [t2, t1];
+
+                tmin = Math.max(tmin, t1);
+                tmax = Math.min(tmax, t2);
+
+                if (tmin > tmax) return null;
+            }
+        }
+
+        if (tmin >= 0) return tmin; //ray se zacne izven boxa
+        if (tmax >= 0) return tmax; //ray se zacne v boxu
+        return null; //tuki je pa ray za boxom in potem vrne null ker je pac za tabo
+
+    }
+
+    raycast(from, to){
+        const dir = vec3.sub(vec3.create(), to, from); //naredimo vektor, direction pa length
+        const maxDistance = vec3.length(dir); //tukaj imamo pa length raya
+        vec3.normalize(dir, dir); //normaliziramo ker prejsna funkcija vrne dejanski distance
+
+        let closestHit = null;
+        let closest = Infinity;
+
+        for(const entity of this.scene){
+            //to je da samo skippa ce niso collidable pa brezveze matematiko
+            if(!entity.customProperties?.isStatic) continue;
+            if(!entity.aabb) continue;
+
+            const worldAABB = this.getTransformedAABB(entity);
+            const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
+
+            if(t !== null && t <= maxDistance && t < closest){
+                closest = t;
+                closestHit = entity;
+            }
+        }
+
+        if(!closestHit) return null;
+
+        const hitPoint = vec3.scaleAndAdd(
+            vec3.create(),
+            from,
+            dir,
+            closest
+        );
+
+        //ven dobimo kaj je bilo zadeto, kje v svetu je bilo zadeto in kok dalec je
+        return{
+            entity: closestHit, 
+            point: hitPoint,
+            distance: closest,
+        };
+    }
+
 }
