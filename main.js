@@ -25,6 +25,7 @@ import {
     calculateAxisAlignedBoundingBox,
     mergeAxisAlignedBoundingBoxes,
 } from 'engine/core/MeshUtils.js';
+import { quat } from './lib/glm.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -221,6 +222,12 @@ World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
 function update(t, dt) {
+    const x = -11;
+    DeferredRenderer.Draw3DLine([x, 1, -0.5], [x, 1, 0.5]);
+    DeferredRenderer.Draw3DBoxMinMax([x - 1, 0, -1], [x + 1, 1, 1], null);
+    DeferredRenderer.Draw3DBoxPosScale([x, 1, 0], [0.5, 0.5, 0.5], mat4.rotateY(new mat4(), new mat4(), t));
+    DeferredRenderer.DrawAxis([x, 0, 0], 3);
+
     if (Inputs.isPressed('KeyG'))
     {
         World.poprSettings.pass = (World.poprSettings.pass + 1) % 5
@@ -236,7 +243,7 @@ function update(t, dt) {
 
     if (Inputs.isPressed('KeyI'))
     {
-        World.poprSettings.aabbs = !World.poprSettings.aabbs;
+        World.poprSettings.debug = !World.poprSettings.debug;
     }
 
     if (Inputs.isPressed('KeyT'))

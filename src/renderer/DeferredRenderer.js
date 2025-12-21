@@ -1,8 +1,8 @@
-import { mat4, vec2 } from 'glm';
+import { mat4, vec2, vec4 } from 'glm';
 
 import * as WebGPU from '../../engine/WebGPU.js';
 
-import { Camera, Material, Sampler, Texture } from '../../engine/core/core.js';
+import { Camera } from '../../engine/core/core.js';
 
 import {
     getGlobalViewMatrix,
@@ -11,7 +11,7 @@ import {
 
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
 import { ImageLoader } from '../../engine/loaders/ImageLoader.js';
-import { quat, vec3, vec4 } from '../../lib/glm.js';
+import { vec3 } from '../../lib/glm.js';
 
 export class DeferredRendererSettings {
     constructor()
@@ -34,13 +34,14 @@ export class DeferredRendererSettings {
         }
         this.blackAndWhite = false;
         this.wireframe = false;
-        this.aabbs = false;
+        this.debug = false;
     }
 }
 
 export class DeferredRenderer extends BaseRenderer {
 
     static randomRectangle = { position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5) };
+    static s = null;
 
     constructor(canvas) {
         super(canvas);
@@ -53,11 +54,13 @@ export class DeferredRenderer extends BaseRenderer {
         await this.setUpSkybox();
         await this.setUpDeferred();
         await this.setUpLighting();
-        await this.setUpAABB();
+        await this.setUpDebug();
         await this.setUpPopr(dirtImage);
         await this.setUpUI();
 
         this.recreateRenderTargets();
+
+        DeferredRenderer.s = this;
     }
 
     async setUpUI()
@@ -94,22 +97,23 @@ export class DeferredRenderer extends BaseRenderer {
         this.maxInstances = 0;
         this.maxUIInstances = 0;
         this.maxLights = 0;
-        this.maxAABBs = 0;
+        this.maxDebugLines = 0;
         this.jointsBufferArray = null;
         this.lightsBufferArray = null;
         this.instancesBufferArray = null;
         this.uiInstancesBufferArray = null;
         this.poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
-        this.aabbsInstancesBufferArray = new Float32Array(16);
+        this.debugLinesBufferArray = new Float32Array(16);
         this.jointsBuffer = null;
         this.lightsBuffer = null;
         this.instancesBuffer = null;
         this.uiInstancesBuffer = null;
         this.poprSettingsBuffer = null;
         this.boxInstancesBuffer = null;
+        this.debugLinesBuffer = null;
         this.skeletons = [];
         this.lights = [];
-        this.aabbs = [];
+        this.debugLines = [];
         this.lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
         this.nShadowCastingLights = 0;
         this.poprSettingsBindGroup = null;
@@ -342,20 +346,20 @@ export class DeferredRenderer extends BaseRenderer {
         });
     }
 
-    async setUpAABB()
+    async setUpDebug()
     {
-        console.log("setting up aabb");
+        console.log("setting up debug");
 
         const layout = this.device.createPipelineLayout({ bindGroupLayouts: [this.cameraBindGroupLayout] });
 
-        const code = await fetch(new URL('AABB.wgsl', import.meta.url)).then(response => response.text());
+        const code = await fetch(new URL('Debug.wgsl', import.meta.url)).then(response => response.text());
         const module = this.device.createShaderModule({ code });
-        this.aabbPipeline = await this.device.createRenderPipelineAsync({
-            label: 'aabb',
+        this.debugPipeline = await this.device.createRenderPipelineAsync({
+            label: 'debug',
             layout,
             vertex: {
                 module,
-                buffers: [ aabbInstanceBufferLayout ],
+                buffers: [ debugInstanceBufferLayout ],
             },
             fragment: {
                 module,
@@ -367,7 +371,6 @@ export class DeferredRenderer extends BaseRenderer {
                 cullMode: 'none'
             }
         });
-        
     }
 
     async setUpPopr(dirtImage) {
@@ -610,10 +613,12 @@ export class DeferredRenderer extends BaseRenderer {
             this.renderSkybox(encoder, target, cameraBindGroup);
         }
         
-        if (poprSettings.aabbs)
+        if (poprSettings.debug)
         {
-            this.renderAABBs(encoder, target, cameraBindGroup);
+            this.renderDebug(encoder, target, cameraBindGroup);
         }
+        
+        this.debugLines.length = 0;
 
         if (poprSettings.showUI)
         {
@@ -623,7 +628,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.submit([encoder.finish()]);
     }
 
-    renderDeferred(encoder, entities, deferredCameraBindGroup, poprSettings)
+    renderDeferred(encoder, entities, cameraBindGroup, poprSettings)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -655,7 +660,7 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         renderPass.setPipeline(poprSettings.wireframe ? this.deferredWireframePipeline : this.deferredPipeline);
-        renderPass.setBindGroup(0, deferredCameraBindGroup);
+        renderPass.setBindGroup(0, cameraBindGroup);
 
         this.renderEntities(entities, renderPass);
 
@@ -743,7 +748,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    renderLighting(encoder, lightingCameraBindGroup)
+    renderLighting(encoder, cameraBindGroup)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -757,7 +762,7 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         renderPass.setPipeline(this.lightingPipeline);
-        renderPass.setBindGroup(0, lightingCameraBindGroup);
+        renderPass.setBindGroup(0, cameraBindGroup);
         renderPass.setBindGroup(1, this.lightingBindGroup);
         renderPass.setBindGroup(2, this.deferredTargetsBindGroup);
         renderPass.setBindGroup(3, this.lightsBindGroup);
@@ -871,7 +876,7 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.end();
     }
 
-    renderSkybox(encoder, target, skyboxCameraBindgroup)
+    renderSkybox(encoder, target, cameraBindGroup)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -889,61 +894,36 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         renderPass.setPipeline(this.skyboxPipeline);
-        renderPass.setBindGroup(0, skyboxCameraBindgroup);
+        renderPass.setBindGroup(0, cameraBindGroup);
         renderPass.setBindGroup(1, this.skyboxBindGroup);
         renderPass.draw(36);
 
         renderPass.end();
     }
 
-    renderAABBs(encoder, target, aabbCameraBindGroup)
+    renderDebug(encoder, target, cameraBindGroup)
     {
-        if (this.aabbs.length <= 0)
+        if (this.debugLines.length <= 0)
             return;
 
-        if (this.maxAABBs < this.aabbs.length)
+        if (this.maxDebugLines < this.debugLines.length)
         {
-            this.maxAABBs = this.aabbs.length;
-            this.aabbsInstancesBufferArray = new Float32Array(this.aabbs.length * 16);
-            this.aabbsInstancesBuffer = WebGPU.createBuffer(this.device, {
-                size: this.aabbsInstancesBufferArray.byteLength,
+            this.maxDebugLines = this.debugLines.length;
+            this.debugLinesBufferArray = new Float32Array(this.debugLines.length * 12);
+            this.debugLinesBuffer = WebGPU.createBuffer(this.device, {
+                size: this.debugLinesBufferArray.byteLength,
                 usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
             });
         }
 
-        const mat = new mat4();
-        const position = vec3.create();
-        const scale = vec3.create();
-        const center = vec3.create();
-        const half = vec3.create();
-
-        for (let i = 0; i < this.aabbs.length; i++) {
-            const entity = this.aabbs[i];
-
-            mat4.getTranslation(position, entity._transform.final);
-            mat4.getScaling(scale, entity._transform.final);
-
-            const min = entity.aabb.min;
-            const max = entity.aabb.max;
-
-            center[0] = (min[0] + max[0]) * 0.5;
-            center[1] = (min[1] + max[1]) * 0.5;
-            center[2] = (min[2] + max[2]) * 0.5;
-
-            half[0] = (max[0] - min[0]) * 0.5;
-            half[1] = (max[1] - min[1]) * 0.5;
-            half[2] = (max[2] - min[2]) * 0.5;
-
-            mat4.identity(mat);
-            mat4.translate(mat, mat, position);
-            mat4.scale(mat, mat, scale);
-            mat4.translate(mat, mat, center);
-            mat4.scale(mat, mat, half);
-
-            this.aabbsInstancesBufferArray.set(mat, i * 16);
+        for (let i = 0; i < this.debugLines.length; i++) {
+            const line = this.debugLines[i];
+            this.debugLinesBufferArray.set(line.start, i * 12);
+            this.debugLinesBufferArray.set(line.end, i * 12 + 4);
+            this.debugLinesBufferArray.set(line.color, i * 12 + 8);
         }
 
-        this.device.queue.writeBuffer(this.aabbsInstancesBuffer, 0, this.aabbsInstancesBufferArray);
+        this.device.queue.writeBuffer(this.debugLinesBuffer, 0, this.debugLinesBufferArray);
 
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -955,10 +935,10 @@ export class DeferredRenderer extends BaseRenderer {
             ]
         });
 
-        renderPass.setPipeline(this.aabbPipeline);
-        renderPass.setBindGroup(0, aabbCameraBindGroup);
-        renderPass.setVertexBuffer(0, this.aabbsInstancesBuffer);
-        renderPass.draw(36, this.aabbs.length);
+        renderPass.setPipeline(this.debugPipeline);
+        renderPass.setBindGroup(0, cameraBindGroup);
+        renderPass.setVertexBuffer(0, this.debugLinesBuffer);
+        renderPass.draw(2, this.debugLines.length);
 
         renderPass.end();
     }
@@ -1005,7 +985,6 @@ export class DeferredRenderer extends BaseRenderer {
         let nInstances = 0;
         let nJoints = 0;
         this.lights.length = 0;
-        this.aabbs.length = 0;
         for (const entity of entities) {
             if (entity.hidden) continue;
 
@@ -1014,8 +993,6 @@ export class DeferredRenderer extends BaseRenderer {
 
             const light = entity._light;
             if (light) this.lights.push(entity);
-
-            if (entity.aabb && entity.customProperties) this.aabbs.push(entity);
 
             const model = entity._model;
             if (!model) continue;
@@ -1240,6 +1217,64 @@ export class DeferredRenderer extends BaseRenderer {
         const indexed = entries.map((e, i) => ({ ...e, binding: i }));
         return this.device.createBindGroupLayout({ entries: indexed });
     }
+
+    static Draw3DLine(start, end, color = [1.0, 0.0, 1.0])
+    {
+        DeferredRenderer.s.debugLines.push({ start, end, color});
+    }
+
+    static DrawAxis(start, size)
+    {
+        DeferredRenderer.s.debugLines.push({ start, end: [start[0] + size, start[1], start[2]], color: [1.0, 0.0, 0.0]});
+        DeferredRenderer.s.debugLines.push({ start, end: [start[0], start[1] + size, start[2]], color: [0.0, 1.0, 0.0]});
+        DeferredRenderer.s.debugLines.push({ start, end: [start[0], start[1], start[2] + size], color: [0.0, 0.0, 1.0]});
+    }
+
+    static Draw3DBoxMinMax(min, max, mat = null, color = [1.0, 0.0, 1.0]) {
+        const center = vec3.fromValues((min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5, (min[2] + max[2]) * 0.5);
+        const c = [
+            vec4.fromValues(min[0], min[1], min[2], 1.0),
+            vec4.fromValues(max[0], min[1], min[2], 1.0),
+            vec4.fromValues(max[0], max[1], min[2], 1.0),
+            vec4.fromValues(min[0], max[1], min[2], 1.0),
+            vec4.fromValues(min[0], min[1], max[2], 1.0),
+            vec4.fromValues(max[0], min[1], max[2], 1.0),
+            vec4.fromValues(max[0], max[1], max[2], 1.0),
+            vec4.fromValues(min[0], max[1], max[2], 1.0),
+        ];
+
+        if (mat)
+        {
+            for (let i = 0; i < c.length; i++) {
+                vec3.sub(c[i], c[i], center);
+                mat4.mul(c[i], mat, c[i]);
+                vec3.add(c[i], c[i], center);
+            }
+        }
+
+        DeferredRenderer.Draw3DLine(c[0], c[1], color);
+        DeferredRenderer.Draw3DLine(c[1], c[2], color);
+        DeferredRenderer.Draw3DLine(c[2], c[3], color);
+        DeferredRenderer.Draw3DLine(c[3], c[0], color);
+
+        DeferredRenderer.Draw3DLine(c[4], c[5], color);
+        DeferredRenderer.Draw3DLine(c[5], c[6], color);
+        DeferredRenderer.Draw3DLine(c[6], c[7], color);
+        DeferredRenderer.Draw3DLine(c[7], c[4], color);
+
+        DeferredRenderer.Draw3DLine(c[0], c[4], color);
+        DeferredRenderer.Draw3DLine(c[1], c[5], color);
+        DeferredRenderer.Draw3DLine(c[2], c[6], color);
+        DeferredRenderer.Draw3DLine(c[3], c[7], color);
+    }
+
+    static Draw3DBoxPosScale(pos, scale, mat = null, color = [1.0, 0.0, 1.0]) {
+        DeferredRenderer.Draw3DBoxMinMax(
+            [ pos[0] - scale[0], pos[1] - scale[1], pos[2] - scale[2] ], 
+            [ pos[0] + scale[0], pos[1] + scale[1], pos[2] + scale[2] ], 
+            mat, color
+        );
+    }
 }
 
 const vertexBufferLayout = {
@@ -1359,32 +1394,26 @@ const uiInstanceBufferLayout = {
     ],
 };
 
-const aabbInstanceBufferLayout = {
-    arrayStride: 64,
+const debugInstanceBufferLayout = {
+    arrayStride: 48,
     stepMode: 'instance',
     attributes: [
         {
-            name: 'row0',
+            name: 'from',
             shaderLocation: 0,
             offset: 0,
             format: 'float32x4',
         },
         {
-            name: 'row1',
+            name: 'to',
             shaderLocation: 1,
             offset: 16,
             format: 'float32x4',
         },
         {
-            name: 'row2',
+            name: 'color',
             shaderLocation: 2,
             offset: 32,
-            format: 'float32x4',
-        },
-        {
-            name: 'row3',
-            shaderLocation: 3,
-            offset: 48,
             format: 'float32x4',
         },
     ],

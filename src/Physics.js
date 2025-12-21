@@ -1,6 +1,9 @@
 import { vec3, mat4 } from 'glm';
 import { getGlobalModelMatrix } from 'engine/core/SceneUtils.js';
 import { Transform } from 'engine/core/core.js';
+import { DeferredRenderer } from './renderer/DeferredRenderer.js';
+import { vec4 } from '../lib/glm.js';
+import { World } from './World.js';
 
 export class Physics {
 
@@ -9,8 +12,24 @@ export class Physics {
     }
 
     update(t, dt) {
+        const position = new vec4();
+        const scale = new vec4();
+        const mat = new mat4();
+
         for (const entity of this.scene) {
-            if (entity.customProperties?.isDynamic) {
+
+            if (World.poprSettings.debug && entity.aabb && entity.customProperties)
+            {
+                mat4.getTranslation(position, entity._transform.final);
+                mat4.getScaling(scale, entity._transform.final);
+                mat4.identity(mat);
+                mat4.translate(mat, mat, position);
+                mat4.scale(mat, mat, scale);
+                DeferredRenderer.Draw3DBoxMinMax(entity.aabb.min, entity.aabb.max, mat);
+            }
+
+            if (entity.customProperties?.isDynamic) 
+            {
                 for (const other of this.scene) {
                     if (entity !== other && other.customProperties?.isStatic) {
                         this.resolveCollision(entity, other);
