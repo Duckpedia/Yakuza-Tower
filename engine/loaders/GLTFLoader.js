@@ -383,6 +383,7 @@ export class GLTFLoader {
         }
 
         const primitives = [];
+        const primitivesByMaterial = new Map();
         for (const primitiveSpec of gltfSpec.primitives) {
             if (primitiveSpec.mode !== 4 && primitiveSpec.mode !== undefined) {
                 console.warn(`GLTFLoader: skipping primitive with mode ${primitiveSpec.mode}`);
@@ -397,11 +398,26 @@ export class GLTFLoader {
                 if (gltfSpec.name === "SCREEN")
                     options.material.screen = true;
             }
-
-            primitives.push(new Primitive(options));
+            else {
+                console.warn("primitive ", gltfSpec, " without material wont be rendered on ", this.gltf);
+            }
+            
+        
+            const primitive = new Primitive(options);
+            primitives.push(primitive);
+            if (options.material)
+            {
+                let prims = primitivesByMaterial.get(options.material);
+                if (!prims)
+                {
+                    prims = [];
+                    primitivesByMaterial.set(options.material, prims);
+                }
+                prims.push(primitive);
+            }
         }
 
-        const model = new Model({ primitives });
+        const model = new Model({ primitives, primitivesByMaterial });
 
         this.cache.set(gltfSpec, model);
         return model;

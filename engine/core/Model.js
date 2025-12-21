@@ -3,8 +3,10 @@ export class Model {
 
     constructor({
         primitives = [],
+        primitivesByMaterial = [],
     } = {}) {
         this.primitives = primitives;
+        this.primitivesByMaterial = primitivesByMaterial;
         this.i = Model.i++;
     }
 

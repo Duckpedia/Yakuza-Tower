@@ -473,7 +473,6 @@ export class DeferredRenderer extends BaseRenderer {
     }
 
     recreateRenderTargets() {
-        this.defferedDepthTexture?.destroy();
         this.defferedDepthTexture = this.device.createTexture({
             format: 'depth24plus',
             size: [this.canvas.width, this.canvas.height],
@@ -481,7 +480,6 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.defferedDepthTextureView = this.defferedDepthTexture.createView();
 
-        this.deferredAlbedoTexture?.destroy();
         this.deferredAlbedoTexture = this.device.createTexture({
             format: 'bgra8unorm',
             size: [this.canvas.width, this.canvas.height],
@@ -489,7 +487,6 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.deferredAlbedoTextureView = this.deferredAlbedoTexture.createView();
 
-        this.deferredPositionTexture?.destroy();
         this.deferredPositionTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
@@ -497,7 +494,6 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.deferredPositionTextureView = this.deferredPositionTexture.createView();
 
-        this.deferredNormalTexture?.destroy();
         this.deferredNormalTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
@@ -514,7 +510,6 @@ export class DeferredRenderer extends BaseRenderer {
             ],
         });
         
-        this.lightingTexture?.destroy();
         this.lightingTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
@@ -1024,24 +1019,27 @@ export class DeferredRenderer extends BaseRenderer {
     }
 
     renderModel(model, instanceOffset, nInstances, renderPass, materials) {
-        for (const primitive of model.primitives) {
-            this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass, materials);
+        for (const [material, primitives] of model.primitivesByMaterial.entries()) {
+
+            if (materials)
+            {
+                const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
+                this.materialBuffer.set(material.albedoFactor, 0);
+                this.materialBuffer[3] = material.metalnessFactor;
+                this.materialBuffer[4] = material.roughnessFactor;
+                this.materialBuffer[5] = material.aoFactor;
+                this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
+                renderPass.setBindGroup(2, materialBindGroup);
+            }
+
+            for (const primitive of primitives)
+            {
+                this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass);
+            }
         }
     }
 
-    renderPrimitive(primitive, instanceOffset, nInstances, renderPass, materials) {
-        if (materials)
-        {
-            const material = primitive.material ?? this.dummyMaterial;
-            const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
-            this.materialBuffer.set(material.albedoFactor, 0);
-            this.materialBuffer[3] = material.metalnessFactor;
-            this.materialBuffer[4] = material.roughnessFactor;
-            this.materialBuffer[5] = material.aoFactor;
-            this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
-            renderPass.setBindGroup(2, materialBindGroup);
-        }
-
+    renderPrimitive(primitive, instanceOffset, nInstances, renderPass) {
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
         renderPass.setVertexBuffer(0, vertexBuffer);
         renderPass.setVertexBuffer(1, this.instanceBuffer);

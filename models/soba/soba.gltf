@@ -38,9 +38,9 @@
 						1,
 						1
 					],
-					"intensity":14448.80551555644,
+					"intensity":22596.598323467053,
 					"type":"point",
-					"name":"Point.004"
+					"name":"Point.001"
 				},
 				{
 					"color":[
@@ -48,9 +48,9 @@
 						1,
 						1
 					],
-					"intensity":6250.4120879080865,
+					"intensity":22596.598323467053,
 					"type":"point",
-					"name":"Point.005"
+					"name":"Point.003"
 				},
 				{
 					"color":[
@@ -58,9 +58,9 @@
 						1,
 						1
 					],
-					"intensity":9571.283343299818,
+					"intensity":22596.598323467053,
 					"type":"point",
-					"name":"Point.006"
+					"name":"Point.007"
 				}
 			]
 		}
@@ -143,79 +143,7 @@
 					"light":2
 				}
 			},
-			"name":"Point.001",
-			"rotation":[
-				-0.7071068286895752,
-				0,
-				0,
-				0.7071068286895752
-			],
-			"translation":[
-				0.01748788356781006,
-				1.6135709285736084,
-				0.02705240249633789
-			]
-		},
-		{
-			"children":[
-				4
-			],
-			"mesh":1,
-			"name":"Cube.001",
-			"scale":[
-				1,
-				0.21629828214645386,
-				1
-			],
-			"translation":[
-				-1.8244270086288452,
-				0.2162984311580658,
-				-6.042593955993652
-			]
-		},
-		{
-			"extensions":{
-				"KHR_lights_punctual":{
-					"light":3
-				}
-			},
-			"name":"Point.002",
-			"rotation":[
-				-0.7071068286895752,
-				0,
-				0,
-				0.7071068286895752
-			],
-			"translation":[
-				0.017487764358520508,
-				1.6135709285736084,
-				0.02705240249633789
-			]
-		},
-		{
-			"children":[
-				6
-			],
-			"mesh":2,
-			"name":"Cube.002",
-			"scale":[
-				1,
-				0.3547764718532562,
-				1
-			],
-			"translation":[
-				3.344223976135254,
-				0.3547764718532562,
-				-6.042593955993652
-			]
-		},
-		{
-			"extensions":{
-				"KHR_lights_punctual":{
-					"light":4
-				}
-			},
-			"name":"Point.003",
+			"name":"Point.004",
 			"rotation":[
 				-0.7071068286895752,
 				0,
@@ -230,18 +158,96 @@
 		},
 		{
 			"children":[
+				4
+			],
+			"mesh":1,
+			"name":"Cube.001",
+			"scale":[
+				1,
+				0.15281295776367188,
+				1
+			],
+			"translation":[
+				-2.019911766052246,
+				0.15281295776367188,
+				-6.042593955993652
+			]
+		},
+		{
+			"extensions":{
+				"KHR_lights_punctual":{
+					"light":3
+				}
+			},
+			"name":"Point.005",
+			"rotation":[
+				-0.7071068286895752,
+				0,
+				0,
+				0.7071068286895752
+			],
+			"translation":[
+				0.01748800277709961,
+				5.527582168579102,
+				0.02705240249633789
+			]
+		},
+		{
+			"children":[
+				6
+			],
+			"mesh":2,
+			"name":"Cube.002",
+			"scale":[
+				1,
+				0.15281295776367188,
+				1
+			],
+			"translation":[
+				2.384103775024414,
+				0.15281295776367188,
+				-6.042593955993652
+			]
+		},
+		{
+			"extensions":{
+				"KHR_lights_punctual":{
+					"light":4
+				}
+			},
+			"name":"Point.006",
+			"rotation":[
+				-0.7071068286895752,
+				0,
+				0,
+				0.7071068286895752
+			],
+			"translation":[
+				0.017487555742263794,
+				13.548558235168457,
+				0.02705240249633789
+			]
+		},
+		{
+			"children":[
 				8
 			],
 			"mesh":3,
 			"name":"Cube.003",
+			"rotation":[
+				0,
+				0.9238795638084412,
+				0,
+				0.3826834559440613
+			],
 			"scale":[
 				1,
-				0.6948656439781189,
+				0.15281295776367188,
 				1
 			],
 			"translation":[
-				6.997429847717285,
-				0.6948656439781189,
+				6.479025363922119,
+				0.15281295776367188,
 				-6.042593955993652
 			]
 		},
@@ -386,51 +392,12 @@
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.001",
+			"name":"Material.010",
 			"pbrMetallicRoughness":{
-				"baseColorFactor":[
-					1,
-					0,
-					0,
-					1
-				],
-				"metallicFactor":0.10000000149011612,
-				"roughnessFactor":0.5
-			}
-		},
-		{
-			"doubleSided":true,
-			"name":"Material.002",
-			"pbrMetallicRoughness":{
-				"baseColorFactor":[
-					0,
-					1,
-					0,
-					1
-				],
-				"metallicFactor":0.20000000298023224,
-				"roughnessFactor":0.5
-			}
-		},
-		{
-			"doubleSided":true,
-			"name":"Material.003",
-			"pbrMetallicRoughness":{
-				"baseColorFactor":[
-					0,
-					0,
-					1,
-					1
-				],
-				"metallicFactor":0.30000001192092896,
-				"roughnessFactor":0.5
-			}
-		},
-		{
-			"doubleSided":true,
-			"name":"Material.004",
-			"pbrMetallicRoughness":{
-				"metallicFactor":0.4000000059604645,
+				"baseColorTexture":{
+					"index":0
+				},
+				"metallicFactor":0,
 				"roughnessFactor":0.5
 			}
 		},
@@ -467,7 +434,7 @@
 			"name":"Material.008",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":0
+					"index":1
 				},
 				"metallicFactor":0
 			}
@@ -531,7 +498,7 @@
 			]
 		},
 		{
-			"name":"Cube.005",
+			"name":"Cube.002",
 			"primitives":[
 				{
 					"attributes":{
@@ -540,12 +507,12 @@
 						"TEXCOORD_0":6
 					},
 					"indices":3,
-					"material":1
+					"material":0
 				}
 			]
 		},
 		{
-			"name":"Cube.006",
+			"name":"Cube.003",
 			"primitives":[
 				{
 					"attributes":{
@@ -554,12 +521,12 @@
 						"TEXCOORD_0":9
 					},
 					"indices":3,
-					"material":2
+					"material":0
 				}
 			]
 		},
 		{
-			"name":"Cube.007",
+			"name":"Cube.004",
 			"primitives":[
 				{
 					"attributes":{
@@ -568,7 +535,7 @@
 						"TEXCOORD_0":12
 					},
 					"indices":3,
-					"material":3
+					"material":0
 				}
 			]
 		},
@@ -582,7 +549,7 @@
 						"TEXCOORD_0":15
 					},
 					"indices":16,
-					"material":4
+					"material":1
 				}
 			]
 		},
@@ -596,7 +563,7 @@
 						"TEXCOORD_0":19
 					},
 					"indices":16,
-					"material":5
+					"material":2
 				}
 			]
 		},
@@ -610,7 +577,7 @@
 						"TEXCOORD_0":22
 					},
 					"indices":16,
-					"material":6
+					"material":3
 				}
 			]
 		},
@@ -624,7 +591,7 @@
 						"TEXCOORD_0":25
 					},
 					"indices":26,
-					"material":7
+					"material":4
 				}
 			]
 		},
@@ -638,7 +605,7 @@
 						"TEXCOORD_0":29
 					},
 					"indices":26,
-					"material":8
+					"material":5
 				}
 			]
 		},
@@ -652,7 +619,7 @@
 						"TEXCOORD_0":32
 					},
 					"indices":33,
-					"material":9
+					"material":6
 				}
 			]
 		}
@@ -661,9 +628,18 @@
 		{
 			"sampler":0,
 			"source":0
+		},
+		{
+			"sampler":1,
+			"source":1
 		}
 	],
 	"images":[
+		{
+			"mimeType":"image/png",
+			"name":"barve",
+			"uri":"barve.png"
+		},
 		{
 			"mimeType":"image/png",
 			"name":"Bliss_(Windows_XP)",
@@ -711,7 +687,7 @@
 			"count":24,
 			"max":[
 				1,
-				1,
+				1.818333625793457,
 				1
 			],
 			"min":[
@@ -739,7 +715,7 @@
 			"count":24,
 			"max":[
 				1,
-				1,
+				3.9874379634857178,
 				1
 			],
 			"min":[
@@ -767,7 +743,7 @@
 			"count":24,
 			"max":[
 				1,
-				1,
+				10.591286659240723,
 				1
 			],
 			"min":[
@@ -1183,6 +1159,10 @@
 		}
 	],
 	"samplers":[
+		{
+			"magFilter":9728,
+			"minFilter":9984
+		},
 		{
 			"magFilter":9729,
 			"minFilter":9987
