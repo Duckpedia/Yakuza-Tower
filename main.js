@@ -242,6 +242,34 @@ function update(t, dt) {
             World.poprSettings = defaultPoprSettings;
         }
     }
+    if (Inputs.isPressed('KeyR')){
+        const camEntity = World.activeCamera;
+        const camTransform = camEntity.getComponentOfType(Transform);
+
+        const from = vec3.clone(camTransform.translation);
+
+        const forward = vec3.transformQuat(
+            vec3.create(),
+            [0, 0, -1],
+            camTransform.rotation
+        );
+
+        const to = vec3.scaleAndAdd(
+            vec3.create(),
+            from,
+            forward,
+            50.0
+        );
+
+        const hit = physics.raycast(from, to);
+
+        if (hit){
+            console.log("HIT", hit.entity.name, hit.point, hit.distance);
+        } 
+        else{
+            console.log("MISS");
+        }
+    }
 
     const scaledDt = dt * World.timeScale;
     for (const entity of scene) {
