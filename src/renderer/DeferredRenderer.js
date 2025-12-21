@@ -2,7 +2,7 @@ import { mat4, vec2 } from 'glm';
 
 import * as WebGPU from '../../engine/WebGPU.js';
 
-import { Camera } from '../../engine/core/core.js';
+import { Camera, Material, Sampler, Texture } from '../../engine/core/core.js';
 
 import {
     getGlobalViewMatrix,
@@ -1110,12 +1110,15 @@ export class DeferredRenderer extends BaseRenderer {
         return gpuObjects;
     }
 
-    prepareTexture(texture, isSRGB) {
+    prepareTexture(texture, isSRGB, screen) {
         if (this.gpuObjects.has(texture)) {
             return this.gpuObjects.get(texture);
         }
 
-        const { gpuTexture } = this.prepareImage(texture.image, isSRGB);
+        let { gpuTexture } = this.prepareImage(texture.image, isSRGB);
+        if (screen){
+            gpuTexture = this.lightingTexture;
+        }
         const { gpuSampler } = this.prepareSampler(texture.sampler);
 
         const gpuObjects = { gpuTexture, gpuSampler };
@@ -1128,8 +1131,12 @@ export class DeferredRenderer extends BaseRenderer {
             return this.gpuObjects.get(material);
         }
 
-        if (!material.albedoTexture) material.albedoTexture = this.dummyMaterial.albedoTexture;
-        const albedoTexture = this.prepareTexture(material.albedoTexture, true); // albedo is always srgb
+        if (!material.albedoTexture) 
+        {
+            material.albedoTexture = this.dummyMaterial.albedoTexture;
+        }
+        
+        const albedoTexture = this.prepareTexture(material.albedoTexture, true, material.screen); // albedo is always srgb
 
         const materialUniformBuffer = this.device.createBuffer({
             size: 32,

@@ -256,26 +256,6 @@
 		},
 		{
 			"mesh":5,
-			"name":"Plane.001",
-			"rotation":[
-				0.7071068286895752,
-				0,
-				0,
-				0.7071068286895752
-			],
-			"scale":[
-				10,
-				10,
-				10
-			],
-			"translation":[
-				0,
-				10,
-				-10.004495620727539
-			]
-		},
-		{
-			"mesh":6,
 			"name":"Plane.002",
 			"rotation":[
 				0.5,
@@ -292,6 +272,26 @@
 				10,
 				10,
 				-0.0044956207275390625
+			]
+		},
+		{
+			"mesh":6,
+			"name":"Plant.001",
+			"rotation":[
+				0.7071068286895752,
+				0,
+				0,
+				0.7071068286895752
+			],
+			"scale":[
+				10,
+				10,
+				10
+			],
+			"translation":[
+				0,
+				10,
+				-10.004495620727539
 			]
 		},
 		{
@@ -450,16 +450,6 @@
 		},
 		{
 			"doubleSided":true,
-			"name":"Material.008",
-			"pbrMetallicRoughness":{
-				"baseColorTexture":{
-					"index":0
-				},
-				"metallicFactor":0
-			}
-		},
-		{
-			"doubleSided":true,
 			"name":"Material.007",
 			"pbrMetallicRoughness":{
 				"baseColorFactor":[
@@ -470,6 +460,16 @@
 				],
 				"metallicFactor":0.8814433217048645,
 				"roughnessFactor":0.16237115859985352
+			}
+		},
+		{
+			"doubleSided":true,
+			"name":"Material.008",
+			"pbrMetallicRoughness":{
+				"baseColorTexture":{
+					"index":0
+				},
+				"metallicFactor":0
 			}
 		},
 		{
@@ -587,7 +587,7 @@
 			]
 		},
 		{
-			"name":"Plane.001",
+			"name":"Plane.002",
 			"primitives":[
 				{
 					"attributes":{
@@ -601,7 +601,7 @@
 			]
 		},
 		{
-			"name":"Plane.002",
+			"name":"SCREEN",
 			"primitives":[
 				{
 					"attributes":{

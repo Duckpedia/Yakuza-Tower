@@ -394,6 +394,8 @@ export class GLTFLoader {
 
             if (primitiveSpec.material !== undefined) {
                 options.material = this.loadMaterial(primitiveSpec.material);
+                if (gltfSpec.name === "SCREEN")
+                    options.material.screen = true;
             }
 
             primitives.push(new Primitive(options));
