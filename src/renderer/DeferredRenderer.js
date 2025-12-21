@@ -11,6 +11,7 @@ import {
 
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
 import { ImageLoader } from '../../engine/loaders/ImageLoader.js';
+import { quat, vec3, vec4 } from '../../lib/glm.js';
 
 export class DeferredRendererSettings {
     constructor()
@@ -32,6 +33,7 @@ export class DeferredRendererSettings {
             agxSat: 1.4
         }
         this.blackAndWhite = false;
+        this.wireframe = false;
     }
 }
 
@@ -49,9 +51,9 @@ export class DeferredRenderer extends BaseRenderer {
         await this.setUpDefaults();
         await this.setUpSkybox();
         await this.setUpDeferred();
+        await this.setUpAABB();
         await this.setUpPopr(dirtImage);
         await this.setUpUI();
-
 
         this.recreateRenderTargets();
     }
@@ -88,18 +90,22 @@ export class DeferredRenderer extends BaseRenderer {
         this.maxInstances = 0;
         this.maxUIInstances = 0;
         this.maxLights = 0;
+        this.maxAABBs = 0;
         this.jointsBufferArray = null;
         this.lightsBufferArray = null;
         this.instancesBufferArray = null;
         this.uiInstancesBufferArray = null;
         this.poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
+        this.aabbsInstancesBufferArray = new Float32Array(16);
         this.jointsBuffer = null;
         this.lightsBuffer = null;
         this.instancesBuffer = null;
         this.uiInstancesBuffer = null;
         this.poprSettingsBuffer = null;
+        this.boxInstancesBuffer = null;
         this.skeletons = [];
         this.lights = [];
+        this.aabbs = [];
         this.lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
         this.nShadowCastingLights = 0;
         this.poprSettingsBindGroup = null;
@@ -109,7 +115,7 @@ export class DeferredRenderer extends BaseRenderer {
     async setUpDeferred() {
         const deferredCode = await fetch(new URL('Deferred.wgsl', import.meta.url)).then(response => response.text());
         const deferredModule = this.device.createShaderModule({ code: deferredCode });
-        this.deferredPipeline = await this.device.createRenderPipelineAsync({
+        const deferredPipelineOptions = {
             label: 'deferred',
             layout: 'auto',
             vertex: {
@@ -129,7 +135,10 @@ export class DeferredRenderer extends BaseRenderer {
                 frontFace: 'ccw',
                 cullMode: 'back'
             }
-        });
+        };
+        this.deferredPipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
+        deferredPipelineOptions.primitive.topology = 'line-list';
+        this.deferredWireframePipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
 
         this.lightsPipeline = await this.device.createRenderPipelineAsync({
             label: 'deferred',
@@ -229,6 +238,30 @@ export class DeferredRenderer extends BaseRenderer {
             data: this.instancesBufferArray,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
         });
+    }
+
+    async setUpAABB()
+    {
+        const code = await fetch(new URL('AABB.wgsl', import.meta.url)).then(response => response.text());
+        const module = this.device.createShaderModule({ code });
+        this.aabbPipeline = await this.device.createRenderPipelineAsync({
+            label: 'aabb',
+            layout: 'auto',
+            vertex: {
+                module,
+                buffers: [ aabbInstanceBufferLayout ],
+            },
+            fragment: {
+                module,
+                targets: [{ format: this.format}],
+            },
+            primitive: {
+                topology: 'line-strip',
+                frontFace: 'ccw',
+                cullMode: 'none'
+            }
+        });
+        
     }
 
     async setUpPopr(dirtImage) {
@@ -559,7 +592,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
-        const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup } = this.prepareCamera(cameraComponent);
+        const { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup, aabbCameraBindGroup } = this.prepareCamera(cameraComponent);
         this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
         this.cameraBuffer.set(getProjectionMatrix(camera), 16);
         this.cameraBuffer.set(camera._transform.final_position, 32);
@@ -568,7 +601,7 @@ export class DeferredRenderer extends BaseRenderer {
         const target = this.context.getCurrentTexture().createView();
         const encoder = this.device.createCommandEncoder();
 
-        this.renderDeferred(encoder, entities, deferredCameraBindGroup);
+        this.renderDeferred(encoder, entities, deferredCameraBindGroup, poprSettings);
             
         this.renderLights(encoder);
 
@@ -585,6 +618,8 @@ export class DeferredRenderer extends BaseRenderer {
         {
             this.renderSkybox(encoder, target, skyboxCameraBindgroup);
         }
+        
+        this.renderAABBs(encoder, target, aabbCameraBindGroup);
 
         if (poprSettings.showUI)
         {
@@ -594,7 +629,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.submit([encoder.finish()]);
     }
 
-    renderDeferred(encoder, entities, deferredCameraBindGroup)
+    renderDeferred(encoder, entities, deferredCameraBindGroup, poprSettings)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -625,7 +660,7 @@ export class DeferredRenderer extends BaseRenderer {
             },
         });
 
-        renderPass.setPipeline(this.deferredPipeline);
+        renderPass.setPipeline(poprSettings.wireframe ? this.deferredWireframePipeline : this.deferredPipeline);
         renderPass.setBindGroup(0, deferredCameraBindGroup);
 
         this.renderEntities(entities, renderPass);
@@ -867,6 +902,73 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.end();
     }
 
+    renderAABBs(encoder, target, aabbCameraBindGroup)
+    {
+        if (this.aabbs.length <= 0)
+            return;
+
+        if (this.maxAABBs < this.aabbs.length)
+        {
+            this.maxAABBs = this.aabbs.length;
+            this.aabbsInstancesBufferArray = new Float32Array(this.aabbs.length * 16);
+            this.aabbsInstancesBuffer = WebGPU.createBuffer(this.device, {
+                size: this.aabbsInstancesBufferArray.byteLength,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            });
+        }
+
+        const mat = new mat4();
+        const position = vec3.create();
+        const scale = vec3.create();
+        const center = vec3.create();
+        const half = vec3.create();
+
+        for (let i = 0; i < this.aabbs.length; i++) {
+            const entity = this.aabbs[i];
+
+            mat4.getTranslation(position, entity._transform.final);
+            mat4.getScaling(scale, entity._transform.final);
+
+            const min = entity.aabb.min;
+            const max = entity.aabb.max;
+
+            center[0] = (min[0] + max[0]) * 0.5;
+            center[1] = (min[1] + max[1]) * 0.5;
+            center[2] = (min[2] + max[2]) * 0.5;
+
+            half[0] = (max[0] - min[0]) * 0.5;
+            half[1] = (max[1] - min[1]) * 0.5;
+            half[2] = (max[2] - min[2]) * 0.5;
+
+            mat4.identity(mat);
+            mat4.translate(mat, mat, position);
+            mat4.scale(mat, mat, scale);
+            mat4.translate(mat, mat, center);
+            mat4.scale(mat, mat, half);
+
+            this.aabbsInstancesBufferArray.set(mat, i * 16);
+        }
+
+        this.device.queue.writeBuffer(this.aabbsInstancesBuffer, 0, this.aabbsInstancesBufferArray);
+
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: target,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+            ]
+        });
+
+        renderPass.setPipeline(this.aabbPipeline);
+        renderPass.setBindGroup(0, aabbCameraBindGroup);
+        renderPass.setVertexBuffer(0, this.aabbsInstancesBuffer);
+        renderPass.draw(36, this.aabbs.length);
+
+        renderPass.end();
+    }
+
     renderUI(encoder, target)
     {
         // collect instances (only the randomRectForNow)
@@ -909,16 +1011,21 @@ export class DeferredRenderer extends BaseRenderer {
         let nInstances = 0;
         let nJoints = 0;
         this.lights.length = 0;
+        this.aabbs.length = 0;
         for (const entity of entities) {
             if (entity.hidden) continue;
+
             const transform = entity._transform;
             if (!transform) continue;
+
             const light = entity._light;
-            if (light) {
-                this.lights.push(entity);
-            }
+            if (light) this.lights.push(entity);
+
+            if (entity.aabb && entity.customProperties) this.aabbs.push(entity);
+
             const model = entity._model;
             if (!model) continue;
+
             let data = this.models.get(model);
             if (!data) {
                 data = { arr: [], instanceOffset: 0 };
@@ -1032,6 +1139,7 @@ export class DeferredRenderer extends BaseRenderer {
                 renderPass.setBindGroup(2, materialBindGroup);
             }
 
+            // TODO: these primitives should be joined into one probably
             for (const primitive of primitives)
             {
                 this.renderPrimitive(primitive, instanceOffset, nInstances, renderPass);
@@ -1080,7 +1188,14 @@ export class DeferredRenderer extends BaseRenderer {
             ],
         });
 
-        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup };
+        const aabbCameraBindGroup = this.device.createBindGroup({
+            layout: this.aabbPipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: cameraUniformBuffer },
+            ],
+        });
+
+        const gpuObjects = { cameraUniformBuffer, deferredCameraBindGroup, lightingCameraBindGroup, skyboxCameraBindgroup, aabbCameraBindGroup };
         this.gpuObjects.set(camera, gpuObjects);
         return gpuObjects;
     }
@@ -1268,6 +1383,37 @@ const uiInstanceBufferLayout = {
             name: 'scale',
             shaderLocation: 1,
             offset: 16,
+            format: 'float32x4',
+        },
+    ],
+};
+
+const aabbInstanceBufferLayout = {
+    arrayStride: 64,
+    stepMode: 'instance',
+    attributes: [
+        {
+            name: 'row0',
+            shaderLocation: 0,
+            offset: 0,
+            format: 'float32x4',
+        },
+        {
+            name: 'row1',
+            shaderLocation: 1,
+            offset: 16,
+            format: 'float32x4',
+        },
+        {
+            name: 'row2',
+            shaderLocation: 2,
+            offset: 32,
+            format: 'float32x4',
+        },
+        {
+            name: 'row3',
+            shaderLocation: 3,
+            offset: 48,
             format: 'float32x4',
         },
     ],
