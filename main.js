@@ -186,17 +186,15 @@ const rotationMat = new glm.mat4();
 glm.mat4.fromYRotation(rotationMat, .016);
 
 const degreesToRads = deg => (deg * Math.PI) / 180.0;
-for (let i = 0; i < 360; i+=30)
+for (let i = 0; i < 360; i += 60)
 {
     const light = new Entity();
     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
     vec3.scale(translation, translation, Math.random() * 9 + 1);
     light.transform = new Transform({ translation });
     light.addComponent(light.transform);
-    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 120.0 }));
-    light.addComponent({update(t, dt) {
-        glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat);
-    }});
+    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 1320.0 }));
+    light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
     scene.push(light);
 }
 
@@ -222,11 +220,14 @@ World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
 function update(t, dt) {
-    const x = -11;
-    DeferredRenderer.Draw3DLine([x, 1, -0.5], [x, 1, 0.5]);
-    DeferredRenderer.Draw3DBoxMinMax([x - 1, 0, -1], [x + 1, 1, 1], null);
-    DeferredRenderer.Draw3DBoxPosScale([x, 1, 0], [0.5, 0.5, 0.5], mat4.rotateY(new mat4(), new mat4(), t));
-    DeferredRenderer.DrawAxis([x, 0, 0], 3);
+    if (World.poprSettings.debug)
+    {
+        const x = -11;
+        DeferredRenderer.Draw3DLine([x, 1, -0.5], [x, 1, 0.5]);
+        DeferredRenderer.Draw3DBoxMinMax([x - 1, 0, -1], [x + 1, 1, 1], null);
+        DeferredRenderer.Draw3DBoxPosScale([x, 1, 0], [0.5, 0.5, 0.5], mat4.rotateY(new mat4(), new mat4(), t));
+        DeferredRenderer.DrawAxis([x, 0, 0], 3);
+    }
 
     if (Inputs.isPressed('KeyG'))
     {
@@ -275,10 +276,7 @@ function update(t, dt) {
 
     for (const entity of scene)
     {
-        if (!entity.parent)
-        {
-            updateWorldMatricesRecursive(entity, new mat4());
-        }
+        if (!entity.parent) updateWorldMatricesRecursive(entity, new mat4());
     }
 
      if (Inputs.isPressed('KeyR')){
@@ -316,15 +314,15 @@ function update(t, dt) {
 
 function updateWorldMatricesRecursive(entity, parentMatrix)
 {
-    const transform = entity.getComponentOfType(Transform);
+    const transform = entity._transform;
     // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
     mat4.mul(transform.final, parentMatrix, transform.matrix);
-    mat4.invert(transform.inv_final, transform.final);
+    if (entity._calculateInverse)
+        mat4.invert(transform.inv_final, transform.final);
     for (const child of entity.children) {
         updateWorldMatricesRecursive(child, transform.final);
     }
 }
-
 
 function render() {
     renderer.render(scene, World.activeCamera, World.poprSettings);

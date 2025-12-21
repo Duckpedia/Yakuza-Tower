@@ -9,6 +9,7 @@ export class LightComponent {
     onAttach(entity)
     {
         entity._light = this;
+        entity._calculateInverse = true;
     }
 
     onDetach(entity)

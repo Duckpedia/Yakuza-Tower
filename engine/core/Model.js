@@ -13,6 +13,7 @@ export class Model {
     onAttach(entity)
     {
         entity._model = this;
+        entity._calculateInverse = true;
     }
 
     onDetach(entity)

@@ -217,7 +217,7 @@ export class EnemyComponent {
 
     }
 
-      spawnBullet() {
+    spawnBullet() {
         const gun = this.entity.findChildByName("Gun_Muzzle") 
             ?? this.entity.findChildByName("mixamorig:LeftHand");
 
@@ -225,10 +225,8 @@ export class EnemyComponent {
 
         const bullet_scene = this.bulletModel.loadScene();
         const bullet = this.bulletModel.buildEntityFromScene(bullet_scene);
-
-        bullet.addComponent(new Transform({
-            translation: [...gun.getComponentOfType(Transform).final_position],
-        }));
+        const transform = bullet.getComponentOfType(Transform);
+        transform.translation = [...gun.getComponentOfType(Transform).final_position];
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
@@ -241,8 +239,5 @@ export class EnemyComponent {
         bullet.addComponent(new BulletComponent(bullet, dir));
 
         this.scene.push(...bullet_scene);
-}
-
-
-
+    }
 }

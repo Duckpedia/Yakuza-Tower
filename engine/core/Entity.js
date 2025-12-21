@@ -7,6 +7,8 @@ export class Entity {
     }
 
     addComponent(component) {
+        if (component.constructor !== Object && this.hasComponentOfType(component.constructor))
+            console.error(new Error("entity " + this.name + " already has component " + component.constructor?.name ?? "Object"));
         this.components.push(component);
         component.onAttach?.(this);
     }
@@ -14,6 +16,10 @@ export class Entity {
     removeComponent(component) {
         this.components = this.components.filter(c => c !== component);
         component.onDetach?.(this);
+    }
+
+    hasComponentOfType(type) {
+        return this.components.find(component => component instanceof type) !== undefined;
     }
 
     getComponentOfType(type) {
