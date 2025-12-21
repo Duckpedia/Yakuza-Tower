@@ -180,7 +180,7 @@ export class PlayerComponent {
             if (DeferredRenderer.randomRectangle.scale[0] > 0.020)
             {
                 this.playerTimeScale = 0.5; // slower player
-                World.timeScale = 0.2; // slower enemies/world
+                World.timeScale = 0.01; // slower enemies/world
                 this.isSlowTime = true
             }
         }
