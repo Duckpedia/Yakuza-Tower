@@ -35,7 +35,8 @@ const resources = await loadResources({
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/soba/soba.gltf', import.meta.url),
-    'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url)
+    'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
+    'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url)
 });
 
 //box helper colider, da ne bo problemov z animated mesh
@@ -137,7 +138,7 @@ scene.push(...soba_scene);
 const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(3);
-guy.addComponent(new EnemyComponent(guy, player));
+guy.addComponent(new EnemyComponent(scene, guy, player));
 guy.customProperties = { isDynamic: true };
 guy.aabbManual = true;
 guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
@@ -146,7 +147,7 @@ scene.push(...guy_scene);
 const rangedGuyScene = resources.guy_model.loadScene();
 const rangedGuy = resources.guy_model.buildEntityFromScene(rangedGuyScene);
 rangedGuy.skeleton.playAnimationByIndex(3);
-rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, 'Ranged'));
+rangedGuy.addComponent(new EnemyComponent(scene, rangedGuy, player, resources.bullet_model,'Ranged'));
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = [1, 0, 1];
 rangedGuy.customProperties = { isDynamic: true };
@@ -157,13 +158,13 @@ scene.push(...rangedGuyScene);
 {
     const littleguy_scene = resources.katana_model.loadScene();
     const littleguy = resources.katana_model.buildEntityFromScene(littleguy_scene);
-    littleguy.addComponent(new EnemyComponent(littleguy, player));
+    littleguy.addComponent(new EnemyComponent(scene, littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
     littleguy_transform.scale = [16, 16, 16];
 
     const littleguy2_scene = resources.pistol_model.loadScene();
     const littleguy2 = resources.pistol_model.buildEntityFromScene(littleguy2_scene);
-    littleguy2.addComponent(new EnemyComponent(littleguy2, player));
+    littleguy2.addComponent(new EnemyComponent(scene, littleguy2, player));
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
     littleguy2_transform.scale = [20, 20, 20];
 

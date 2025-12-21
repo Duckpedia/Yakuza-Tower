@@ -3,19 +3,29 @@ import { Transform } from 'engine/core/Transform.js';
 
 
 export class BulletComponent {
-    constructor(entity, direction, speed = 20, lifetime = 2.0) {
+    constructor(entity, direction, speed = 35, lifetime = 2.0) {
         this.direction = glm.vec3.normalize(glm.vec3.create(), direction);
         this.speed = speed;
         this.lifetime = lifetime;
         this.entity = entity;
+        this.transform = this.entity.getComponentOfType(Transform);
+        this.transform.scale = [0.005, 0.005, 0.005];
+        const q = glm.quat.create();
+        glm.quat.setAxisAngle(
+            q,
+            [0, 1, 0],          // Y axis
+            Math.PI / 2         // 90 degrees
+        );
+        this.transform.rotation = q;
+
     }
 
     update(t, dt) {
-        const transform = this.entity.getComponentOfType(Transform);
+        
 
         glm.vec3.scaleAndAdd(
-            transform.translation,
-            transform.translation,
+            this.transform.translation,
+            this.transform.translation,
             this.direction,
             this.speed * dt
         );
