@@ -1,0 +1,199 @@
+import { quat, vec3, mat4 } from 'glm';
+
+import { Transform } from 'engine/core/Transform.js';
+import { DeferredRenderer } from '../renderer/DeferredRenderer.js';
+import { World } from '../World.js';
+import { Inputs } from '../Inputs.js';
+
+export class PlayerComponent {
+
+    constructor(entity, domElement, {
+        pitch = 0,
+        yaw = 0,
+        velocity = [0, 0, 0],
+        acceleration = 50,
+        maxSpeed = 5,
+        decay = 0.99999,
+        pointerSensitivity = 0.002,
+        isCrouching = false,
+        groundY = 1.5,
+        isGrounded = true,
+        isSlowTime = false
+
+    } = {}) {
+        this.entity = entity;
+        this.domElement = domElement;
+
+        this.isCrouching = isCrouching
+        this.isGrounded = isGrounded
+        this.groundY = groundY
+        this.standY = 1.5;
+        this.crouchY = 0.8;
+        this.currentY = this.standY;
+        this.crouchSpeed = 10;
+
+        this.pitch = pitch;
+        this.yaw = yaw;
+
+        this.velocity = velocity;
+        this.acceleration = acceleration;
+        this.maxSpeed = maxSpeed;
+        this.decay = decay;
+        this.pointerSensitivity = pointerSensitivity;
+        this.playerTimeScale = 1.0
+        this.isSlowTime = isSlowTime
+
+        DeferredRenderer.randomRectangle.position[0] = 0.33;
+        DeferredRenderer.randomRectangle.position[1] = 0.1;
+        DeferredRenderer.randomRectangle.scale[0] = 0.4;
+        DeferredRenderer.randomRectangle.scale[1] = 0.025;
+    }
+
+    lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    update(t, dt) { 
+
+        this.updateInput();
+
+        if (this.isSlowTime) {
+            if (DeferredRenderer.randomRectangle.scale[0] > 0) {
+                DeferredRenderer.randomRectangle.scale[0] -= dt * 0.05;
+            } else {
+                this.playerTimeScale = 1;
+                World.timeScale = 1;
+                this.isSlowTime = false;
+                DeferredRenderer.randomRectangle.scale[0] = 0;
+            }
+        } else {
+            DeferredRenderer.randomRectangle.scale[0] += dt * 0.025;
+            DeferredRenderer.randomRectangle.scale[0] = Math.min(DeferredRenderer.randomRectangle.scale[0], 0.4);
+        }
+
+        const effectiveDt = dt * this.playerTimeScale;
+        
+        // Calculate forward and right vectors.
+        const cos = Math.cos(this.yaw);
+        const sin = Math.sin(this.yaw);
+        const forward = [-sin, 0, -cos];
+        const right = [cos, 0, -sin];
+        const up = [0, 1, 0];
+
+        // Map user input to the acceleration vector.
+        const acc = vec3.create();
+        if (Inputs.isHeld('KeyW')) {
+            vec3.add(acc, acc, forward);
+        }
+        if (Inputs.isHeld('KeyS')) {
+            vec3.sub(acc, acc, forward);
+        }
+        if (Inputs.isHeld('KeyD')) {
+            vec3.add(acc, acc, right);
+        }
+        if (Inputs.isHeld('KeyA')) {
+            vec3.sub(acc, acc, right);
+        }
+        if (Inputs.isHeld('Space') && this.isGrounded) {
+            this.velocity[1] = 5;
+            this.isGrounded = false;
+        }
+
+        const gravity = 22;
+        this.velocity[1] -= gravity * effectiveDt;
+        
+
+        // Update velocity based on acceleration.
+        vec3.scaleAndAdd(this.velocity, this.velocity, acc, effectiveDt * this.acceleration);
+
+        // If there is no user input, apply decay.
+        if (!Inputs.isHeld('KeyW') &&
+            !Inputs.isHeld('KeyS') &&
+            !Inputs.isHeld('KeyD') &&
+            !Inputs.isHeld('KeyA'))
+        {
+            const decay = Math.exp(effectiveDt * Math.log(1 - this.decay));
+            const velxz = [...this.velocity];
+            vec3.scale(velxz, velxz, decay);
+            this.velocity[0] = velxz[0];
+            this.velocity[2] = velxz[2];
+        }
+
+        const speed = Math.sqrt(this.velocity[0]**2 + this.velocity[2]**2);
+        if (speed > this.maxSpeed) {
+            const scale = this.maxSpeed / speed;
+            this.velocity[0] *= scale;
+            this.velocity[2] *= scale;
+        }
+
+        const transform = this.entity.getComponentOfType(Transform);
+        if (transform) {
+            // Update translation based on velocity.
+            vec3.scaleAndAdd(transform.translation,
+                transform.translation, this.velocity, effectiveDt);
+
+            if (transform.translation[1] <= this.groundY) {
+                transform.translation[1] = this.groundY
+                this.velocity[1] = 0
+                this.isGrounded = true
+            }        
+
+            // Update rotation based on the Euler angles.
+            const rotation = quat.create();
+            quat.rotateY(rotation, rotation, this.yaw);
+            quat.rotateX(rotation, rotation, this.pitch);
+            transform.rotation = rotation;
+
+            
+        if (this.isGrounded) {
+
+            const targetY = this.isCrouching
+                ? this.crouchY
+                : this.standY;
+
+            this.currentY = this.lerp(
+                this.currentY,
+                targetY,
+                Math.min(1, this.crouchSpeed * effectiveDt)
+            );
+
+            transform.translation[1] = this.currentY;
+        }
+
+        }
+    }
+
+    updateInput()
+    {
+        const {dx, dy} = Inputs.mouseDelta();
+
+        this.pitch -= dy * this.pointerSensitivity;
+        this.yaw   -= dx * this.pointerSensitivity;
+
+        const twopi = Math.PI * 2;
+        const halfpi = Math.PI / 2;
+
+        this.pitch = Math.min(Math.max(this.pitch, -halfpi), halfpi);
+        this.yaw = ((this.yaw % twopi) + twopi) % twopi;
+
+        if (Inputs.isHeld('KeyF')) {
+            if (DeferredRenderer.randomRectangle.scale[0] > 0.020)
+            {
+                this.playerTimeScale = 0.5; // slower player
+                World.timeScale = 0.01; // slower enemies/world
+                this.isSlowTime = true
+            }
+        }
+        else {
+            this.playerTimeScale = 1; // normal speed
+            World.timeScale = 1;  // normal speed
+            this.isSlowTime = false;
+        }
+
+        if (Inputs.isReleased('KeyF') && DeferredRenderer.randomRectangle.scale[0] > 0.020){ 
+            DeferredRenderer.randomRectangle.scale[0] -= 0.020
+        }
+
+        this.isCrouching = Inputs.isHeld('KeyC');
+    }
+}
