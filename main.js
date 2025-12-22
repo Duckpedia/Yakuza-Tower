@@ -37,7 +37,7 @@ const resources = await loadResources({
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/soba/soba.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
-    'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url)
+    'bullet_model' : new URL('./models/bullet/bullett.gltf', import.meta.url)
 });
 
 //box helper colider, da ne bo problemov z animated mesh
