@@ -169,7 +169,6 @@ scene.push(...rangedGuyScene);
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }
-
 // // stackoverflow
 function hsv2rgb(h,s,v) 
 {                              
