@@ -706,7 +706,6 @@ export class DeferredRenderer extends BaseRenderer {
             this.lightsBufferArray.set([hasFalloff], bufI + 16 + 4 + 4 + 3);
             this.lightsBufferArray.set([light._light.innerAngle], bufI + 16 + 4 + 4 + 4);
             this.lightsBufferArray.set([light._light.outerAngle], bufI + 16 + 4 + 4 + 4 + 1);
-            console.log(this.lightsBufferArray);
         }
 
         this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
