@@ -59,7 +59,7 @@ export class PlayerComponent {
 
         if (this.isSlowTime) {
             if (DeferredRenderer.randomRectangle.scale[0] > 0) {
-                DeferredRenderer.randomRectangle.scale[0] -= dt * 0.05;
+            //DeferredRenderer.randomRectangle.scale[0] -= dt * 0.05;
             } else {
                 this.playerTimeScale = 1;
                 World.timeScale = 1;
