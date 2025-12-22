@@ -239,8 +239,8 @@ export class DeferredRenderer extends BaseRenderer {
         };
         this.deferredPipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
 
-        this.lightsPipeline = await this.device.createRenderPipelineAsync({
-            label: 'lights',
+        this.depthPassPipeline = await this.device.createRenderPipelineAsync({
+            label: 'depthPass',
             layout: lightsLayout,
             vertex: {
                 module,
@@ -736,7 +736,7 @@ export class DeferredRenderer extends BaseRenderer {
                 },
             });
 
-            renderPass.setPipeline(this.lightsPipeline);
+            renderPass.setPipeline(this.depthPassPipeline);
             renderPass.setBindGroup(0, lightBindGroup);
             renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
 
