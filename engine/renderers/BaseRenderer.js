@@ -13,7 +13,9 @@ export class BaseRenderer {
     }
     
     async initialize(defaultTextureImage) {
-        const adapter = await navigator.gpu.requestAdapter();
+        const adapter = await navigator.gpu.requestAdapter({
+            powerPreference: "high-performance"
+        });
         const device = await adapter.requestDevice();
         const context = this.canvas.getContext('webgpu');
         const format = navigator.gpu.getPreferredCanvasFormat();
