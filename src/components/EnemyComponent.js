@@ -168,6 +168,8 @@ export class EnemyComponent {
                 this.state = 'attack';
                 this.attackTimer = this.attackDuration;
 
+            
+
 
                 this.entity.skeleton?.playAnimationByIndex(this.gunShootingAnim);
             }
@@ -184,6 +186,8 @@ export class EnemyComponent {
                 this.spawnBullet();
                 this.hasFired = true;
             }
+
+             this.faceDirection(dir, dt);
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
@@ -218,8 +222,8 @@ export class EnemyComponent {
     }
 
     spawnBullet() {
-        const gun = this.entity.findChildByName("Gun_Muzzle") 
-            ?? this.entity.findChildByName("mixamorig:LeftHand");
+        const gun = this.entity.findChildByName("Pistol_5") 
+            ?? this.entity.findChildByName("mixamorig:RightHand");
 
         if (!gun) return;
 

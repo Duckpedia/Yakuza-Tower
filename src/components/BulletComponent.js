@@ -9,13 +9,14 @@ export class BulletComponent {
         this.lifetime = lifetime;
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
-        this.transform.scale = [0.005, 0.005, 0.005];
+        this.transform.scale = [0.002, 0.002, 0.002];
+
+        const forward = glm.vec3.fromValues(0, 1, 0);
         const q = glm.quat.create();
-        glm.quat.setAxisAngle(
-            q,
-            [0, 1, 0],          // Y axis
-            Math.PI / 2         // 90 degrees
-        );
+
+        glm.quat.rotationTo(q, forward, this.direction);
+        glm.quat.normalize(q, q);
+
         this.transform.rotation = q;
 
     }
