@@ -238,6 +238,8 @@ export class DeferredRenderer extends BaseRenderer {
             }
         };
         this.deferredPipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
+        deferredPipelineOptions.primitive.topology = 'line-list';
+        this.wireframePipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
 
         this.depthPassPipeline = await this.device.createRenderPipelineAsync({
             label: 'depthPass',
@@ -252,7 +254,6 @@ export class DeferredRenderer extends BaseRenderer {
                 depthCompare: 'less',
             },
             primitive: {
-                frontFace: 'ccw',
                 cullMode: 'front'
             }
         });
@@ -595,7 +596,9 @@ export class DeferredRenderer extends BaseRenderer {
         const target = this.context.getCurrentTexture().createView();
         const encoder = this.device.createCommandEncoder();
 
-        this.renderDeferred(encoder, entities, cameraBindGroup, poprSettings);
+        this.prepareRender(entities);
+
+        this.renderDeferred(encoder, cameraBindGroup, poprSettings);
             
         this.renderLights(encoder);
 
@@ -628,43 +631,178 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.submit([encoder.finish()]);
     }
 
-    renderDeferred(encoder, entities, cameraBindGroup, poprSettings)
+    prepareRender(entities)
     {
-        const renderPass = encoder.beginRenderPass({
-            colorAttachments: [
-                {
-                    view: this.deferredAlbedoTextureView,
-                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-                {
-                    view: this.deferredPositionTextureView,
-                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-                {
-                    view: this.deferredNormalTextureView,
-                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-            ],
-            depthStencilAttachment: {
-                view: this.defferedDepthTextureView,
-                depthClearValue: 1,
-                depthLoadOp: 'clear',
-                depthStoreOp: 'store',
-            },
-        });
+        this.models.clear();
+        this.skeletons.length = 0;
+        this.skeletonToJoint.clear();
+        let nInstances = 0;
+        let nJoints = 0;
+        this.lights.length = 0;
+        for (const entity of entities) {
+            if (entity.hidden) continue;
 
-        renderPass.setPipeline(poprSettings.wireframe ? this.deferredWireframePipeline : this.deferredPipeline);
-        renderPass.setBindGroup(0, cameraBindGroup);
+            const transform = entity._transform;
+            if (!transform) continue;
 
-        this.renderEntities(entities, renderPass);
+            const light = entity._light;
+            if (light) this.lights.push(entity);
 
-        renderPass.end();
+            const model = entity._model;
+            if (!model) continue;
+
+            let data = this.models.get(model);
+            if (!data) {
+                data = { arr: [], instanceOffset: 0 };
+                this.models.set(model, data);
+            }
+
+            const skeleton = entity._skeleton;
+            if (skeleton) {
+                if (this.skeletons.indexOf(skeleton) < 0)
+                {
+                    this.skeletons.push(skeleton);
+                    this.skeletonToJoint.set(skeleton, nJoints);
+                    nJoints += skeleton.joints.length;
+                }
+            }
+
+            data.arr.push({ transform, skeleton });
+            nInstances += 1;
+        }
+
+        if (this.skeletons.length > 0)
+        {
+            const stride = 16;
+            if (this.maxJoints < nJoints)
+            {
+                this.maxJoints = nJoints;
+                this.jointsBufferArray = new Float32Array(nJoints * stride);
+
+                this.skeletonBuffer = WebGPU.createBuffer(this.device, {
+                    size: nJoints * stride * 4,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+                });
+
+                this.skeletonBindGroup = this.device.createBindGroup({
+                    layout: this.jointsBindGroupLayout,
+                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
+                });
+            }
+            
+            const joint_mat = new mat4(); 
+            for (const skeleton of this.skeletons)
+            {
+                const jointI = this.skeletonToJoint.get(skeleton);
+                for (let i = 0; i < skeleton.joints.length; i++)
+                {
+                    const transform = skeleton.joints[i]._transform;
+                    mat4.mul(joint_mat, transform.final, skeleton.inverseBindMatrices[i]);
+                    this.jointsBufferArray.set(joint_mat, (jointI + i) * stride);
+                }
+            }
+
+            this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBufferArray);
+        }
+
+        const strideFloats = 32;
+        const stride = 132;
+        if (this.maxInstances < nInstances)
+        {
+            this.maxInstances = nInstances;
+            this.instancesBufferArray = new ArrayBuffer(nInstances * stride);
+            this.floatView = new Float32Array(this.instancesBufferArray);
+            this.uintView  = new Int32Array(this.instancesBufferArray);
+            this.instanceBuffer = WebGPU.createBuffer(this.device, {
+                data: this.instancesBufferArray,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            });
+        }
+
+        let instanceOffset = 0;
+        const inv_mat = new mat4();
+        for (const [_, data] of this.models.entries())
+        {
+            data.instanceOffset = instanceOffset;
+            instanceOffset += data.arr.length;
+            for (let i = 0; i < data.arr.length; i++)
+            {
+                const { transform, skeleton } = data.arr[i];
+                mat4.transpose(inv_mat, transform.inv_final);
+                const index = (stride * (data.instanceOffset + i)) / 4;
+                this.floatView.set(transform.final, index);
+                this.floatView.set(inv_mat, index + 16);
+                this.uintView[index + strideFloats] = skeleton ? (this.skeletonToJoint.get(skeleton) ?? -1) : -1;
+            }
+        }
+        this.device.queue.writeBuffer(this.instanceBuffer, 0, this.instancesBufferArray);
+    }
+
+    renderDeferred(encoder, cameraBindGroup, poprSettings)
+    {
+        { // depth prepass
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [],
+                depthStencilAttachment: {
+                    view: this.defferedDepthTextureView,
+                    depthClearValue: 1,
+                    depthLoadOp: 'clear',
+                    depthStoreOp: 'store',
+                },
+            });
+
+            renderPass.setPipeline(this.depthPassPipeline);
+            renderPass.setBindGroup(0, cameraBindGroup);
+            renderPass.setBindGroup(1, this.skeletonBindGroup);
+
+            for (const [model, data] of this.models.entries())
+            {
+                this.renderModel(model, data.instanceOffset, data.arr.length, renderPass, false);
+            }
+
+            renderPass.end();
+        }
+
+        { // actual pass
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: this.deferredAlbedoTextureView,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                    {
+                        view: this.deferredPositionTextureView,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                    {
+                        view: this.deferredNormalTextureView,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+                depthStencilAttachment: {
+                    view: this.defferedDepthTextureView,
+                    depthLoadOp: 'load',
+                    depthStoreOp: 'store',
+                },
+            });
+
+            renderPass.setPipeline(poprSettings.wireframe ? this.wireframePipeline : this.deferredPipeline);
+            renderPass.setBindGroup(0, cameraBindGroup);
+            renderPass.setBindGroup(1, this.skeletonBindGroup);
+
+            for (const [model, data] of this.models.entries())
+            {
+                this.renderModel(model, data.instanceOffset, data.arr.length, renderPass, true);
+            }
+
+            renderPass.end();
+        }
     }
 
     renderLights(encoder)
@@ -979,119 +1117,6 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.draw(6, 1);
 
         renderPass.end();
-    }
-    
-    renderEntities(entities, renderPass) {
-        this.models.clear();
-        this.skeletons.length = 0;
-        this.skeletonToJoint.clear();
-        let nInstances = 0;
-        let nJoints = 0;
-        this.lights.length = 0;
-        for (const entity of entities) {
-            if (entity.hidden) continue;
-
-            const transform = entity._transform;
-            if (!transform) continue;
-
-            const light = entity._light;
-            if (light) this.lights.push(entity);
-
-            const model = entity._model;
-            if (!model) continue;
-
-            let data = this.models.get(model);
-            if (!data) {
-                data = { arr: [], instanceOffset: 0 };
-                this.models.set(model, data);
-            }
-
-            const skeleton = entity._skeleton;
-            if (skeleton) {
-                if (this.skeletons.indexOf(skeleton) < 0)
-                {
-                    this.skeletons.push(skeleton);
-                    this.skeletonToJoint.set(skeleton, nJoints);
-                    nJoints += skeleton.joints.length;
-                }
-            }
-
-            data.arr.push({ transform, skeleton });
-            nInstances += 1;
-        }
-
-        if (this.skeletons.length > 0)
-        {
-            const stride = 16;
-            if (this.maxJoints < nJoints)
-            {
-                this.maxJoints = nJoints;
-                this.jointsBufferArray = new Float32Array(nJoints * stride);
-
-                this.skeletonBuffer = WebGPU.createBuffer(this.device, {
-                    size: nJoints * stride * 4,
-                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-                });
-
-                this.skeletonBindGroup = this.device.createBindGroup({
-                    layout: this.jointsBindGroupLayout,
-                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
-                });
-            }
-            
-            const joint_mat = new mat4(); 
-            for (const skeleton of this.skeletons)
-            {
-                const jointI = this.skeletonToJoint.get(skeleton);
-                for (let i = 0; i < skeleton.joints.length; i++)
-                {
-                    const transform = skeleton.joints[i]._transform;
-                    mat4.mul(joint_mat, transform.final, skeleton.inverseBindMatrices[i]);
-                    this.jointsBufferArray.set(joint_mat, (jointI + i) * stride);
-                }
-            }
-
-            this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBufferArray);
-        }
-
-        renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
-
-        const strideFloats = 32;
-        const stride = 132;
-        if (this.maxInstances < nInstances)
-        {
-            this.maxInstances = nInstances;
-            this.instancesBufferArray = new ArrayBuffer(nInstances * stride);
-            this.floatView = new Float32Array(this.instancesBufferArray);
-            this.uintView  = new Int32Array(this.instancesBufferArray);
-            this.instanceBuffer = WebGPU.createBuffer(this.device, {
-                data: this.instancesBufferArray,
-                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            });
-        }
-
-        let instanceOffset = 0;
-        const inv_mat = new mat4();
-        for (const [_, data] of this.models.entries())
-        {
-            data.instanceOffset = instanceOffset;
-            instanceOffset += data.arr.length;
-            for (let i = 0; i < data.arr.length; i++)
-            {
-                const { transform, skeleton } = data.arr[i];
-                mat4.transpose(inv_mat, transform.inv_final);
-                const index = (stride * (data.instanceOffset + i)) / 4;
-                this.floatView.set(transform.final, index);
-                this.floatView.set(inv_mat, index + 16);
-                this.uintView[index + strideFloats] = skeleton ? (this.skeletonToJoint.get(skeleton) ?? -1) : -1;
-            }
-        }
-        this.device.queue.writeBuffer(this.instanceBuffer, 0, this.instancesBufferArray);
-
-        for (const [model, data] of this.models.entries())
-        {
-            this.renderModel(model, data.instanceOffset, data.arr.length, renderPass, true);
-        }
     }
 
     renderModel(model, instanceOffset, nInstances, renderPass, materials) {
