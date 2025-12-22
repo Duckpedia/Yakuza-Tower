@@ -672,7 +672,7 @@ export class DeferredRenderer extends BaseRenderer {
         if (this.lights.length <= 0)
             return;
         
-        const stride = 16 + 4 + 4 + 4;
+        const stride = 16 + 4 + 4 + 4 + 4;
         if (this.maxLights < this.lights.length)
         {
             this.maxLights = this.lights.length;
@@ -701,8 +701,12 @@ export class DeferredRenderer extends BaseRenderer {
             this.lightsBufferArray.set(light._light.color, bufI + 16);
             this.lightsBufferArray.set([light._light.intensity], bufI + 16 + 3);
             this.lightsBufferArray.set(light._transform.final_position, bufI + 16 + 4);
-            this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 4);
-            this.lightsBufferArray.set([hasFalloff], bufI + 16 + 4 + 4 + 1);
+            this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 3);
+            this.lightsBufferArray.set(light._transform.final_direction, bufI + 16 + 4 + 4);
+            this.lightsBufferArray.set([hasFalloff], bufI + 16 + 4 + 4 + 3);
+            this.lightsBufferArray.set([light._light.innerAngle], bufI + 16 + 4 + 4 + 4);
+            this.lightsBufferArray.set([light._light.outerAngle], bufI + 16 + 4 + 4 + 4 + 1);
+            console.log(this.lightsBufferArray);
         }
 
         this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);

@@ -587,8 +587,10 @@ export class GLTFLoader {
                 const light = this.gltf.extensions.KHR_lights_punctual.lights[gltfSpec.extensions.KHR_lights_punctual.light];
                 const intensity = light.intensity;
                 const color = light.color;
+                const innerAngle = light.spot ? Math.cos(light.spot.innerConeAngle) : -1.0;
+                const outerAngle = light.spot ? Math.cos(light.spot.outerConeAngle) : -1.0;
                 const shadows = entity.name === "Sun"; // idk
-                entity.addComponent(new LightComponent({ type: light.type, intensity, shadows, color}));
+                entity.addComponent(new LightComponent({ type: light.type, intensity, shadows, color, innerAngle, outerAngle }));
             }
         }
 

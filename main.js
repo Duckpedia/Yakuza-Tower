@@ -131,11 +131,6 @@ const soba = resources.soba_model.buildEntityFromScene(soba_scene);
 soba.customProperties = { isStatic: true };
 scene.push(...soba_scene);
 
-{
-    const camera = soba.findChildByName("Camera");
-    camera.addComponent(new LightComponent({ type: 'directional', shadows: true, emission: [5000, 5000, 5000] }));
-}
-
 const guy_scene = resources.guy_model.loadScene();
 const guy = resources.guy_model.buildEntityFromScene(guy_scene);
 guy.skeleton.playAnimationByIndex(3);

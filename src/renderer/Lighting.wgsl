@@ -9,13 +9,17 @@ struct CameraUniforms {
     position: vec4f,
 }
 
+ // wasteful but meh
 struct Light {
-    viewProjMatrix: mat4x4f, // wasteful but meh
+    viewProjMatrix: mat4x4f,
     color: vec3f,
     intensity: f32,
-    position: vec4f,
+    position: vec3f,
     shadowIndex: f32,
+    direction: vec3f,
     falloff: u32,
+    innerAngle: f32,
+    outerAngle: f32
 }
 
 struct Settings {
@@ -150,29 +154,38 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
         let lightIntensity = lightt.intensity;
         let toLight = lightPosition - world.xyz;
         let light = normalize(toLight);
-        let half = normalize(view + light);
+
         var attenuation = 1.0f;
         if (lightt.falloff > 0)
         {
             attenuation = 1.0f / length2(toLight);
         }
-
-        let ndf = distributionGGX(normal, half, roughness);
-        let g = geometrySmith(normal, view, light, roughness);
-        let f = fresnelSchlick(positiveDot(half, view), f0);
-
-        let numerator = ndf * g * f;
-        let denominator = 4.0f * positiveDot(normal, view) * positiveDot(normal, light) + 0.0001f;
-        let specular = numerator / denominator;
-
-        let ks = f;
-        let kd = (vec3(1.0f) - ks) * (1.0f - metallic);
-
         let shadow = calculateShadow(lightt, world);
+        
+        // do calculation only if inside spotlight
+        var d = clamp(dot(lightt.direction, light), -1.0, 1.0);
+        if (d > lightt.outerAngle)
+        {
+            let half = normalize(view + light);
 
-        let radiance = lightColor * lightIntensity * attenuation;
-        let normalDotLight = positiveDot(normal, light);
-        l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight * shadow;
+            let ndf = distributionGGX(normal, half, roughness);
+            let g = geometrySmith(normal, view, light, roughness);
+            let f = fresnelSchlick(positiveDot(half, view), f0);
+
+            let numerator = ndf * g * f;
+            let denominator = 4.0f * positiveDot(normal, view) * positiveDot(normal, light) + 0.0001f;
+            let specular = numerator / denominator;
+
+            let ks = f;
+            let kd = (vec3(1.0f) - ks) * (1.0f - metallic);
+
+            let radiance = lightColor * lightIntensity * attenuation;
+            let normalDotLight = positiveDot(normal, light);
+            
+            d = clamp((d - lightt.outerAngle) / (lightt.innerAngle - lightt.outerAngle), 0.0, 1.0);
+            d = d * d * d;
+            l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight * shadow * d;
+        }
     }
 
     let ambient = vec3(0.01) * albedo * ao;

@@ -22,6 +22,14 @@ export class Transform {
         return this.final ? new vec3(this.final[12], this.final[13], this.final[14]) : new vec3(0.0);
     }
 
+    get final_direction() {
+        return this.final ? new vec3(
+            this.final[8],
+            this.final[9],
+            this.final[10]
+        ).normalize() : new vec3(0.0);
+    }
+
     get matrix() {
         return mat4.fromRotationTranslationScale(mat4.create(),
             this.rotation, this.translation, this.scale);
