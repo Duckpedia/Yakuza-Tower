@@ -11,12 +11,13 @@ export class Physics {
     }
 
     update(t, dt) {
+
         const position = new vec4();
         const scale = new vec4();
         const mat = new mat4();
-
         for (const entity of this.scene) {
 
+            // tvoji tastari
             if (World.poprSettings.debug && entity.aabb && entity.customProperties)
             {
                 mat4.getTranslation(position, entity._transform.final);
@@ -25,6 +26,19 @@ export class Physics {
                 mat4.translate(mat, mat, position);
                 mat4.scale(mat, mat, scale);
                 DeferredRenderer.Draw3DBoxMinMax(entity.aabb.min, entity.aabb.max, mat);
+            }
+
+            // tko bi mogl bit
+            if (World.poprSettings.debug && entity._bounds)
+            {
+                // entity._bounds.isDynamic;
+                // entity._bounds.layer;
+                // entity._bounds.type; == "aabb" | "obb" | krkol hocs pac
+                // obb zdej dobis iz _transform.final
+                // mat4.getScaling(scale, entity._transform.final);
+                // aabb vrjetn sezmer hocs met glede na ta obb da loh ze prej izlocis une k se def ne collidajo
+                // tkoda za dynamic stvari te na novo usak frame preracunas i think :D
+                DeferredRenderer.Draw3DBox(entity._transform.final, entity._bounds.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]);
             }
 
             if (entity.customProperties?.isDynamic) 

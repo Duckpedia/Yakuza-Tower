@@ -1,5 +1,6 @@
 import { LightComponent } from '../../src/components/LightComponent.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
+import { BoundsComponent } from '../../src/components/BoundsComponent.js';
 import {
     Accessor,
     Camera,
@@ -13,7 +14,6 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
-import * as glm from '../../lib/glm.js'
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -565,7 +565,6 @@ export class GLTFLoader {
         entity.name = gltfSpec.name;
 
         entity.addComponent(new Transform(gltfSpec));
-
         if (gltfSpec.camera !== undefined) {
             entity.addComponent(this.loadCamera(gltfSpec.camera));
         }
@@ -591,6 +590,15 @@ export class GLTFLoader {
                 const outerAngle = light.spot ? Math.cos(light.spot.outerConeAngle) : -1.0;
                 const shadows = entity.name === "Sun"; // idk
                 entity.addComponent(new LightComponent({ type: light.type, intensity, shadows, color, innerAngle, outerAngle }));
+            }
+        }
+
+        if (gltfSpec.extras)
+        {
+            if (gltfSpec.extras.bounds)
+            {
+                entity.addComponent(new BoundsComponent(gltfSpec.extras));
+                console.log(entity);
             }
         }
 
@@ -635,11 +643,13 @@ export class GLTFLoader {
         root.models = [];
         for (const entity of scene)
         {
-            if (!root.skeleton)
-                root.skeleton = entity.getComponentOfType(SkeletonComponent);
+            root.skeleton ??= entity.getComponentOfType(SkeletonComponent);
+
             const model = entity.getComponentOfType(Model);
-            if (model)
-                root.models.push(model);
+            if (model) root.models.push(model);
+
+            const bounds = entity.getComponentOfType(BoundsComponent);
+            if (bounds) bounds.parentEntity = root;
         }
         root.animations = root.skeleton?.animations ?? [];
         return root;

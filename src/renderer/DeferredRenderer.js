@@ -1416,7 +1416,8 @@ export class DeferredRenderer extends BaseRenderer {
         DeferredRenderer.s.debugLines.push({ start, end: [start[0], start[1], start[2] + size], color: [0.0, 0.0, 1.0]});
     }
 
-    static Draw3DBoxMinMax(min, max, mat = null, color = [1.0, 0.0, 1.0]) {
+    static Draw3DBoxMinMax(min, max, mat = null, color = [1.0, 0.0, 1.0]) 
+    {
         const center = vec3.fromValues((min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5, (min[2] + max[2]) * 0.5);
         const c = [
             vec4.fromValues(min[0], min[1], min[2], 1.0),
@@ -1454,12 +1455,18 @@ export class DeferredRenderer extends BaseRenderer {
         DeferredRenderer.Draw3DLine(c[3], c[7], color);
     }
 
-    static Draw3DBoxPosScale(pos, scale, mat = null, color = [1.0, 0.0, 1.0]) {
+    static Draw3DBoxPosScale(pos, scale, mat = null, color = [1.0, 0.0, 1.0])
+     {
         DeferredRenderer.Draw3DBoxMinMax(
             [ pos[0] - scale[0], pos[1] - scale[1], pos[2] - scale[2] ], 
             [ pos[0] + scale[0], pos[1] + scale[1], pos[2] + scale[2] ], 
             mat, color
         );
+    }
+
+    static Draw3DBox(mat, color = [1.0, 0.0, 1.0]) 
+    {
+        DeferredRenderer.Draw3DBoxMinMax([-1, -1, -1], [1, 1, 1], mat, color);
     }
 }
 
