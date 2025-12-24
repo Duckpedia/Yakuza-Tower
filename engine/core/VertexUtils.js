@@ -21,6 +21,7 @@ export function createVertexBuffer(vertices, layout) {
         ...attribute,
     }));
 
+
     for (let i = 0; i < vertices.length; i++) {
         const vertex = vertices[i];
         for (let j = 0; j < layout.attributes.length; j++) {

@@ -225,7 +225,7 @@ function update(t, dt) {
 
     if (Inputs.isPressed('KeyG'))
     {
-        World.poprSettings.pass = (World.poprSettings.pass + 1) % 5
+        World.poprSettings.pass = (World.poprSettings.pass + 1) % 6;
         World.poprSettings.showBloom = World.poprSettings.pass == 0;
         World.poprSettings.showSkybox = World.poprSettings.pass == 0;
         World.poprSettings.showUI = World.poprSettings.pass == 0;
@@ -344,3 +344,4 @@ gui.add(World.poprSettings.tonemapping.agxPower, 0, 0.0, 2.0).name('powerX');
 gui.add(World.poprSettings.tonemapping.agxPower, 1, 0.0, 2.0).name('powerY');
 gui.add(World.poprSettings.tonemapping.agxPower, 2, 0.0, 2.0).name('powerZ');
 gui.add(World.poprSettings.tonemapping, 'agxSat', 0.0, 5.0);
+gui.add(World.poprSettings, 'test', 0.0, 1.0);

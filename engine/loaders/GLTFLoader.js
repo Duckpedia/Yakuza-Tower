@@ -355,9 +355,9 @@ export class GLTFLoader {
             if (position) { options.position = position.get(i); }
             if (texcoords) { options.texcoords = texcoords.get(i); }
             if (normal) { options.normal = normal.get(i); }
-            if (tangent) { options.tangent = tangent.get(i); }
+            // if (tangent) { options.tangent = tangent.get(i); }
             if (joints0) { options.joints = joints0.get(i); }
-            options.weights  = weights0 ? weights0.get(i) : [1, 0, 0, 0];
+            if (weights0) { options.weights = weights0.get(i); }
 
             vertices.push(new Vertex(options));
         }

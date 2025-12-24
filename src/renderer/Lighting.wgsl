@@ -113,6 +113,7 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
         var d = clamp(dot(lightt.direction, light), -1.0, 1.0);
         if (d > lightt.outerAngle)
         {
+            let normalDotLight = positiveDot(normal, light);
             let half = normalize(view + light);
 
             let ndf = distributionGGX(normal, half, roughness);
@@ -120,32 +121,28 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
             let f = fresnelSchlick(positiveDot(half, view), f0);
 
             let numerator = ndf * g * f;
-            let denominator = 4.0f * normalDotView * positiveDot(normal, light) + 0.0001f;
+            let denominator = 4.0f * normalDotView * normalDotLight + 0.0001f;
             let specular = numerator / denominator;
 
             let ks = f;
             let kd = (vec3(1.0f) - ks) * (1.0f - metallic);
 
             let radiance = lightColor * lightIntensity * attenuation;
-            let normalDotLight = positiveDot(normal, light);
             
             d = clamp((d - lightt.outerAngle) / (lightt.innerAngle - lightt.outerAngle), 0.0, 1.0);
-            d = d * d * d;
-            l0 += (kd * albedo / 3.14159265359 + specular) * radiance * normalDotLight * shadow * d;
+            l0 += (kd * albedo / PI + specular) * radiance * normalDotLight * shadow * d;
         }
     }
 
     let f = fresnelSchlickRoughness(normalDotView, f0, roughness); 
-    let prefiltered = textureSampleLevel(prefilteredMap, envSampler, reflected, roughness * 4).rgb; 
+    let prefiltered = textureSampleLevel(prefilteredMap, envSampler, reflected, roughness * 8).rgb; 
     let brdf = textureSample(brdfConvolution, envSampler, vec2(normalDotView, roughness)).rg;
     let specular = prefiltered * (f * brdf.x + brdf.y);
     let irradiance = textureSample(irradianceMap, envSampler, normal).rgb;
     let ks = f;
     let kd = 1.0 - ks;
     let diffuse = irradiance * albedo;
-    // TODO: ta 0.2 nimam pojma zakaj rabi bit sam drgac zgleda zelo off
-    // za reference sm meu blender
-    let ambient = (kd * diffuse + specular) * ao * 0.2; 
+    let ambient = (kd * diffuse + specular) * ao; 
 
     var color = ambient + l0;
 
@@ -172,17 +169,20 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     }
 
     var color = PBR(albedo, world, normal, metallic, roughness, ao, input.uv);
-    if (settings.passIndex == 1) {
-        color = albedo;
+    if (settings.passIndex >= 5.0) {
+        color = vec3(roughness);
     }
-    else if (settings.passIndex == 2) {
-        color = vec3(metallic);
+    else if (settings.passIndex >= 4.0) {
+        color = world;
     }
-    else if (settings.passIndex == 3) {
+    else if (settings.passIndex >= 3.0) {
         color = normal;
     }
-    else if (settings.passIndex == 4) {
-        color = world;
+    else if (settings.passIndex >= 2.0) {
+        color = vec3(metallic);
+    }
+    else if (settings.passIndex >= 1.0) {
+        color = albedo;
     }
 
     return vec4(color, 1.0);

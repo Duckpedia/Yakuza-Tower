@@ -16,7 +16,7 @@ struct Material {
 }
 
 struct Settings {
-    passIndex: u32,
+    passIndex: f32,
     bloomStrength: f32,
     bloomDirtStrength: f32,
     tonemapperIndex: f32,
@@ -24,6 +24,7 @@ struct Settings {
     agxPower: vec4f,
     agxSat: f32,
     blackAndWhite: u32,
+    test: f32,
 }
 
 // wasteful but meh

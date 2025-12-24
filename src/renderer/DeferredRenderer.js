@@ -34,6 +34,7 @@ export class DeferredRendererSettings {
     blackAndWhite = false;
     wireframe = false;
     debug = false;
+    test = 0.0
 }
 
 class GPUBuffer {
@@ -96,6 +97,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.linearTextureSampler = this.device.createSampler({
             minFilter: 'linear',
             magFilter: 'linear',
+            mipmapFilter: 'linear',
             addressModeU: 'clamp-to-edge',
             addressModeV: 'clamp-to-edge',
         });
@@ -310,7 +312,7 @@ export class DeferredRenderer extends BaseRenderer {
             });
 
             const bindGroups = [];
-            const mipLevelCount = 4;
+            const mipLevelCount = 9;
             for (let i = 0; i < mipLevelCount; i++)
             {
                 const buffer = WebGPU.createBuffer(this.device, {
@@ -341,7 +343,8 @@ export class DeferredRenderer extends BaseRenderer {
                             baseMipLevel: mip,
                             mipLevelCount: 1,
                         }), 
-                        loadOp: "load", 
+                        clearValue: [0, 0, 0, 1],
+                        loadOp: "clear", 
                         storeOp: "store", 
                     }); 
                 }
@@ -778,6 +781,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray.set(poprSettings.tonemapping.agxPower, 4 + 4);
         this.poprSettingsBufferArray[12] = poprSettings.tonemapping.agxSat;
         this.poprSettingsBufferArray[13] = poprSettings.blackAndWhite;
+        this.poprSettingsBufferArray[14] = poprSettings.test;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
@@ -1003,7 +1007,7 @@ export class DeferredRenderer extends BaseRenderer {
             const light = this.lights[i];
             const bufI = i * this.lightsBuffer.elementSize;
             const shadowindex = light._light.shadows ? nShadowCastingLights++ : -1;
-            const hasFalloff = light._light.type === 'point' ? 1 : 0;
+            const hasFalloff = light._light.type !== 'sun' ? 1 : 0;
             mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, light._transform.inv_final);
             this.lightsBuffer.array.set(viewProj, bufI);
             this.lightsBuffer.array.set(light._light.color, bufI + 16);
@@ -1460,7 +1464,7 @@ export class DeferredRenderer extends BaseRenderer {
 }
 
 const vertexBufferLayout = {
-    arrayStride: 48,
+    arrayStride: 40,
     stepMode: 'vertex',
     attributes: [
         {
@@ -1472,25 +1476,25 @@ const vertexBufferLayout = {
         {
             name: 'normal',
             shaderLocation: 1,
-            offset: 16,
+            offset: 12,
             format: 'float32x3',
         },
         {
             name: 'texcoords',
             shaderLocation: 2,
-            offset: 32,
+            offset: 24,
             format: 'float32x2',
         },
         {
             name: 'joints',
             shaderLocation: 3,
-            offset: 40,
+            offset: 32,
             format: 'uint8x4',
         },
         {
             name: 'weights',
             shaderLocation: 4,
-            offset: 44,
+            offset: 36,
             format: 'unorm8x4',
         },
     ],
