@@ -169,7 +169,7 @@ scene.push(...rangedGuyScene);
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }
-// // stackoverflow
+// stackoverflow
 function hsv2rgb(h,s,v) 
 {                              
   let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
@@ -187,7 +187,7 @@ for (let i = 0; i < 360; i += 60)
     vec3.scale(translation, translation, Math.random() * 9 + 1);
     light.transform = new Transform({ translation });
     light.addComponent(light.transform);
-    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 1320.0 }));
+    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 2230.0 }));
     light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
     scene.push(light);
 }
@@ -336,7 +336,7 @@ const gui = new GUI();
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'strength', 0.0, 1.0);
-gui.add(World.poprSettings.tonemapping, 'index', 0, 1);
+gui.add(World.poprSettings.tonemapping, 'index', 0, 3);
 gui.add(World.poprSettings.tonemapping.agxSlope, 0, 0.0, 1.0).name('slopeX');
 gui.add(World.poprSettings.tonemapping.agxSlope, 1, 0.0, 1.0).name('slopeY');
 gui.add(World.poprSettings.tonemapping.agxSlope, 2, 0.0, 1.0).name('slopeZ');

@@ -1,7 +1,6 @@
 import { mat4, vec3 } from 'glm';
 
 export class Transform {
-
     constructor({
         rotation = [0, 0, 0, 1],
         translation = [0, 0, 0],

@@ -9,13 +9,7 @@ struct VertexOutput {
     @location(0) color: vec3f
 }
 
-struct CameraUniforms {
-    viewMatrix: mat4x4f,
-    projectionMatrix: mat4x4f,
-    position: vec4f,
-}
-
-@group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(0) var<uniform> camera: Camera;
 
 @vertex
 fn vertex(@builtin(vertex_index) v_index : u32, instance: InstanceInput) -> VertexOutput {

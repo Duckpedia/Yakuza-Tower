@@ -3,34 +3,6 @@ struct VertexOutput {
     @location(0) uv: vec2f,
 }
 
-struct BloomParams {
-    srcResolution: vec2f,
-    filterRadius: f32,
-    threshold: f32,
-    bloomStrength: f32,
-}
-
-struct Settings {
-    passIndex: u32,
-    bloomStrength: f32,
-    bloomDirtStrength: f32,
-    tonemapperIndex: u32,
-    agxSlope: vec4f,
-    agxPower: vec4f,
-    agxSat: f32,
-    blackAndWhite: u32,
-}
-
-const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
-    vec2f(-1.0, -1.0),
-    vec2f( 1.0, -1.0),
-    vec2f( 1.0,  1.0),
-
-    vec2f(-1.0, -1.0),
-    vec2f( 1.0,  1.0),
-    vec2f(-1.0,  1.0),
-);
-
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(1) @binding(0) var tex_sampler: sampler;
 @group(1) @binding(1) var dirt_tex: texture_2d<f32>;
@@ -144,15 +116,15 @@ fn tonemap(input: VertexOutput) -> @location(0) vec4<f32> {
     let color = mix(hdr, bloom + bloom * dirt, settings.bloomStrength); 
 
     var tonemapped = color;
-    if (settings.tonemapperIndex == 0)
-    {
-        tonemapped = reinhard(tonemapped);
-    }
-    else 
+    if (settings.tonemapperIndex >= 2.0)
     {
         tonemapped = agx(tonemapped);
         tonemapped = agxLook(tonemapped);
         tonemapped = agxEotf(tonemapped);
+    }
+    else if (settings.tonemapperIndex > 1.0)
+    {
+        tonemapped = reinhard(tonemapped);
     }
 
     let gammaCorrected = pow(tonemapped, vec3(1.0/2.2));
@@ -195,7 +167,8 @@ fn downsample(input: VertexOutput) -> @location(0) vec4<f32> {
     outc += (b + d + f + h) * 0.0625;
     outc += (j + k + l + m) * 0.125;
 
-    if (length(outc) < bloomParams.threshold)
+    // TODO: the is nans are a bandage, ideally we wouldnt need them
+    if (length(outc) < bloomParams.threshold || isnan(outc.r) || isnan(outc.g) || isnan(outc.b))
     {
         outc = vec3f(0.0f);
     }

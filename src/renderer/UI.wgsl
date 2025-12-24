@@ -7,16 +7,6 @@ struct InstanceInput {
     @location(1) scale: vec4f,
 }
 
-const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
-    vec2f(-1.0, -1.0),
-    vec2f( 1.0, -1.0),
-    vec2f( 1.0,  1.0),
-
-    vec2f(-1.0, -1.0),
-    vec2f( 1.0,  1.0),
-    vec2f(-1.0,  1.0),
-);
-
 @vertex
 fn vertex(@builtin(vertex_index) v_index : u32, instance: InstanceInput) -> VertexOutput {
     let position = (FULLSCREEN_QUAD_POSITIONS[v_index] * 0.5 + 0.5) * instance.scale.xy + instance.position.xy;

@@ -7,16 +7,21 @@ import { createVertexBuffer } from '../core/VertexUtils.js';
 
 export class BaseRenderer {
 
+    gpuObjects = new WeakMap();
+
     constructor(canvas) {
         this.canvas = canvas;
-        this.gpuObjects = new WeakMap();
     }
     
     async initialize(defaultTextureImage) {
         const adapter = await navigator.gpu.requestAdapter({
-            powerPreference: "high-performance"
+            powerPreference: "high-performance",
         });
-        const device = await adapter.requestDevice();
+        const device = await adapter.requestDevice({
+            requiredLimits: {
+                maxColorAttachmentBytesPerSample: 48,
+            },
+        });
         const context = this.canvas.getContext('webgpu');
         const format = navigator.gpu.getPreferredCanvasFormat();
         context.configure({ device, format });

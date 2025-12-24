@@ -27,30 +27,13 @@ struct VertexOutput {
     @location(2) normal: vec3f,
 }
 
-struct CameraUniforms {
-    viewMatrix: mat4x4f,
-    projectionMatrix: mat4x4f,
-    position: vec4f,
-}
-
-struct Joint {
-    m: mat4x4<f32>,
-}
-
-struct Material {
-    albedo: vec3f,
-    metallic: f32,
-    roughness: f32,
-    ao: f32,
-}
-
 struct Output {
     @location(0) colorAndMetallic : vec4f,
     @location(1) positionAndRoughness : vec4f,
     @location(2) normal : vec4f,
 }
 
-@group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(0) var<uniform> camera: Camera;
 
 @group(1) @binding(0) var<storage, read> joints: array<Joint>;
 

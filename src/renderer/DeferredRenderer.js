@@ -10,31 +10,53 @@ import {
 } from '../../engine/core/SceneUtils.js';
 
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
-import { ImageLoader } from '../../engine/loaders/ImageLoader.js';
 import { vec3 } from '../../lib/glm.js';
 
 export class DeferredRendererSettings {
-    constructor()
+    pass = 0;
+    showUI = true;
+    showSkybox = true;
+    showBloom = true;
+    bloom = {
+        threshold: 1.3,
+        // strength: 0.0,
+        strength: 0.012,
+        filterRadius: 1.0,
+        dirtStrength: 0.0,
+    };
+    tonemapping = {
+        // index: 0, // 0 none, 1 reinhard, 2 agx
+        index: 2, // 0 none, 1 reinhard, 2 agx
+        agxSlope: [1.0, 1.0, 1.0],
+        agxPower: [1.35, 1.35, 1.35],
+        agxSat: 1.4
+    };
+    blackAndWhite = false;
+    wireframe = false;
+    debug = false;
+}
+
+class GPUBuffer {
+    constructor(device, capacity = 0, elementSize = 1, T = Uint8Array, usage = GPUBufferUsage.VERTEX | GPUBufferUsage.FRAGMENT | GPUBufferUsage.COPY_DST)
     {
-        this.pass = 0;
-        this.showUI = true;
-        this.showSkybox = true;
-        this.showBloom = true;
-        this.bloom = {
-            threshold: 1.3,
-            strength: 0.012,
-            filterRadius: 1.0,
-            dirtStrength: 0.0,
-        },
-        this.tonemapping = {
-            index: 1,
-            agxSlope: [1.0, 1.0, 1.0],
-            agxPower: [1.35, 1.35, 1.35],
-            agxSat: 1.4
-        }
-        this.blackAndWhite = false;
-        this.wireframe = false;
-        this.debug = false;
+        this.T = T;
+        this.capacity = 0;
+        this.elementSize = elementSize;
+        this.usage = usage;
+        this.ensureCapacity(capacity, device);
+    }
+
+    ensureCapacity(n, device)
+    {
+        if (this.capacity >= n)
+            return false;
+        this.capacity = n;
+        this.array = new this.T(n * this.elementSize);
+        this.buffer = WebGPU.createBuffer(device, {
+            size: this.array.byteLength,
+            usage: this.usage,
+        });
+        return true;
     }
 }
 
@@ -43,6 +65,22 @@ export class DeferredRenderer extends BaseRenderer {
     static randomRectangle = { position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5) };
     static s = null;
 
+    materialBuffer = new Float32Array(6);
+    cameraBuffer = new Float32Array(16 + 16 + 4);
+    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
+    poprSettingsBuffer = null;
+    lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
+    poprSettingsBindGroup = null;
+
+    // per frame stuff
+    bloomTextures = [];
+    debugLines = [];
+    lights = [];
+    skeletons = [];
+    skeletonToJoint = new Map();
+    models = new Map();
+    nShadowCastingLights = 0;
+
     constructor(canvas) {
         super(canvas);
     }
@@ -50,7 +88,24 @@ export class DeferredRenderer extends BaseRenderer {
     async initialize(defaultTextureImage, dirtImage) {
         await super.initialize(defaultTextureImage);
 
-        await this.setUpDefaults();
+        this.commonShaderCode = await fetch(new URL('Common.wgsl', import.meta.url)).then(response => response.text());
+        this.skyboxCommonCode = await fetch(new URL("SkyboxCommon.wgsl", import.meta.url)).then(response => response.text());
+        this.fullscreenCommonCode = await fetch(new URL("FullscreenCommon.wgsl", import.meta.url)).then(response => response.text());
+
+        this.cameraBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry]);
+        this.linearTextureSampler = this.device.createSampler({
+            minFilter: 'linear',
+            magFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+        });
+
+        this.jointsBuffer = new GPUBuffer(this.device, 0, 16, Float32Array, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        this.lightsBuffer = new GPUBuffer(this.device, 0, 16 + 4 + 4 + 4 + 4, Float32Array, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        this.instancesBuffer = new GPUBuffer(this.device, 0, 132, ArrayBuffer, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+        this.uiInstancesBuffer = new GPUBuffer(this.device, 0, 4 + 4, Float32Array, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+        this.debugLinesBuffer = new GPUBuffer(this.device, 0, 4 + 4 + 4, Float32Array, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+    
         await this.setUpSkybox();
         await this.setUpDeferred();
         await this.setUpLighting();
@@ -63,10 +118,16 @@ export class DeferredRenderer extends BaseRenderer {
         DeferredRenderer.s = this;
     }
 
+    async loadShaderModule(url, prefixes = [])
+    {
+        const code = this.commonShaderCode + prefixes.join('') +
+            await fetch(new URL(url, import.meta.url)).then(response => response.text());
+        return this.device.createShaderModule({ code });
+    }
+
     async setUpUI()
     {
-        const code = await fetch(new URL('UI.wgsl', import.meta.url)).then(response => response.text());
-        const module = this.device.createShaderModule({ code: code });
+        const module = await this.loadShaderModule("UI.wgsl");
         this.uiPipeline = await this.device.createRenderPipelineAsync({
             label: 'ui',
             layout: 'auto',
@@ -79,124 +140,271 @@ export class DeferredRenderer extends BaseRenderer {
                 targets: [{ format: this.format }],
             }
         });
-
-        this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
-            data: new Float32Array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
     }
 
-    async setUpDefaults() {
-        console.log("setting up defaults");
-
-        this.materialBuffer = new Float32Array(6);
-        this.cameraBuffer = new Float32Array(16 + 16 + 4);
-        this.models = new Map();
-        this.skeletonToJoint = new Map();
-        this.maxJoints = 0;
-        this.maxInstances = 0;
-        this.maxUIInstances = 0;
-        this.maxLights = 0;
-        this.maxDebugLines = 0;
-        this.jointsBufferArray = null;
-        this.lightsBufferArray = null;
-        this.instancesBufferArray = null;
-        this.uiInstancesBufferArray = null;
-        this.poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
-        this.debugLinesBufferArray = new Float32Array(16);
-        this.jointsBuffer = null;
-        this.lightsBuffer = null;
-        this.instancesBuffer = null;
-        this.uiInstancesBuffer = null;
-        this.poprSettingsBuffer = null;
-        this.boxInstancesBuffer = null;
-        this.debugLinesBuffer = null;
-        this.skeletons = [];
-        this.lights = [];
-        this.debugLines = [];
-        this.lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
-        this.nShadowCastingLights = 0;
-        this.poprSettingsBindGroup = null;
-        this.bloomTextures = [];
-
-        this.cameraBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry]);
-    }
-
+    // TODO: rename to environment
     async setUpSkybox() {
         console.log("setting up skybox");
 
-        const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
-        const layout = this.device.createPipelineLayout({
-            bindGroupLayouts: [this.cameraBindGroupLayout, envBindGroupLayout],
-        });
-
-        const skyboxCode = await fetch(new URL('Skybox.wgsl', import.meta.url)).then(response => response.text());
-        const skyboxModule = this.device.createShaderModule({ code: skyboxCode });
-        this.skyboxPipeline = await this.device.createRenderPipelineAsync({
-            label: 'skybox',
-            layout,
-            vertex: { module: skyboxModule },
-            fragment: { 
-                module: skyboxModule,
-                targets: [{
-                    format: this.format,
-                    blend: {
-                        color: {
-                            operation: "add",
-                            srcFactor: "one",
-                            dstFactor: "one",
-                        },
-                        alpha: {
-                            operation: "add",
-                            srcFactor: "one",
-                            dstFactor: "one",
-                        },
-                    },
-                    writeMask: GPUColorWrite.ALL,
-                }], 
-            },
-            depthStencil: {
-                format: 'depth24plus',
-                depthWriteEnabled: false,
-                depthCompare: 'less-equal',
-            },
-        });
-        const imageLoader = new ImageLoader();
+        const loadHDR = (url) => {
+            return new Promise((resolve, reject) => {
+                const img = new HDRImage();
+                img.onload = () => resolve(img);
+                img.onerror = (e) => reject(new Error(`Failed to load HDR: ${url}`));
+                img.src = url;
+            });
+        };
+    
         const environmentImages = await Promise.all([
-            'posx.jpg',
-            'negx.jpg',
-            'posy.jpg',
-            'negy.jpg',
-            'posz.jpg',
-            'negz.jpg',
-        ].map(url => imageLoader.load(url)));
+            './textures/zahod/px.hdr',
+            './textures/zahod/nx.hdr',
+            './textures/zahod/py.hdr',
+            './textures/zahod/ny.hdr',
+            './textures/zahod/pz.hdr',
+            './textures/zahod/nz.hdr',
+        ].map(url => loadHDR(url)));
 
-        this.environmentSampler = this.device.createSampler({
-            minFilter: 'linear',
-            magFilter: 'linear',
-        });
-        this.environmentTexture = this.device.createTexture({
-            size: [environmentImages[0].width, environmentImages[0].height, 6],
-            format: 'rgba8unorm',
-            usage:
-                GPUTextureUsage.TEXTURE_BINDING |
-                GPUTextureUsage.COPY_DST |
-                GPUTextureUsage.RENDER_ATTACHMENT,
-        });
+        const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
+        
+        { // default skybox pipeline
+            const layout = this.device.createPipelineLayout({
+                bindGroupLayouts: [this.cameraBindGroupLayout, envBindGroupLayout],
+            });
+            const module = await this.loadShaderModule('Skybox.wgsl');
+            this.skyboxPipeline = await this.device.createRenderPipelineAsync({
+                label: 'skybox',
+                layout,
+                vertex: { module },
+                fragment: { 
+                    module,
+                    targets: [{
+                        format: 'rgba16float',
+                        blend: {
+                            color: {
+                                operation: "add",
+                                srcFactor: "one",
+                                dstFactor: "one",
+                            },
+                            alpha: {
+                                operation: "add",
+                                srcFactor: "one",
+                                dstFactor: "one",
+                            },
+                        },
+                        writeMask: GPUColorWrite.ALL,
+                    }], 
+                },
+                depthStencil: {
+                    format: 'depth24plus',
+                    depthWriteEnabled: false,
+                    depthCompare: 'less-equal',
+                },
+            });
 
-        for (let i = 0; i < environmentImages.length; i++) {
-            this.device.queue.copyExternalImageToTexture(
-                { source: environmentImages[i] },
-                { texture: this.environmentTexture, origin: [0, 0, i] },
-                [environmentImages[i].width, environmentImages[i].height],
-            );
+            this.environmentTexture = this.device.createTexture({
+                size: [environmentImages[0].width, environmentImages[0].height, 6],
+                format: 'rgba16float',
+                usage:
+                    GPUTextureUsage.TEXTURE_BINDING |
+                    GPUTextureUsage.COPY_DST |
+                    GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            for (let i = 0; i < environmentImages.length; i++) {
+                const image = environmentImages[i];
+                const f32Data = image.dataFloat;
+                let data = new Float16Array(image.width * image.height * 4);
+                for (let j = 0; j < image.width * image.height; j++)
+                {
+                    const f32i = j * 3;
+                    const f16i = j * 4;
+                    data.set([f32Data[f32i], f32Data[f32i+1], f32Data[f32i+2], 1.0], f16i);
+                }
+                this.device.queue.writeTexture(
+                    { texture: this.environmentTexture, origin: [0, 0, i] },
+                    data,
+                    { bytesPerRow: image.width * 8, rowsPerImage: image.height },
+                    { width: image.width, height: image.height, depthOrArrayLayers: 1 },
+                );
+            }
+            
+            this.skyboxBindGroup = this.device.createBindGroup({
+                layout: envBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
+                    { binding: 1, resource: this.linearTextureSampler },
+                ],
+            });
         }
 
-        this.skyboxBindGroup = this.device.createBindGroup({
+        { // irradiance map
+            const layout = this.device.createPipelineLayout({ bindGroupLayouts: [ envBindGroupLayout ] });
+            const module = await this.loadShaderModule('IrradienceMap.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const pipeline = await this.device.createRenderPipelineAsync({
+                label: 'irradience',
+                layout,
+                vertex: { module },
+                fragment: {
+                    module,
+                    targets: [
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                    ], 
+                }
+            });
+            
+            this.irradianceTexture = this.device.createTexture({
+                size: [environmentImages[0].width, environmentImages[0].height, 6],
+                format: 'rgba16float',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            const colorAttachments = []; 
+            for (let i = 0; i < 6; i++) { 
+                colorAttachments.push({
+                    view: this.irradianceTexture.createView({ 
+                        baseArrayLayer: i, 
+                        arrayLayerCount: 1, 
+                    }), 
+                    loadOp: "load", 
+                    storeOp: "store", 
+                }); 
+            }
+
+            const encoder = this.device.createCommandEncoder();
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments,
+            });
+
+            renderPass.setPipeline(pipeline);
+            renderPass.setBindGroup(0, this.skyboxBindGroup);
+            renderPass.draw(6);
+            renderPass.end();
+
+            this.device.queue.submit([encoder.finish()]);
+        }
+        
+        { // prefilter map
+            const configLayout = this.createBindGroupLayout([ uniformBufferBindGroupEntry ]);
+            const layout = this.device.createPipelineLayout({ bindGroupLayouts: [ envBindGroupLayout, configLayout ] });
+            const module = await this.loadShaderModule('PrefilterMap.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const pipeline = await this.device.createRenderPipelineAsync({
+                label: 'prefilter',
+                layout,
+                vertex: { module },
+                fragment: {
+                    module,
+                    targets: [
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                        { format: 'rgba16float' },
+                    ], 
+                }
+            });
+
+            const bindGroups = [];
+            const mipLevelCount = 4;
+            for (let i = 0; i < mipLevelCount; i++)
+            {
+                const buffer = WebGPU.createBuffer(this.device, {
+                    data: new Float32Array([i / (mipLevelCount - 1)]),
+                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+                });
+                bindGroups.push(this.device.createBindGroup({
+                    layout: configLayout,
+                    entries: [ { binding: 0, resource: buffer } ],
+                }))
+            }
+            
+            this.prefilterTexture = this.device.createTexture({
+                size: [environmentImages[0].width, environmentImages[0].height, 6],
+                format: 'rgba16float',
+                mipLevelCount,
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            for (let mip = 0; mip < mipLevelCount; mip++)
+            {
+                const colorAttachments = [];
+                for (let i = 0; i < 6; i++) { 
+                    colorAttachments.push({
+                        view: this.prefilterTexture.createView({
+                            baseArrayLayer: i, 
+                            arrayLayerCount: 1, 
+                            baseMipLevel: mip,
+                            mipLevelCount: 1,
+                        }), 
+                        loadOp: "load", 
+                        storeOp: "store", 
+                    }); 
+                }
+
+                const encoder = this.device.createCommandEncoder();
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments,
+                });
+
+                renderPass.setPipeline(pipeline);
+                renderPass.setBindGroup(0, this.skyboxBindGroup);
+                renderPass.setBindGroup(1, bindGroups[mip]);
+                renderPass.draw(6);
+                renderPass.end();
+
+                this.device.queue.submit([encoder.finish()]);
+            }
+        }
+        
+        { // brdf convolution
+            const module = await this.loadShaderModule('BRDFConvolution.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const pipeline = await this.device.createRenderPipelineAsync({
+                label: 'brdf convolution',
+                layout: 'auto',
+                vertex: { module },
+                fragment: { module, targets: [ { format: 'rg16float' } ] }
+            });
+            
+            this.brdfConvolutionTexture = this.device.createTexture({
+                size: [512, 512],
+                format: 'rg16float',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            
+            const encoder = this.device.createCommandEncoder();
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [ { 
+                    view: this.brdfConvolutionTexture.createView(), 
+                    clearValue: [0, 0, 0, 1],
+                    loadOp: "clear", 
+                    storeOp: "store"
+                }],
+            });
+
+            renderPass.setPipeline(pipeline);
+            renderPass.draw(6);
+            renderPass.end();
+
+            this.device.queue.submit([encoder.finish()]);
+        }
+
+        this.irradianceBindGroup = this.device.createBindGroup({
             layout: envBindGroupLayout,
             entries: [
-                { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
-                { binding: 1, resource: this.environmentSampler },
+                { 
+                    binding: 0, 
+                    resource: this.prefilterTexture.createView({ 
+                        dimension: 'cube', 
+                        baseMipLevel: 1,
+                        mipLevelCount: 1
+                    })
+                },
+                { binding: 1, resource: this.linearTextureSampler },
             ],
         });
     }
@@ -214,8 +422,7 @@ export class DeferredRenderer extends BaseRenderer {
             bindGroupLayouts: [this.cameraBindGroupLayout, this.jointsBindGroupLayout],
         });
 
-        const code = await fetch(new URL('Deferred.wgsl', import.meta.url)).then(response => response.text());
-        const module = this.device.createShaderModule({ code });
+        const module = await this.loadShaderModule('Deferred.wgsl');
         const deferredPipelineOptions = {
             label: 'deferred',
             layout: deferredLayout,
@@ -229,11 +436,10 @@ export class DeferredRenderer extends BaseRenderer {
             },
             depthStencil: {
                 format: 'depth24plus',
-                depthWriteEnabled: true,
-                depthCompare: 'less',
+                depthWriteEnabled: false,
+                depthCompare: 'less-equal',
             },
             primitive: {
-                frontFace: 'ccw',
                 cullMode: 'back'
             }
         };
@@ -241,7 +447,7 @@ export class DeferredRenderer extends BaseRenderer {
         deferredPipelineOptions.primitive.topology = 'line-list';
         this.wireframePipeline = await this.device.createRenderPipelineAsync(deferredPipelineOptions);
 
-        this.depthPassPipeline = await this.device.createRenderPipelineAsync({
+        const depthPassPipelineOptions = {
             label: 'depthPass',
             layout: lightsLayout,
             vertex: {
@@ -254,9 +460,12 @@ export class DeferredRenderer extends BaseRenderer {
                 depthCompare: 'less',
             },
             primitive: {
-                cullMode: 'front'
+                cullMode: 'back'
             }
-        });
+        };
+        this.depthPassPipeline = await this.device.createRenderPipelineAsync(depthPassPipelineOptions);
+        depthPassPipelineOptions.primitive.topology = 'line-list';
+        this.wireframedepthPassPipeline = await this.device.createRenderPipelineAsync(depthPassPipelineOptions);
 
         this.dummySkeletonBuffer = WebGPU.createBuffer(this.device, {
             data: new Float32Array(16),
@@ -296,45 +505,35 @@ export class DeferredRenderer extends BaseRenderer {
             addressModeU: 'clamp-to-edge',
             addressModeV: 'clamp-to-edge',
         });
-
-        this.instancesBufferArray = new ArrayBuffer(16 + 16 + 4);
-        this.instanceBuffer = WebGPU.createBuffer(this.device, {
-            data: this.instancesBufferArray,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
     }
 
     async setUpLighting()
     {
         console.log("setting up lighting");
-        const secondBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry, depthArrayTextureBindGroupEntry, comparisonSamplerBindGroupEntry]);
+        const secondBindGroupLayout = this.createBindGroupLayout([
+            uniformBufferBindGroupEntry, 
+            depthArrayTextureBindGroupEntry, 
+            comparisonSamplerBindGroupEntry,
+            cubemapBindGroupEntry,
+            cubemapBindGroupEntry,
+            textureBindGroupEntry,
+            filteringSamplerBindGroupEntry
+        ]);
         this.deferredtargetsBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry, textureBindGroupEntry, textureBindGroupEntry]);
         this.lightsBindGroupLayout = this.createBindGroupLayout([storageBufferBindGroupEntry]);
         const layout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.cameraBindGroupLayout, secondBindGroupLayout, this.deferredtargetsBindGroupLayout, this.lightsBindGroupLayout],
         });
 
-        const lightingCode = await fetch(new URL('Lighting.wgsl', import.meta.url)).then(response => response.text());
-        const lightingModule = this.device.createShaderModule({ code: lightingCode });
+        const module = await this.loadShaderModule('Lighting.wgsl', [this.fullscreenCommonCode]);
         this.lightingPipeline = await this.device.createRenderPipelineAsync({
             label: 'lighting',
             layout,
-            vertex: {
-                module: lightingModule,
-            },
+            vertex: { module },
             fragment: {
-                module: lightingModule,
+                module,
                 targets: [{ format: 'rgba16float' }],
             },
-        });
-
-        this.lightsBuffer = WebGPU.createBuffer(this.device, {
-            data: new Float32Array(16 + 4 + 4 + 4),
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        this.lightsBindGroup = this.device.createBindGroup({
-            layout: this.lightsBindGroupLayout,
-            entries: [ { binding: 0, resource: this.lightsBuffer } ],
         });
 
         this.lightingBindGroup = this.device.createBindGroup({
@@ -343,6 +542,10 @@ export class DeferredRenderer extends BaseRenderer {
                 { binding: 0, resource: this.poprSettingsBuffer },
                 { binding: 1, resource: this.lightDepthTextureArrayView },
                 { binding: 2, resource: this.lightDepthSampler },
+                { binding: 3, resource: this.irradianceTexture.createView({ dimension: 'cube' }) },
+                { binding: 4, resource: this.prefilterTexture.createView({ dimension: 'cube' }) },
+                { binding: 5, resource: this.brdfConvolutionTexture.createView() },
+                { binding: 6, resource: this.linearTextureSampler },
             ],
         });
     }
@@ -353,8 +556,7 @@ export class DeferredRenderer extends BaseRenderer {
 
         const layout = this.device.createPipelineLayout({ bindGroupLayouts: [this.cameraBindGroupLayout] });
 
-        const code = await fetch(new URL('Debug.wgsl', import.meta.url)).then(response => response.text());
-        const module = this.device.createShaderModule({ code });
+        const module = await this.loadShaderModule('Debug.wgsl');
         this.debugPipeline = await this.device.createRenderPipelineAsync({
             label: 'debug',
             layout,
@@ -405,8 +607,7 @@ export class DeferredRenderer extends BaseRenderer {
             ],
         });
 
-        const code = await fetch(new URL('Popr.wgsl', import.meta.url)).then(response => response.text());
-        const module = this.device.createShaderModule({ code });
+        const module = await this.loadShaderModule('Popr.wgsl');
         this.tonemapPipeline = await this.device.createRenderPipelineAsync({
             label: 'tonemap',
             layout: tonemapLayout,
@@ -459,13 +660,6 @@ export class DeferredRenderer extends BaseRenderer {
                     writeMask: GPUColorWrite.ALL,
                 }],
             },
-        });
-
-        this.linearTextureSampler = this.device.createSampler({
-            minFilter: 'linear',
-            magFilter: 'linear',
-            addressModeU: 'clamp-to-edge',
-            addressModeV: 'clamp-to-edge',
         });
 
         this.dirtTexture = WebGPU.createTexture(this.device, {
@@ -604,6 +798,11 @@ export class DeferredRenderer extends BaseRenderer {
 
         this.renderLighting(encoder, cameraBindGroup);
 
+        if (poprSettings.showSkybox)
+        {
+            this.renderSkybox(encoder,cameraBindGroup, poprSettings);
+        }
+
         if (poprSettings.showBloom)
         {
             this.renderBloom(encoder, poprSettings);
@@ -611,11 +810,6 @@ export class DeferredRenderer extends BaseRenderer {
 
         this.renderTonemap(encoder, target);
             
-        if (poprSettings.showSkybox)
-        {
-            this.renderSkybox(encoder, target, cameraBindGroup);
-        }
-        
         if (poprSettings.debug)
         {
             this.renderDebug(encoder, target, cameraBindGroup);
@@ -673,20 +867,11 @@ export class DeferredRenderer extends BaseRenderer {
 
         if (this.skeletons.length > 0)
         {
-            const stride = 16;
-            if (this.maxJoints < nJoints)
+            if (this.jointsBuffer.ensureCapacity(nJoints, this.device))
             {
-                this.maxJoints = nJoints;
-                this.jointsBufferArray = new Float32Array(nJoints * stride);
-
-                this.skeletonBuffer = WebGPU.createBuffer(this.device, {
-                    size: nJoints * stride * 4,
-                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-                });
-
                 this.skeletonBindGroup = this.device.createBindGroup({
                     layout: this.jointsBindGroupLayout,
-                    entries: [ { binding: 0, resource: this.skeletonBuffer } ],
+                    entries: [ { binding: 0, resource: this.jointsBuffer.buffer } ],
                 });
             }
             
@@ -698,25 +883,18 @@ export class DeferredRenderer extends BaseRenderer {
                 {
                     const transform = skeleton.joints[i]._transform;
                     mat4.mul(joint_mat, transform.final, skeleton.inverseBindMatrices[i]);
-                    this.jointsBufferArray.set(joint_mat, (jointI + i) * stride);
+                    this.jointsBuffer.array.set(joint_mat, (jointI + i) * this.jointsBuffer.elementSize);
                 }
             }
 
-            this.device.queue.writeBuffer(this.skeletonBuffer, 0, this.jointsBufferArray);
+            this.device.queue.writeBuffer(this.jointsBuffer.buffer, 0, this.jointsBuffer.array);
         }
 
         const strideFloats = 32;
-        const stride = 132;
-        if (this.maxInstances < nInstances)
+        if (this.instancesBuffer.ensureCapacity(nInstances, this.device))
         {
-            this.maxInstances = nInstances;
-            this.instancesBufferArray = new ArrayBuffer(nInstances * stride);
-            this.floatView = new Float32Array(this.instancesBufferArray);
-            this.uintView  = new Int32Array(this.instancesBufferArray);
-            this.instanceBuffer = WebGPU.createBuffer(this.device, {
-                data: this.instancesBufferArray,
-                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            });
+            this.floatView = new Float32Array(this.instancesBuffer.array);
+            this.uintView  = new Int32Array(this.instancesBuffer.array);
         }
 
         let instanceOffset = 0;
@@ -729,13 +907,13 @@ export class DeferredRenderer extends BaseRenderer {
             {
                 const { transform, skeleton } = data.arr[i];
                 mat4.transpose(inv_mat, transform.inv_final);
-                const index = (stride * (data.instanceOffset + i)) / 4;
+                const index = (this.instancesBuffer.elementSize * (data.instanceOffset + i)) / 4;
                 this.floatView.set(transform.final, index);
                 this.floatView.set(inv_mat, index + 16);
                 this.uintView[index + strideFloats] = skeleton ? (this.skeletonToJoint.get(skeleton) ?? -1) : -1;
             }
         }
-        this.device.queue.writeBuffer(this.instanceBuffer, 0, this.instancesBufferArray);
+        this.device.queue.writeBuffer(this.instancesBuffer.buffer, 0, this.instancesBuffer.array);
     }
 
     renderDeferred(encoder, cameraBindGroup, poprSettings)
@@ -751,7 +929,7 @@ export class DeferredRenderer extends BaseRenderer {
                 },
             });
 
-            renderPass.setPipeline(this.depthPassPipeline);
+            renderPass.setPipeline(poprSettings.wireframe ? this.wireframedepthPassPipeline : this.depthPassPipeline);
             renderPass.setBindGroup(0, cameraBindGroup);
             renderPass.setBindGroup(1, this.skeletonBindGroup);
 
@@ -780,7 +958,7 @@ export class DeferredRenderer extends BaseRenderer {
                     },
                     {
                         view: this.deferredNormalTextureView,
-                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        clearValue: [ 0.0, 0.0, 0.0, 0.0 ],
                         loadOp: 'clear',
                         storeOp: 'store',
                     },
@@ -810,19 +988,11 @@ export class DeferredRenderer extends BaseRenderer {
         if (this.lights.length <= 0)
             return;
         
-        const stride = 16 + 4 + 4 + 4 + 4;
-        if (this.maxLights < this.lights.length)
+        if (this.lightsBuffer.ensureCapacity(this.lights.length, this.device))
         {
-            this.maxLights = this.lights.length;
-            this.lightsBufferArray = new Float32Array(this.lights.length * stride);
-            this.lightsBuffer = WebGPU.createBuffer(this.device, {
-                size: this.lightsBufferArray.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            });
-
             this.lightsBindGroup = this.device.createBindGroup({
                 layout: this.lightsBindGroupLayout,
-                entries: [ { binding: 0, resource: this.lightsBuffer } ],
+                entries: [ { binding: 0, resource: this.lightsBuffer.buffer } ],
             });
         }
 
@@ -831,22 +1001,22 @@ export class DeferredRenderer extends BaseRenderer {
         for (let i = 0; i < this.lights.length; i++)
         {
             const light = this.lights[i];
-            const bufI = i * stride;
+            const bufI = i * this.lightsBuffer.elementSize;
             const shadowindex = light._light.shadows ? nShadowCastingLights++ : -1;
             const hasFalloff = light._light.type === 'point' ? 1 : 0;
             mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, light._transform.inv_final);
-            this.lightsBufferArray.set(viewProj, bufI);
-            this.lightsBufferArray.set(light._light.color, bufI + 16);
-            this.lightsBufferArray.set([light._light.intensity], bufI + 16 + 3);
-            this.lightsBufferArray.set(light._transform.final_position, bufI + 16 + 4);
-            this.lightsBufferArray.set([shadowindex], bufI + 16 + 4 + 3);
-            this.lightsBufferArray.set(light._transform.final_direction, bufI + 16 + 4 + 4);
-            this.lightsBufferArray.set([hasFalloff], bufI + 16 + 4 + 4 + 3);
-            this.lightsBufferArray.set([light._light.innerAngle], bufI + 16 + 4 + 4 + 4);
-            this.lightsBufferArray.set([light._light.outerAngle], bufI + 16 + 4 + 4 + 4 + 1);
+            this.lightsBuffer.array.set(viewProj, bufI);
+            this.lightsBuffer.array.set(light._light.color, bufI + 16);
+            this.lightsBuffer.array.set([light._light.intensity], bufI + 16 + 3);
+            this.lightsBuffer.array.set(light._transform.final_position, bufI + 16 + 4);
+            this.lightsBuffer.array.set([shadowindex], bufI + 16 + 4 + 3);
+            this.lightsBuffer.array.set(light._transform.final_direction, bufI + 16 + 4 + 4);
+            this.lightsBuffer.array.set([hasFalloff], bufI + 16 + 4 + 4 + 3);
+            this.lightsBuffer.array.set([light._light.innerAngle], bufI + 16 + 4 + 4 + 4);
+            this.lightsBuffer.array.set([light._light.outerAngle], bufI + 16 + 4 + 4 + 4 + 1);
         }
 
-        this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightsBufferArray);
+        this.device.queue.writeBuffer(this.lightsBuffer.buffer, 0, this.lightsBuffer.array);
 
         nShadowCastingLights = 0;
         for (let i = 0; i < this.lights.length; i++)
@@ -895,7 +1065,7 @@ export class DeferredRenderer extends BaseRenderer {
             colorAttachments: [
                 {
                     view: this.lightingTextureView,
-                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                    clearValue: [ 0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
@@ -908,6 +1078,31 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.setBindGroup(2, this.deferredTargetsBindGroup);
         renderPass.setBindGroup(3, this.lightsBindGroup);
         renderPass.draw(6);
+
+        renderPass.end();
+    }
+
+    renderSkybox(encoder, cameraBindGroup, poprSettings)
+    {
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [
+                {
+                    view: this.lightingTextureView,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+            ],
+            depthStencilAttachment: {
+                view: this.defferedDepthTextureView,
+                depthLoadOp: 'load',
+                depthStoreOp: 'discard',
+            },
+        });
+
+        renderPass.setPipeline(this.skyboxPipeline);
+        renderPass.setBindGroup(0, cameraBindGroup);
+        renderPass.setBindGroup(1, poprSettings.debug ? this.irradianceBindGroup : this.skyboxBindGroup);
+        renderPass.draw(36);
 
         renderPass.end();
     }
@@ -1017,54 +1212,21 @@ export class DeferredRenderer extends BaseRenderer {
         renderPass.end();
     }
 
-    renderSkybox(encoder, target, cameraBindGroup)
-    {
-        const renderPass = encoder.beginRenderPass({
-            colorAttachments: [
-                {
-                    view: target,
-                    loadOp: 'load',
-                    storeOp: 'store',
-                },
-            ],
-            depthStencilAttachment: {
-                view: this.defferedDepthTextureView,
-                depthLoadOp: 'load',
-                depthStoreOp: 'discard',
-            },
-        });
-
-        renderPass.setPipeline(this.skyboxPipeline);
-        renderPass.setBindGroup(0, cameraBindGroup);
-        renderPass.setBindGroup(1, this.skyboxBindGroup);
-        renderPass.draw(36);
-
-        renderPass.end();
-    }
-
     renderDebug(encoder, target, cameraBindGroup)
     {
         if (this.debugLines.length <= 0)
             return;
 
-        if (this.maxDebugLines < this.debugLines.length)
-        {
-            this.maxDebugLines = this.debugLines.length;
-            this.debugLinesBufferArray = new Float32Array(this.debugLines.length * 12);
-            this.debugLinesBuffer = WebGPU.createBuffer(this.device, {
-                size: this.debugLinesBufferArray.byteLength,
-                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            });
-        }
+        this.debugLinesBuffer.ensureCapacity(this.debugLines.length, this.device);
 
         for (let i = 0; i < this.debugLines.length; i++) {
             const line = this.debugLines[i];
-            this.debugLinesBufferArray.set(line.start, i * 12);
-            this.debugLinesBufferArray.set(line.end, i * 12 + 4);
-            this.debugLinesBufferArray.set(line.color, i * 12 + 8);
+            this.debugLinesBuffer.array.set(line.start, i * 12);
+            this.debugLinesBuffer.array.set(line.end, i * 12 + 4);
+            this.debugLinesBuffer.array.set(line.color, i * 12 + 8);
         }
 
-        this.device.queue.writeBuffer(this.debugLinesBuffer, 0, this.debugLinesBufferArray);
+        this.device.queue.writeBuffer(this.debugLinesBuffer.buffer, 0, this.debugLinesBuffer.array);
 
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -1078,7 +1240,7 @@ export class DeferredRenderer extends BaseRenderer {
 
         renderPass.setPipeline(this.debugPipeline);
         renderPass.setBindGroup(0, cameraBindGroup);
-        renderPass.setVertexBuffer(0, this.debugLinesBuffer);
+        renderPass.setVertexBuffer(0, this.debugLinesBuffer.buffer);
         renderPass.draw(2, this.debugLines.length);
 
         renderPass.end();
@@ -1088,19 +1250,11 @@ export class DeferredRenderer extends BaseRenderer {
     {
         // collect instances (only the randomRectForNow)
         let nUIInstances = 1;
-        if (this.maxUIInstances < nUIInstances)
-        {
-            this.maxUIInstances = nUIInstances;
-            this.uiInstancesBufferArray = new Float32Array(nUIInstances * 8);
-            this.uiInstancesBuffer = WebGPU.createBuffer(this.device, {
-                size: nUIInstances * 8 * 4,
-                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            });
-        }
+        this.uiInstancesBuffer.ensureCapacity(nUIInstances, this.device);
 
-        this.uiInstancesBufferArray.set(DeferredRenderer.randomRectangle.position, 0);
-        this.uiInstancesBufferArray.set(DeferredRenderer.randomRectangle.scale, 4);
-        this.device.queue.writeBuffer(this.uiInstancesBuffer, 0, this.uiInstancesBufferArray);
+        this.uiInstancesBuffer.array.set(DeferredRenderer.randomRectangle.position, 0);
+        this.uiInstancesBuffer.array.set(DeferredRenderer.randomRectangle.scale, 4);
+        this.device.queue.writeBuffer(this.uiInstancesBuffer.buffer, 0, this.uiInstancesBuffer.array);
 
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -1113,7 +1267,7 @@ export class DeferredRenderer extends BaseRenderer {
         });
 
         renderPass.setPipeline(this.uiPipeline);
-        renderPass.setVertexBuffer(0, this.uiInstancesBuffer);
+        renderPass.setVertexBuffer(0, this.uiInstancesBuffer.buffer);
         renderPass.draw(6, 1);
 
         renderPass.end();
@@ -1144,7 +1298,7 @@ export class DeferredRenderer extends BaseRenderer {
     renderPrimitive(primitive, instanceOffset, nInstances, renderPass) {
         const { vertexBuffer, indexBuffer } = this.prepareMesh(primitive.mesh, vertexBufferLayout);
         renderPass.setVertexBuffer(0, vertexBuffer);
-        renderPass.setVertexBuffer(1, this.instanceBuffer);
+        renderPass.setVertexBuffer(1, this.instancesBuffer.buffer);
         renderPass.setIndexBuffer(indexBuffer, 'uint32');
 
         renderPass.drawIndexed(primitive.mesh.indices.length, nInstances, 0, 0, instanceOffset);
