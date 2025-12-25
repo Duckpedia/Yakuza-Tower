@@ -68,6 +68,37 @@ function attachBoxCollider(parent, {
   return c;
 }
 
+// make the weapons n shit (anything made with this will be pickable up)
+function createPickup(modelResource, position, scale = [0.2, 0.2, 0.2], rotationAxis = [1,0,0], rotationAngle = Math.PI/2, itemType = "generic")
+{
+    const pickupScene = modelResource.loadScene();
+    const visualEntity = modelResource.buildEntityFromScene(pickupScene);
+
+    const transform = visualEntity.getComponentOfType(Transform);
+    transform.translation = position;
+    transform.scale = scale;
+    glm.quat.setAxisAngle(transform.rotation, rotationAxis, rotationAngle);
+
+    scene.push(...pickupScene);
+
+    const collider = new Entity();
+    collider.name = modelResource.name + "Collider";
+    collider.addComponent(new Transform({ translation: position }));
+    collider.customProperties = { isStatic: true, itemType };
+    collider.aabbManual = true;
+    collider.aabb = { 
+        min: [-scale[0], -scale[1], -scale[2]], 
+        max: [ scale[0],  scale[1],  scale[2]] 
+    };
+
+    collider.isPickup = true;
+    collider.visualEntities = pickupScene;
+
+    scene.push(collider);
+
+    return collider;
+}
+
 const canvas = document.querySelector('canvas');
 const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image, resources.dirt_image);
@@ -84,7 +115,10 @@ player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
 
 // to samo doda da dejansko dela aabb collision
-player.customProperties = { isDynamic: true };
+player.customProperties = { isDynamic: true, currentItem: null };
+//current item bo zdj storeal kaj si picku up, pol pa lah droppas
+//bi bilo zelo uporabno ce bi kdo hotu naredit weapone!!!!
+
 
 player.aabb = {
   min: [-0.2, -0.2, -0.2],
@@ -93,27 +127,16 @@ player.aabb = {
 
 const scene = [player];
 
-const pickupKatanaScene = resources.katana_model.loadScene();
-const pickupKatana = resources.katana_model.buildEntityFromScene(pickupKatanaScene);
-
-const kt = pickupKatana.getComponentOfType(Transform);
-kt.translation = [2, 0.1, 0];
-kt.scale = [0.2, 0.2, 0.2];
-
-glm.quat.setAxisAngle(kt.rotation, [1, 0, 0], Math.PI * 0.5);
-
-scene.push(...pickupKatanaScene);
-
-const katanaCollider = new Entity();
-katanaCollider.name = 'KatanaCollider';
-katanaCollider.addComponent(new Transform({ translation: [2, 0.1, 0] }));
-katanaCollider.customProperties = { isStatic: true };
-katanaCollider.aabbManual = true;
-katanaCollider.aabb = {
-  min: [-0.05, -0.1, -0.4],
-  max: [ 0.05, 0.1, 1.1]
+//reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
+const itemResources = {
+    katana: resources.katana_model,
+    gun: resources.pistol_model,
 };
-scene.push(katanaCollider);
+
+//make pickups like this!!
+const katanaPickup = createPickup(resources.katana_model, [2,0.1,0], [0.2,0.2,0.2], [1,0,0], Math.PI/2, "katana");
+const pistolPickup = createPickup(resources.pistol_model, [3,0.1,1], [0.2,0.2,0.2], undefined, undefined, "gun");
+
 
 const invisibleWallCollider = new Entity();
 invisibleWallCollider.name = 'InvisibleWall';
@@ -257,6 +280,25 @@ function update(t, dt) {
         }
     }
 
+if (Inputs.isPressed('KeyP')) { // drop currently held item
+    const currentItem = player.customProperties.currentItem;
+    if (currentItem) {
+        const playerTransform = player.getComponentOfType(Transform);
+        const spawnPosition = vec3.clone(playerTransform.translation);
+
+        const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], playerTransform.rotation);
+        vec3.scaleAndAdd(spawnPosition, spawnPosition, forward, 0.5);
+
+        const resource = itemResources[currentItem];
+        createPickup(resource, spawnPosition, [0.2, 0.2, 0.2], [1,0,0], Math.PI/2, currentItem);
+
+        // clear item, can comment this if u wanna spawn lots
+        player.customProperties.currentItem = null;
+    } else {
+        console.log("no item");
+    }
+}
+
     const scaledDt = dt * World.timeScale;
     for (const entity of scene) {
         for (const component of entity.components) {
@@ -294,12 +336,47 @@ function update(t, dt) {
 
         const hit = physics.raycast(from, to);
 
-        if (hit){
-            console.log("HIT", hit.entity.name, hit.point, hit.distance);
-        } 
-        else{
-            console.log("MISS");
+        if (hit && hit.entity.isPickup) {
+            const distance = vec3.distance(from, hit.point);
+            if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
+                console.log("PICKUP HIT", hit.point, hit.distance);
+
+                // drop current item if there is one
+                if (player.customProperties.currentItem) {
+                    const playerTransform = player.getComponentOfType(Transform);
+                    const dropPosition = vec3.clone(playerTransform.translation);
+                    const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], playerTransform.rotation);
+                    vec3.scaleAndAdd(dropPosition, dropPosition, forward, 0.5);
+
+                    const resource = itemResources[player.customProperties.currentItem];
+                    createPickup(resource, dropPosition, [0.2, 0.2, 0.2], [1, 0, 0], Math.PI/2, player.customProperties.currentItem);
+
+                    console.log("dropped previous item:", player.customProperties.currentItem);
+                }
+
+                // pick up new item
+                if (hit.entity.customProperties?.itemType) {
+                    player.customProperties.currentItem = hit.entity.customProperties.itemType;
+                    console.log("Picked up:", player.customProperties.currentItem);
+                }
+
+                // remove visual and collider of pickedup
+                const i = scene.indexOf(hit.entity);
+                if (i !== -1) scene.splice(i, 1);
+
+                if (hit.entity.visualEntities) {
+                    for (const v of hit.entity.visualEntities) {
+                        const vi = scene.indexOf(v);
+                        if (vi !== -1) scene.splice(vi, 1);
+                    }
+                }
+            } else {
+                console.log("too far to pick up", hit.entity.name, distance);
+            }
+        } else {
+            console.log("MISS or not a pickup");
         }
+
     }
         
     inputs.update();
