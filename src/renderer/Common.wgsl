@@ -25,6 +25,10 @@ struct Settings {
     agxSat: f32,
     blackAndWhite: u32,
     test: f32,
+    ssao: u32,
+    ssaoRadius: f32,
+    ssaoBias: f32,
+    ssaoMaxDelta: f32,
 }
 
 // wasteful but meh
@@ -140,4 +144,18 @@ fn makeBasis(normal: vec3f) -> mat3x3<f32> {
   let right = normalize(cross(a, normal));
   let up = cross(normal, right);
   return mat3x3<f32>(right, up, normal);
+}
+
+// chatgpt idk
+fn hash22(p: vec2f) -> vec2f {
+    let p3 = fract(vec3f(p.xyx) * vec3f(0.1031, 0.1030, 0.0973));
+    let d = dot(p3, p3.yzx + 33.33);
+    return fract(vec2f(p3.x + p3.y, p3.y + p3.z) * (p3.z + d));
+}
+
+fn projectionToUV(projection: mat4x4f, view: mat4x4f, world: vec4f) -> vec4f
+{
+    let clip = projection * view * world;
+    let ndc = clip.xyz / clip.w;
+    return vec4(vec2(ndc.x, -ndc.y) * 0.5 + 0.5, ndc.z, 1.0);
 }

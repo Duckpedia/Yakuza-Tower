@@ -598,7 +598,6 @@ export class GLTFLoader {
             if (gltfSpec.extras.bounds)
             {
                 entity.addComponent(new BoundsComponent(gltfSpec.extras));
-                console.log(entity);
             }
         }
 

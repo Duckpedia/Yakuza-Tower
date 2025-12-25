@@ -25,7 +25,6 @@ import {
     calculateAxisAlignedBoundingBox,
     mergeAxisAlignedBoundingBoxes,
 } from 'engine/core/MeshUtils.js';
-import { quat } from './lib/glm.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -422,3 +421,7 @@ gui.add(World.poprSettings.tonemapping.agxPower, 1, 0.0, 2.0).name('powerY');
 gui.add(World.poprSettings.tonemapping.agxPower, 2, 0.0, 2.0).name('powerZ');
 gui.add(World.poprSettings.tonemapping, 'agxSat', 0.0, 5.0);
 gui.add(World.poprSettings, 'test', 0.0, 1.0);
+gui.add(World.poprSettings, 'showSSAO', 0.0, 1.0);
+gui.add(World.poprSettings, 'ssaoRadius', 0.0, 1.0);
+gui.add(World.poprSettings, 'ssaoBias', 0.0, 0.1);
+gui.add(World.poprSettings, 'ssaoMaxDelta', 0.0, 1.0);

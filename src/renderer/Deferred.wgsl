@@ -23,14 +23,15 @@ struct InstanceInput {
 struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) worldPosition: vec4f,
-    @location(1) texcoords: vec2f,
-    @location(2) normal: vec3f,
+    @location(1) viewPosition: vec4f,
+    @location(2) texcoords: vec2f,
+    @location(3) normal: vec3f,
 }
 
 struct Output {
-    @location(0) colorAndMetallic : vec4f,
-    @location(1) positionAndRoughness : vec4f,
-    @location(2) normal : vec4f,
+    @location(0) albedoAndMetallic : vec4f,
+    @location(1) worldAndRoughness : vec4f,
+    @location(2) normalAndDepth : vec4f,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -76,7 +77,8 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
     var output: VertexOutput;
     output.worldPosition = vec4(position.xyz, 1);
-    output.position = camera.projectionMatrix * camera.viewMatrix * output.worldPosition;
+    output.viewPosition = camera.viewMatrix * output.worldPosition;
+    output.position = camera.projectionMatrix * output.viewPosition;
     output.normal = worldNormal.xyz;
     output.texcoords = model.texcoords;
     return output;
@@ -87,9 +89,9 @@ fn fragment(input: VertexOutput) -> Output {
     let world = input.worldPosition;
     var albedo = textureSample(albedoTexture, albedoTextureSampler, input.texcoords).rgb * material.albedo;
     let normal = normalize(input.normal);
-    var output: Output;
-    output.colorAndMetallic = vec4f(albedo, material.metallic);
-    output.positionAndRoughness = vec4f(world.xyz, material.roughness);
-    output.normal = vec4f(normal, 1.0);
+    var output: Output; 
+    output.albedoAndMetallic = vec4f(albedo, material.metallic);
+    output.worldAndRoughness = vec4f(world.xyz, material.roughness);
+    output.normalAndDepth = vec4f(normal, input.viewPosition.z);
     return output;
 }

@@ -34,7 +34,11 @@ export class DeferredRendererSettings {
     blackAndWhite = false;
     wireframe = false;
     debug = false;
-    test = 0.0
+    test = 0.0;
+    showSSAO = true;
+    ssaoRadius = 0.5;
+    ssaoBias = 0.025;
+    ssaoMaxDelta = 0.17;
 }
 
 class GPUBuffer {
@@ -68,7 +72,7 @@ export class DeferredRenderer extends BaseRenderer {
 
     materialBuffer = new Float32Array(6);
     cameraBuffer = new Float32Array(16 + 16 + 4);
-    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4);
+    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4 + 4);
     poprSettingsBuffer = null;
     lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
     poprSettingsBindGroup = null;
@@ -782,6 +786,10 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[12] = poprSettings.tonemapping.agxSat;
         this.poprSettingsBufferArray[13] = poprSettings.blackAndWhite;
         this.poprSettingsBufferArray[14] = poprSettings.test;
+        this.poprSettingsBufferArray[15] = poprSettings.showSSAO;
+        this.poprSettingsBufferArray[16] = poprSettings.ssaoRadius;
+        this.poprSettingsBufferArray[17] = poprSettings.ssaoBias;
+        this.poprSettingsBufferArray[18] = poprSettings.ssaoMaxDelta;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
