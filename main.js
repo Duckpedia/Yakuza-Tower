@@ -293,28 +293,8 @@ if (Inputs.isPressed('KeyQ')) { // drop currently held item
 
         // clear item, can comment this if u wanna spawn lots
         player.customProperties.currentItem = null;
-    } else {
-        console.log("no item");
     }
-}
-
-    const scaledDt = dt * World.timeScale;
-    for (const entity of scene) {
-        for (const component of entity.components) {
-            if (component instanceof PlayerComponent) {
-                component.update?.(t, dt);    
-            } else {
-                component.update?.(t, scaledDt); 
-            }
-        }
-    }
-
-    for (const entity of scene)
-    {
-        if (!entity.parent) updateWorldMatricesRecursive(entity, new mat4());
-    }
-
-     if (Inputs.isPressed('KeyR')){
+    else {
         const camEntity = World.activeCamera;
         const camTransform = camEntity.getComponentOfType(Transform);
 
@@ -376,6 +356,23 @@ if (Inputs.isPressed('KeyQ')) { // drop currently held item
             console.log("MISS or not a pickup");
         }
 
+    }
+}
+
+    const scaledDt = dt * World.timeScale;
+    for (const entity of scene) {
+        for (const component of entity.components) {
+            if (component instanceof PlayerComponent) {
+                component.update?.(t, dt);    
+            } else {
+                component.update?.(t, scaledDt); 
+            }
+        }
+    }
+
+    for (const entity of scene)
+    {
+        if (!entity.parent) updateWorldMatricesRecursive(entity, new mat4());
     }
         
     inputs.update();
