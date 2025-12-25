@@ -279,7 +279,7 @@ function update(t, dt) {
         }
     }
 
-if (Inputs.isPressed('KeyP')) { // drop currently held item
+if (Inputs.isPressed('KeyQ')) { // drop currently held item
     const currentItem = player.customProperties.currentItem;
     if (currentItem) {
         const playerTransform = player.getComponentOfType(Transform);
