@@ -1,4 +1,9 @@
-@group(0) @binding(0) var<uniform>         camera: Camera;
+struct Fog {
+    scatter: vec3f,
+    transmit: f32
+}
+
+@group(0) @binding(0) var<uniform> camera: Camera;
 
 @group(1) @binding(0) var<uniform>                settings: Settings;
 @group(1) @binding(1) var lightsDepthMaps:        texture_depth_2d_array;
@@ -257,6 +262,85 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
     return color;
 }
 
+fn calculateFog(world: vec3f) -> Fog {
+    var fog: Fog;
+    fog.scatter = vec3f(0.0);
+    fog.transmit = 1.0;
+    return fog;
+
+    let toSurface = world - camera.position.xyz;
+    let distance = length(toSurface);
+    // if (distance <= 1e-4) {
+    //     return fog;
+    // }
+
+    let rayDir = toSurface / distance;
+
+    let steps = 40;
+    let dt = distance / f32(steps);
+
+    // You’ll want jitter (blue noise) + temporal accumulation later; keep deterministic for now.
+    var t = 0.0;
+
+    let phase = 0.07957747154594767;
+    let irradiance = textureSample(irradianceMap, linearSampler, rayDir).rgb;
+
+    for (var s = 0; s < steps; s++) {
+        // Midpoint sampling
+        let tMid = t + 0.5 * dt;
+        let p = camera.position.xyz + rayDir * tMid;
+
+        let rho = 0.0;
+        let sigmaT = rho;
+        let sigmaS = rho * 0.85;
+
+        // transmit over this segment
+        let segmentTr = exp(-sigmaT * dt);
+
+        // Incoming light at p (expensive: loops lights + shadows)
+        var Li = vec3(0.0);//sampleLightingForFog(p);
+        let nLights = arrayLength(&lights);
+        for (var i = 0u; i < nLights; i++) {
+            let lightt = lights[i];
+            let lightPosition = lightt.position.xyz;
+            let lightColor = lightt.color;
+            let lightIntensity = lightt.intensity;
+            let toLight = lightPosition - p.xyz;
+            let light = normalize(toLight);
+
+            var attenuation = 1.0f;
+            if (lightt.falloff > 0)
+            {
+                attenuation = 1.0f / length2(toLight);
+            }
+            // let shadow = calculateShadow(lightt, p);
+            
+            // do calculation only if inside spotlight
+            var d = clamp(dot(lightt.direction, light), -1.0, 1.0);
+            if (d > lightt.outerAngle)
+            {
+                Li += lightColor * lightIntensity * 1000 * attenuation;
+            }
+        }
+
+        // In-scattering contribution over the segment:
+        // dL ≈ Tr(current) * sigmaS * Li * phase * dt
+        fog.scatter += fog.transmit * (sigmaS * dt) * ((Li * phase) + irradiance);
+
+        // Update transmit
+        fog.transmit *= segmentTr;
+
+        // if (fog.transmit < 1e-3) {
+        //     fog.transmit = 0.0;
+        //     break;
+        // }
+
+        t += dt;
+    }
+
+    return fog;
+}
+
 @fragment
 fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let loc = vec2i(input.uv * vec2f(textureDimensions(albedoAndMetallicTexture)));
@@ -268,30 +352,33 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let normal    = normalize(normalAndviewz.xyz);
     let metallic  = albedoAndMetallic.w;
     let roughness = worldAndRoughness.w;
-    let viewz      = normalAndviewz.w;
+    let viewz     = normalAndviewz.w;
 
-    // skybox mostly
-    if (length2(normal) == 0.0)
-    {
-        discard;
-    }
-
-    var color = PBR(albedo, world, normal, metallic, roughness, viewz, input.uv);
     if (settings.passIndex >= 5.0) {
-        color = vec3(roughness);
+        return vec4(vec3(roughness), 1.0);
     }
     else if (settings.passIndex >= 4.0) {
-        color = world;
+        return vec4(world, 1.0);
     }
     else if (settings.passIndex >= 3.0) {
-        color = normal;
+        return vec4(normal, 1.0);
     }
     else if (settings.passIndex >= 2.0) {
-        color = vec3(metallic);
+        return vec4(vec3(metallic), 1.0);
     }
     else if (settings.passIndex >= 1.0) {
-        color = albedo;
+        return vec4(albedo, 1.0);
     }
 
+    // let fog = calculateFog(world);
+    let material = 
+    select(
+        albedo,
+        PBR(albedo, world, normal, metallic, roughness, viewz, input.uv),
+        length2(normalAndviewz.xyz) > 0.0
+    );
+    
+    // let color = fog.scatter + material * fog.transmit;
+    let color = material;
     return vec4(color, 1.0);
 }

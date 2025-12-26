@@ -5,6 +5,7 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) position: vec4f,
+    @location(0) world: vec4f,
     @location(1) texcoords: vec3f,
 }
 
@@ -24,16 +25,22 @@ fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
         vec4f(0.0, 0.0, 0.0, 1.0),
     );
 
-    let clip = camera.projectionMatrix * cameraRot * vec4f(position, 1.0);
+    let world = vec4f(position, 1.0);
+    let clip = camera.projectionMatrix * cameraRot * world;
 
     var output: VertexOutput;
     output.position = vec4f(clip.x, clip.y, clip.w, clip.w);
+    output.world = world;
     output.texcoords = position;
     return output;
 }
 
 @fragment
-fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
+fn fragment(input: VertexOutput) -> DeferredOutput {
     let rgb = textureSample(envTexture, envSampler, input.texcoords.xyz).rgb;
-    return vec4f(rgb, 1.0);
+    var output: DeferredOutput; 
+    output.albedoAndMetallic = vec4f(rgb, 0.0);
+    output.worldAndRoughness = vec4f(input.world.xyz * 1000.0, 0.0);
+    output.normalAndDepth = vec4f(0.0);
+    return output;
 }

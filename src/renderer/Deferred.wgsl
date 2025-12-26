@@ -28,12 +28,6 @@ struct VertexOutput {
     @location(3) normal: vec3f,
 }
 
-struct Output {
-    @location(0) albedoAndMetallic : vec4f,
-    @location(1) worldAndRoughness : vec4f,
-    @location(2) normalAndDepth : vec4f,
-}
-
 @group(0) @binding(0) var<uniform> camera: Camera;
 
 @group(1) @binding(0) var<storage, read> joints: array<Joint>;
@@ -85,11 +79,11 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 }
 
 @fragment
-fn fragment(input: VertexOutput) -> Output {
+fn fragment(input: VertexOutput) -> DeferredOutput {
     let world = input.worldPosition;
     var albedo = textureSample(albedoTexture, albedoTextureSampler, input.texcoords).rgb * material.albedo;
     let normal = normalize(input.normal);
-    var output: Output; 
+    var output: DeferredOutput; 
     output.albedoAndMetallic = vec4f(albedo, material.metallic);
     output.worldAndRoughness = vec4f(world.xyz, material.roughness);
     output.normalAndDepth = vec4f(normal, input.viewPosition.z);

@@ -181,24 +181,9 @@ export class DeferredRenderer extends BaseRenderer {
                 label: 'skybox',
                 layout,
                 vertex: { module },
-                fragment: { 
+                fragment: {
+                    targets: [{ format: 'bgra8unorm', }, { format: 'rgba16float', }, { format: 'rgba16float', }],
                     module,
-                    targets: [{
-                        format: 'rgba16float',
-                        blend: {
-                            color: {
-                                operation: "add",
-                                srcFactor: "one",
-                                dstFactor: "one",
-                            },
-                            alpha: {
-                                operation: "add",
-                                srcFactor: "one",
-                                dstFactor: "one",
-                            },
-                        },
-                        writeMask: GPUColorWrite.ALL,
-                    }], 
                 },
                 depthStencil: {
                     format: 'depth24plus',
@@ -808,12 +793,12 @@ export class DeferredRenderer extends BaseRenderer {
             
         this.renderLights(encoder);
 
-        this.renderLighting(encoder, cameraBindGroup);
-
         if (poprSettings.showSkybox)
         {
             this.renderSkybox(encoder,cameraBindGroup, poprSettings);
         }
+
+        this.renderLighting(encoder, cameraBindGroup);
 
         if (poprSettings.showBloom)
         {
@@ -1099,7 +1084,17 @@ export class DeferredRenderer extends BaseRenderer {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
                 {
-                    view: this.lightingTextureView,
+                    view: this.deferredAlbedoTextureView,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+                {
+                    view: this.deferredPositionTextureView,
+                    loadOp: 'load',
+                    storeOp: 'store',
+                },
+                {
+                    view: this.deferredNormalTextureView,
                     loadOp: 'load',
                     storeOp: 'store',
                 },

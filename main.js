@@ -191,28 +191,28 @@ scene.push(...rangedGuyScene);
     scene.push(...littleguy_scene);
     scene.push(...littleguy2_scene);
 }
-// stackoverflow
-function hsv2rgb(h,s,v) 
-{                              
-  let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
-  return [f(5),f(3),f(1)];       
-}  
+// // stackoverflow
+// function hsv2rgb(h,s,v) 
+// {                              
+//   let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
+//   return [f(5),f(3),f(1)];       
+// }  
 
-const rotationMat = new glm.mat4();
-glm.mat4.fromYRotation(rotationMat, .016);
+// const rotationMat = new glm.mat4();
+// glm.mat4.fromYRotation(rotationMat, .016);
 
-const degreesToRads = deg => (deg * Math.PI) / 180.0;
-for (let i = 0; i < 360; i += 60)
-{
-    const light = new Entity();
-    let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
-    vec3.scale(translation, translation, Math.random() * 9 + 1);
-    light.transform = new Transform({ translation });
-    light.addComponent(light.transform);
-    light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 2230.0 }));
-    light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
-    scene.push(light);
-}
+// const degreesToRads = deg => (deg * Math.PI) / 180.0;
+// for (let i = 0; i < 360; i += 60)
+// {
+//     const light = new Entity();
+//     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
+//     vec3.scale(translation, translation, Math.random() * 9 + 1);
+//     light.transform = new Transform({ translation });
+//     light.addComponent(light.transform);
+//     light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 2230.0 }));
+//     light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
+//     scene.push(light);
+// }
 
 const physics = new Physics(scene);
 for (const entity of scene) {

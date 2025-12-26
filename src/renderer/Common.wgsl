@@ -56,6 +56,12 @@ struct FullscreenVertexOutput {
     @location(0) uv: vec2f,
 }
 
+struct DeferredOutput {
+    @location(0) albedoAndMetallic : vec4f,
+    @location(1) worldAndRoughness : vec4f,
+    @location(2) normalAndDepth : vec4f,
+}
+
 const PI = 3.14159265359;
 
 const FULLSCREEN_QUAD_POSITIONS : array<vec2f, 6> = array<vec2f, 6>(
