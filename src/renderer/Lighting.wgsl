@@ -143,7 +143,7 @@ fn calculateShadow(light: Light, world: vec3f) -> f32
                 lightsDepthMapsSampler, 
                 uv + diff,
                 shadowIndex,
-                ndc.z - 0.00001f
+                ndc.z - 0.0001f
             );
         }
     }
