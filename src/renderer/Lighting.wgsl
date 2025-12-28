@@ -16,12 +16,11 @@
 @group(3) @binding(0) var<storage, read> lights: array<Light>;
 
 // https://learnopengl.com/PBR/Theory
-fn distributionGGX(normal: vec3f, half: vec3f, roughness: f32) -> f32
+fn distributionGGX(normalDotHalf: f32, roughness: f32) -> f32
 {
-    let a = roughness * roughness * roughness * roughness;
-    let d = positiveDot(normal, half);
-    var denom = d * d * (a - 1.0f) + 1.0f;
-    return a / (3.14159265359f * denom * denom);
+    let a2 = roughness * roughness * roughness * roughness;
+    var denom = normalDotHalf * normalDotHalf * (a2 - 1.0f) + 1.0f;
+    return a2 / (PI * denom * denom);
 }
 
 fn geometrySchlickGGX(normalDotView: f32 , roughness: f32) -> f32
@@ -31,10 +30,8 @@ fn geometrySchlickGGX(normalDotView: f32 , roughness: f32) -> f32
     return normalDotView / (normalDotView * (1.0f - k) + k);
 }
 
-fn geometrySmith(normal: vec3f, view: vec3f, light: vec3f, roughness: f32) -> f32
+fn geometrySmith(normalDotView: f32, normalDotLight: f32, roughness: f32) -> f32
 {
-    let normalDotView = positiveDot(normal, view);
-    let normalDotLight = positiveDot(normal, light);
     return geometrySchlickGGX(normalDotView, roughness) * geometrySchlickGGX(normalDotLight, roughness);
 }
 
@@ -137,13 +134,14 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
         var d = clamp(dot(light.direction, l), -1.0, 1.0);
         if (d > light.outerAngle)
         {
-            let normalDotLight = positiveDot(normal, l);
             let half = normalize(view + l);
+            let normalDotLight = positiveDot(normal, l);
+            let normalDotHalf = positiveDot(normal, half);
 
             var attenuation = select(1.0f, 1.0f / length2(toLight), light.falloff > 0);
 
-            let ndf = distributionGGX(normal, half, roughness);
-            let g = geometrySmith(normal, view, l, roughness);
+            let ndf = distributionGGX(normalDotHalf, roughness);
+            let g = geometrySmith(normalDotView, normalDotLight, roughness);
             let f = fresnelSchlick(positiveDot(half, view), f0);
             let specular = (ndf * g * f) / (4.0f * normalDotView * normalDotLight + 0.0001f);
 

@@ -1043,7 +1043,7 @@ export class DeferredRenderer extends BaseRenderer {
             const light = this.lights[i];
             const bufI = i * this.lightsBuffer.elementSize;
             const shadowindex = light._light.shadows ? nShadowCastingLights++ : -1;
-            const hasFalloff = light._light.type !== 'sun' ? 1 : 0;
+            const hasFalloff = light._light.type === 'directional' ? 0 : 1;
             mat4.mul(viewProj, this.lightsDefaultProjectionMatrix, light._transform.inv_final);
             this.lightsBuffer.array.set(viewProj, bufI);
             this.lightsBuffer.array.set(light._light.color, bufI + 16);

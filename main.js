@@ -209,7 +209,7 @@ scene.push(...rangedGuyScene);
 //     vec3.scale(translation, translation, Math.random() * 9 + 1);
 //     light.transform = new Transform({ translation });
 //     light.addComponent(light.transform);
-//     light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 2230.0 }));
+//     light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 22230.0 }));
 //     light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
 //     scene.push(light);
 // }
@@ -405,6 +405,8 @@ function resize({ displaySize: { width, height }}) {
 
 new ResizeSystem({ canvas, resize }).start();
 new UpdateSystem({ update, render }).start();
+
+
 
 const gui = new GUI();
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);

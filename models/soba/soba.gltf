@@ -18,7 +18,7 @@
 						0.9974614381790161,
 						1
 					],
-					"intensity":6830,
+					"intensity":683,
 					"type":"directional",
 					"name":"Sun"
 				},
@@ -1179,7 +1179,7 @@
 					1
 				],
 				"metallicFactor":0,
-				"roughnessFactor":0.3298245668411255
+				"roughnessFactor":0.1550387591123581
 			}
 		},
 		{

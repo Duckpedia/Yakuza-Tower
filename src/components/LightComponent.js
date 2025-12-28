@@ -3,7 +3,7 @@ export class LightComponent {
         this.color = color;
         this.type = type;
         this.shadows = shadows;
-        this.intensity = type === 'directional' ? intensity * 1 : intensity * 0.0003; // blender exports values in Watts and idk what that means
+        this.intensity = type === 'directional' ? intensity * 0.01 : intensity * 0.0003; // blender exports values in Watts and idk what that means
         this.innerAngle = innerAngle;
         this.outerAngle = outerAngle;
     }

@@ -161,3 +161,19 @@ Somehow in order of doing.
 * unarmed
 * katana
 * gun
+
+## kajje narjen od renderinga
+
+- deferred
+- pbr metallic roughness (hdri reflections), learnopengl, ne disney
+- point spot sun lights
+- hdri ibl
+- shadowmapping (brez kaskad) z shitty pcf
+- naive volumetric fog z half resolution
+- bloom
+- tonemapping (reinhard pa agx)
+- skybox
+- debug graphics + passes + wireframe
+- batching po materialnih (zaenkrat useless k primitive niso zmergane), pa instancing po meshu
+- ssao
+- skeletal skinning
