@@ -40,7 +40,7 @@ fn fragment(input: VertexOutput) -> DeferredOutput {
     let rgb = textureSample(envTexture, envSampler, input.texcoords.xyz).rgb;
     var output: DeferredOutput; 
     output.albedoAndMetallic = vec4f(rgb, 0.0);
-    output.worldAndRoughness = vec4f(input.world.xyz * 1000.0, 0.0);
+    output.worldAndRoughness = vec4f(camera.position.xyz + input.world.xyz, -1.0);
     output.normalAndDepth = vec4f(0.0);
     return output;
 }

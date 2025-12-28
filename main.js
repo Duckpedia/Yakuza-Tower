@@ -236,6 +236,7 @@ World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
 function update(t, dt) {
+    World.poprSettings.time = t;
     if (World.poprSettings.debug)
     {
         const x = -11;
@@ -418,7 +419,11 @@ gui.add(World.poprSettings.tonemapping.agxPower, 1, 0.0, 2.0).name('powerY');
 gui.add(World.poprSettings.tonemapping.agxPower, 2, 0.0, 2.0).name('powerZ');
 gui.add(World.poprSettings.tonemapping, 'agxSat', 0.0, 5.0);
 gui.add(World.poprSettings, 'test', 0.0, 1.0);
-gui.add(World.poprSettings, 'showSSAO', 0.0, 1.0);
+gui.add(World.poprSettings, 'showSSAO', 0, 1);
 gui.add(World.poprSettings, 'ssaoRadius', 0.0, 1.0);
 gui.add(World.poprSettings, 'ssaoBias', 0.0, 0.1);
 gui.add(World.poprSettings, 'ssaoMaxDelta', 0.0, 1.0);
+gui.add(World.poprSettings, 'fogStrength', 0.0, 0.1);
+gui.add(World.poprSettings, 'fogLightFactor', 0.0, 10.0);
+gui.add(World.poprSettings, 'fogSteps', 0, 160);
+gui.add(World.poprSettings, 'showFog', 0, 1);

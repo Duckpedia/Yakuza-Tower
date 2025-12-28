@@ -1,36 +1,33 @@
-fn integrateBRDF(NdotV: f32, roughness: f32) -> vec2f {
-    var V: vec3f;
-    V.x = sqrt(1.0 - NdotV * NdotV);
-    V.y = 0.0;
-    V.z = NdotV;
+// learnopengl
+// "kako zgleda brdf pr temu roughnessu in kotu pogleda"
+fn integrateBRDF(normalDotView: f32, roughness: f32) -> vec2f {
+    let normal = vec3f(0.0, 0.0, 1.0);
+    let view = vec3(sqrt(1.0 - normalDotView * normalDotView), 0.0, normalDotView);
 
-    var A: f32 = 0.0;
-    var B: f32 = 0.0;
+    var a = 0.0;
+    var b = 0.0;
 
-    let N = vec3f(0.0, 0.0, 1.0);
+    let SAMPLE_COUNT = 1024u;
+    for(var i = 0u; i < SAMPLE_COUNT; i += 1u) {
+        let Xi = hammersley(i, SAMPLE_COUNT);
+        let half = importanceSampleGGX(Xi, normal, roughness);
+        let light = normalize(2.0 * dot(view, half) * half - view);
 
-    let SAMPLE_COUNT: u32 = 1024u;
-    for(var i: u32 = 0u; i < SAMPLE_COUNT; i = i + 1u) {
-        let Xi: vec2f = hammersley(i, SAMPLE_COUNT);
-        let H: vec3f = importanceSampleGGX(Xi, N, roughness);
-        let L: vec3f = normalize(2.0 * dot(V, H) * H - V);
+        // v(0,0,1) dot X = X.z
+        let normalDotLight = max(light.z, 0.0);
+        let normalDotHalf  = max(half.z, 0.0);
+        let viewDotHalf    = max(dot(view, half), 0.0);
 
-        let NdotL: f32 = max(L.z, 0.0);
-        let NdotH: f32 = max(H.z, 0.0);
-        let VdotH: f32 = max(dot(V, H), 0.0);
+        if(normalDotLight > 0.0) {
+            let g = geometrySmith(normal, view, light, roughness);
+            let G_Vis = (g * viewDotHalf) / max(normalDotHalf * max(normalDotView, 1e-4), 1e-4);
+            let Fc = pow(1.0 - viewDotHalf, 5.0);
 
-        if(NdotL > 0.0) {
-            let G: f32 = geometrySmith(N, V, L, roughness);
-            let G_Vis: f32 = (G * VdotH) / max(NdotH * max(NdotV, 1e-4), 1e-4);
-            let Fc: f32 = pow(1.0 - VdotH, 5.0);
-
-            A += (1.0 - Fc) * G_Vis;
-            B += Fc * G_Vis;
+            a += (1.0 - Fc) * G_Vis;
+            b += Fc * G_Vis;
         }
     }
-    A /= f32(SAMPLE_COUNT);
-    B /= f32(SAMPLE_COUNT);
-    return vec2f(A, B);
+    return vec2f(a, b) / f32(SAMPLE_COUNT);
 }
 
 @fragment

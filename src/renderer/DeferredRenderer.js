@@ -39,6 +39,10 @@ export class DeferredRendererSettings {
     ssaoRadius = 0.5;
     ssaoBias = 0.025;
     ssaoMaxDelta = 0.17;
+    showFog = true;
+    fogStrength = 0.006;
+    fogLightFactor = 1.0;
+    fogSteps = 60;
 }
 
 class GPUBuffer {
@@ -72,7 +76,7 @@ export class DeferredRenderer extends BaseRenderer {
 
     materialBuffer = new Float32Array(6);
     cameraBuffer = new Float32Array(16 + 16 + 4);
-    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4 + 4);
+    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4 + 4 + 4);
     poprSettingsBuffer = null;
     lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
     poprSettingsBindGroup = null;
@@ -511,19 +515,40 @@ export class DeferredRenderer extends BaseRenderer {
             textureBindGroupEntry,
             filteringSamplerBindGroupEntry
         ]);
-        this.deferredtargetsBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry, textureBindGroupEntry, textureBindGroupEntry]);
+        this.deferredtargetsBindGroupLayout = this.createBindGroupLayout([
+            textureBindGroupEntry, 
+            textureBindGroupEntry, 
+            textureBindGroupEntry, 
+            textureBindGroupEntry
+        ]);
         this.lightsBindGroupLayout = this.createBindGroupLayout([storageBufferBindGroupEntry]);
-        const layout = this.device.createPipelineLayout({
+        const lightingLayout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.cameraBindGroupLayout, secondBindGroupLayout, this.deferredtargetsBindGroupLayout, this.lightsBindGroupLayout],
         });
 
-        const module = await this.loadShaderModule('Lighting.wgsl', [this.fullscreenCommonCode]);
+        const lightingModule = await this.loadShaderModule('Lighting.wgsl', [this.fullscreenCommonCode]);
         this.lightingPipeline = await this.device.createRenderPipelineAsync({
             label: 'lighting',
-            layout,
-            vertex: { module },
+            layout: lightingLayout,
+            vertex: { module: lightingModule },
             fragment: {
-                module,
+                module: lightingModule,
+                targets: [{ format: 'rgba16float' }],
+            },
+        });
+        
+        this.fogBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry]);
+        const fogLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.cameraBindGroupLayout, secondBindGroupLayout, this.fogBindGroupLayout, this.lightsBindGroupLayout],
+        });
+
+        const fogModule = await this.loadShaderModule('Fog.wgsl', [this.fullscreenCommonCode]);
+        this.fogPipeline = await this.device.createRenderPipelineAsync({
+            label: 'fog',
+            layout: fogLayout,
+            vertex: { module: fogModule },
+            fragment: {
+                module: fogModule,
                 targets: [{ format: 'rgba16float' }],
             },
         });
@@ -715,13 +740,27 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.deferredNormalTextureView = this.deferredNormalTexture.createView();
 
+        this.fogTexture = this.device.createTexture({
+            format: 'rgba16float',
+            // TODO: figure out good values for this / MSAA :pray:
+            size: [this.canvas.width * 0.4, this.canvas.height * 0.4],
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.fogTextureView = this.fogTexture.createView();
+
         this.deferredTargetsBindGroup = this.device.createBindGroup({
             layout: this.deferredtargetsBindGroupLayout,
             entries: [
                 { binding: 0, resource: this.deferredAlbedoTextureView, },
                 { binding: 1, resource: this.deferredPositionTextureView, },
                 { binding: 2, resource: this.deferredNormalTextureView, },
+                { binding: 3, resource: this.fogTextureView, },
             ],
+        });
+
+        this.fogBindGroup = this.device.createBindGroup({
+            layout: this.fogBindGroupLayout,
+            entries: [ { binding: 0, resource: this.deferredPositionTextureView, } ],
         });
         
         this.lightingTexture = this.device.createTexture({
@@ -771,10 +810,14 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[12] = poprSettings.tonemapping.agxSat;
         this.poprSettingsBufferArray[13] = poprSettings.blackAndWhite;
         this.poprSettingsBufferArray[14] = poprSettings.test;
-        this.poprSettingsBufferArray[15] = poprSettings.showSSAO;
-        this.poprSettingsBufferArray[16] = poprSettings.ssaoRadius;
-        this.poprSettingsBufferArray[17] = poprSettings.ssaoBias;
-        this.poprSettingsBufferArray[18] = poprSettings.ssaoMaxDelta;
+        this.poprSettingsBufferArray[15] = poprSettings.time;
+        this.poprSettingsBufferArray[16] = poprSettings.showSSAO;
+        this.poprSettingsBufferArray[17] = poprSettings.ssaoRadius;
+        this.poprSettingsBufferArray[18] = poprSettings.ssaoBias;
+        this.poprSettingsBufferArray[19] = poprSettings.ssaoMaxDelta;
+        this.poprSettingsBufferArray[20] = poprSettings.fogStrength;
+        this.poprSettingsBufferArray[21] = poprSettings.fogLightFactor;
+        this.poprSettingsBufferArray[22] = poprSettings.showFog ? poprSettings.fogSteps : 0;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
@@ -798,7 +841,7 @@ export class DeferredRenderer extends BaseRenderer {
             this.renderSkybox(encoder,cameraBindGroup, poprSettings);
         }
 
-        this.renderLighting(encoder, cameraBindGroup);
+        this.renderLighting(encoder, cameraBindGroup, poprSettings);
 
         if (poprSettings.showBloom)
         {
@@ -1056,12 +1099,12 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    renderLighting(encoder, cameraBindGroup)
+    renderLighting(encoder, cameraBindGroup, poprSettings)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
                 {
-                    view: this.lightingTextureView,
+                    view: this.fogTextureView,
                     clearValue: [ 0.0, 0.0, 0.0, 1.0 ],
                     loadOp: 'clear',
                     storeOp: 'store',
@@ -1069,14 +1112,36 @@ export class DeferredRenderer extends BaseRenderer {
             ],
         });
 
-        renderPass.setPipeline(this.lightingPipeline);
+        renderPass.setPipeline(this.fogPipeline);
         renderPass.setBindGroup(0, cameraBindGroup);
         renderPass.setBindGroup(1, this.lightingBindGroup);
-        renderPass.setBindGroup(2, this.deferredTargetsBindGroup);
+        renderPass.setBindGroup(2, this.fogBindGroup);
         renderPass.setBindGroup(3, this.lightsBindGroup);
         renderPass.draw(6);
 
         renderPass.end();
+
+        {
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: this.lightingTextureView,
+                        clearValue: [ 0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
+
+            renderPass.setPipeline(this.lightingPipeline);
+            renderPass.setBindGroup(0, cameraBindGroup);
+            renderPass.setBindGroup(1, this.lightingBindGroup);
+            renderPass.setBindGroup(2, this.deferredTargetsBindGroup);
+            renderPass.setBindGroup(3, this.lightsBindGroup);
+            renderPass.draw(6);
+
+            renderPass.end();
+        }
     }
 
     renderSkybox(encoder, cameraBindGroup, poprSettings)
