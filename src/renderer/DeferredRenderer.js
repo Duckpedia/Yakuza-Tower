@@ -1,16 +1,10 @@
-import { mat4, vec2, vec4 } from 'glm';
+import { mat4, vec2, vec3, vec4 } from 'glm';
 
 import * as WebGPU from '../../engine/WebGPU.js';
 
 import { Camera } from '../../engine/core/core.js';
 
-import {
-    getGlobalViewMatrix,
-    getProjectionMatrix,
-} from '../../engine/core/SceneUtils.js';
-
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
-import { vec3 } from '../../lib/glm.js';
 
 export class DeferredRendererSettings {
     pass = 0;
@@ -74,11 +68,12 @@ export class DeferredRenderer extends BaseRenderer {
     static randomRectangle = { position: new vec2(0.25, 0.25), scale: new vec2(0.5, 0.5) };
     static s = null;
 
-    materialBuffer = new Float32Array(6);
-    cameraBuffer = new Float32Array(16 + 16 + 4);
+    materialBuffer = new Float32Array(4 + 4);
+    cameraBuffer = new Float32Array(16 + 16 + 16 + 16 + 4);
     poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4 + 4 + 4);
     poprSettingsBuffer = null;
     lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
+    lightsDefaultInverseProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100).invert();
     poprSettingsBindGroup = null;
 
     // per frame stuff
@@ -115,7 +110,12 @@ export class DeferredRenderer extends BaseRenderer {
         this.instancesBuffer = new GPUBuffer(this.device, 0, 132, ArrayBuffer, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
         this.uiInstancesBuffer = new GPUBuffer(this.device, 0, 4 + 4, Float32Array, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
         this.debugLinesBuffer = new GPUBuffer(this.device, 0, 4 + 4 + 4, Float32Array, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
-    
+        this.deferredTargets = [
+            { format: 'bgra8unorm', },
+            { format: 'rgba16float', }, // TODO: use a smaller format
+            // { format: 'bgra8unorm', } 
+        ];
+
         await this.setUpSkybox();
         await this.setUpDeferred();
         await this.setUpLighting();
@@ -186,7 +186,7 @@ export class DeferredRenderer extends BaseRenderer {
                 layout,
                 vertex: { module },
                 fragment: {
-                    targets: [{ format: 'bgra8unorm', }, { format: 'rgba16float', }, { format: 'rgba16float', }],
+                    targets: this.deferredTargets,
                     module,
                 },
                 depthStencil: {
@@ -428,7 +428,7 @@ export class DeferredRenderer extends BaseRenderer {
             },
             fragment: {
                 module,
-                targets: [{ format: 'bgra8unorm', }, { format: 'rgba16float', }, { format: 'rgba16float', }],
+                targets: this.deferredTargets,
             },
             depthStencil: {
                 format: 'depth24plus',
@@ -518,8 +518,9 @@ export class DeferredRenderer extends BaseRenderer {
         this.deferredtargetsBindGroupLayout = this.createBindGroupLayout([
             textureBindGroupEntry, 
             textureBindGroupEntry, 
-            textureBindGroupEntry, 
-            textureBindGroupEntry
+            // textureBindGroupEntry, 
+            textureBindGroupEntry,
+            depthTextureBindGroupEntry
         ]);
         this.lightsBindGroupLayout = this.createBindGroupLayout([storageBufferBindGroupEntry]);
         const lightingLayout = this.device.createPipelineLayout({
@@ -537,7 +538,7 @@ export class DeferredRenderer extends BaseRenderer {
             },
         });
         
-        this.fogBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry]);
+        this.fogBindGroupLayout = this.createBindGroupLayout([depthTextureBindGroupEntry]);
         const fogLayout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.cameraBindGroupLayout, secondBindGroupLayout, this.fogBindGroupLayout, this.lightsBindGroupLayout],
         });
@@ -549,7 +550,7 @@ export class DeferredRenderer extends BaseRenderer {
             vertex: { module: fogModule },
             fragment: {
                 module: fogModule,
-                targets: [{ format: 'rgba16float' }],
+                targets: [{ format: 'bgra8unorm' }],
             },
         });
 
@@ -719,29 +720,29 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.defferedDepthTextureView = this.defferedDepthTexture.createView();
 
-        this.deferredAlbedoTexture = this.device.createTexture({
+        this.deferredBaseAndMetallicTexture = this.device.createTexture({
             format: 'bgra8unorm',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
-        this.deferredAlbedoTextureView = this.deferredAlbedoTexture.createView();
+        this.deferredBaseAndMetallicTextureView = this.deferredBaseAndMetallicTexture.createView();
 
-        this.deferredPositionTexture = this.device.createTexture({
+        this.deferredNormalEmissionRoughnessTexture = this.device.createTexture({
             format: 'rgba16float',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
-        this.deferredPositionTextureView = this.deferredPositionTexture.createView();
+        this.deferredNormalEmissionRoughnessView = this.deferredNormalEmissionRoughnessTexture.createView();
 
-        this.deferredNormalTexture = this.device.createTexture({
-            format: 'rgba16float',
-            size: [this.canvas.width, this.canvas.height],
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-        });
-        this.deferredNormalTextureView = this.deferredNormalTexture.createView();
+        // this.deferredSubsurfaceSpecularSpecularTintClearcoatTexture = this.device.createTexture({
+        //     format: 'bgra8unorm',
+        //     size: [this.canvas.width, this.canvas.height],
+        //     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        // });
+        // this.deferredSubsurfaceSpecularSpecularTintClearcoatView = this.deferredSubsurfaceSpecularSpecularTintClearcoatTexture.createView();
 
         this.fogTexture = this.device.createTexture({
-            format: 'rgba16float',
+            format: 'bgra8unorm',
             // TODO: figure out good values for this / MSAA :pray:
             size: [this.canvas.width * 0.4, this.canvas.height * 0.4],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
@@ -751,16 +752,17 @@ export class DeferredRenderer extends BaseRenderer {
         this.deferredTargetsBindGroup = this.device.createBindGroup({
             layout: this.deferredtargetsBindGroupLayout,
             entries: [
-                { binding: 0, resource: this.deferredAlbedoTextureView, },
-                { binding: 1, resource: this.deferredPositionTextureView, },
-                { binding: 2, resource: this.deferredNormalTextureView, },
-                { binding: 3, resource: this.fogTextureView, },
+                { binding: 0, resource: this.deferredBaseAndMetallicTextureView, },
+                { binding: 1, resource: this.deferredNormalEmissionRoughnessView, },
+                // { binding: 2, resource: this.deferredSubsurfaceSpecularSpecularTintClearcoatView, },
+                { binding: 2, resource: this.fogTextureView, },
+                { binding: 3, resource: this.defferedDepthTextureView, },
             ],
         });
 
         this.fogBindGroup = this.device.createBindGroup({
             layout: this.fogBindGroupLayout,
-            entries: [ { binding: 0, resource: this.deferredPositionTextureView, } ],
+            entries: [ { binding: 0, resource: this.defferedDepthTextureView, } ],
         });
         
         this.lightingTexture = this.device.createTexture({
@@ -821,10 +823,15 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
+        let projectionMatrix = cameraComponent.projectionMatrix;
+        let viewMatrix = new mat4();
+        mat4.invert(viewMatrix, camera._transform.final);
         const { cameraUniformBuffer, cameraBindGroup } = this.prepareCamera(cameraComponent);
-        this.cameraBuffer.set(getGlobalViewMatrix(camera), 0);
-        this.cameraBuffer.set(getProjectionMatrix(camera), 16);
-        this.cameraBuffer.set(camera._transform.final_position, 32);
+        this.cameraBuffer.set(viewMatrix, 0);
+        this.cameraBuffer.set(projectionMatrix, 16);
+        this.cameraBuffer.set(viewMatrix.invert(), 32);
+        this.cameraBuffer.set(projectionMatrix.invert(), 48);
+        this.cameraBuffer.set(camera._transform.final_position, 64);
         this.device.queue.writeBuffer(cameraUniformBuffer, 0, this.cameraBuffer.buffer);
 
         const target = this.context.getCurrentTexture().createView();
@@ -985,23 +992,23 @@ export class DeferredRenderer extends BaseRenderer {
             const renderPass = encoder.beginRenderPass({
                 colorAttachments: [
                     {
-                        view: this.deferredAlbedoTextureView,
+                        view: this.deferredBaseAndMetallicTextureView,
                         clearValue: [0.0, 0.0, 0.0, 1.0 ],
                         loadOp: 'clear',
                         storeOp: 'store',
                     },
                     {
-                        view: this.deferredPositionTextureView,
+                        view: this.deferredNormalEmissionRoughnessView,
                         clearValue: [0.0, 0.0, 0.0, 1.0 ],
                         loadOp: 'clear',
                         storeOp: 'store',
                     },
-                    {
-                        view: this.deferredNormalTextureView,
-                        clearValue: [ 0.0, 0.0, 0.0, 0.0 ],
-                        loadOp: 'clear',
-                        storeOp: 'store',
-                    },
+                    // {
+                    //     view: this.deferredSubsurfaceSpecularSpecularTintClearcoatView,
+                    //     clearValue: [ 0.0, 0.0, 0.0, 0.0 ],
+                    //     loadOp: 'clear',
+                    //     storeOp: 'store',
+                    // },
                 ],
                 depthStencilAttachment: {
                     view: this.defferedDepthTextureView,
@@ -1149,25 +1156,25 @@ export class DeferredRenderer extends BaseRenderer {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
                 {
-                    view: this.deferredAlbedoTextureView,
+                    view: this.deferredBaseAndMetallicTextureView,
                     loadOp: 'load',
                     storeOp: 'store',
                 },
                 {
-                    view: this.deferredPositionTextureView,
+                    view: this.deferredNormalEmissionRoughnessView,
                     loadOp: 'load',
                     storeOp: 'store',
                 },
-                {
-                    view: this.deferredNormalTextureView,
-                    loadOp: 'load',
-                    storeOp: 'store',
-                },
+                // {
+                //     view: this.deferredSubsurfaceSpecularSpecularTintClearcoatView,
+                //     loadOp: 'load',
+                //     storeOp: 'store',
+                // },
             ],
             depthStencilAttachment: {
                 view: this.defferedDepthTextureView,
                 depthLoadOp: 'load',
-                depthStoreOp: 'discard',
+                depthStoreOp: 'store',
             },
         });
 
@@ -1351,11 +1358,6 @@ export class DeferredRenderer extends BaseRenderer {
             if (materials)
             {
                 const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
-                this.materialBuffer.set(material.albedoFactor, 0);
-                this.materialBuffer[3] = material.metalnessFactor;
-                this.materialBuffer[4] = material.roughnessFactor;
-                this.materialBuffer[5] = material.aoFactor;
-                this.device.queue.writeBuffer(materialUniformBuffer, 0, this.materialBuffer.buffer);
                 renderPass.setBindGroup(2, materialBindGroup);
             }
 
@@ -1382,7 +1384,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
 
         const cameraUniformBuffer = this.device.createBuffer({
-            size: 144,
+            size: (16 + 16 + 16 + 16 + 4) * 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
@@ -1402,7 +1404,7 @@ export class DeferredRenderer extends BaseRenderer {
             return this.gpuObjects.get(light);
         }
 
-        const lightUniformBufferArray = new Float32Array(16 + 16 + 4);
+        const lightUniformBufferArray = new Float32Array(16 + 16 + 16 + 16 + 4);
         const lightUniformBuffer = WebGPU.createBuffer(this.device, {
             data: lightUniformBufferArray,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -1440,23 +1442,33 @@ export class DeferredRenderer extends BaseRenderer {
             return this.gpuObjects.get(material);
         }
 
-        if (!material.albedoTexture) 
+        if (!material.baseTexture) 
         {
-            material.albedoTexture = this.dummyMaterial.albedoTexture;
+            material.baseTexture = this.dummyMaterial.baseTexture;
         }
         
-        const albedoTexture = this.prepareTexture(material.albedoTexture, true, material.screen); // albedo is always srgb
+        const baseTexture = this.prepareTexture(material.baseTexture, true, material.screen); // base is always srgb
 
-        const materialUniformBuffer = this.device.createBuffer({
-            size: 32,
+        this.materialBuffer.set(material.base, 0);
+        this.materialBuffer[3] = material.metallic;
+        this.materialBuffer[4] = material.roughness;
+        this.materialBuffer[5] = material.emission;
+        console.log(material.emission);
+        // this.materialBuffer[5] = material.subsurface;
+        // this.materialBuffer[6] = material.specular;
+        // this.materialBuffer[7] = material.specularTint;
+        // this.materialBuffer[8] = material.clearcoat;
+
+        const materialUniformBuffer = WebGPU.createBuffer(this.device, {
+            data: this.materialBuffer,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
         const materialBindGroup = this.device.createBindGroup({
             layout: this.materialBindGroupLayout,
             entries: [
-                { binding: 0, resource: albedoTexture.gpuTexture },
-                { binding: 1, resource: albedoTexture.gpuSampler },
+                { binding: 0, resource: baseTexture.gpuTexture },
+                { binding: 1, resource: baseTexture.gpuSampler },
                 { binding: 2, resource: materialUniformBuffer },
             ],
         });
@@ -1700,11 +1712,19 @@ const textureBindGroupEntry = {
     },
 };
 
+const depthTextureBindGroupEntry = {
+    visibility: GPUShaderStage.FRAGMENT,
+    texture: {
+        viewDimension: "2d",
+        sampleType: "depth",
+    },
+};
+
 const depthArrayTextureBindGroupEntry = {
     visibility: GPUShaderStage.FRAGMENT,
     texture: {
-        sampleType: "depth",
         viewDimension: "2d-array",
+        sampleType: "depth",
     },
 };
 

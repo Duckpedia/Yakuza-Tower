@@ -1,33 +1,25 @@
 export class Material {
 
     constructor({
-        albedoTexture,
-        // emissionTexture,
-        // normalTexture,
-        // occlusionTexture,
-        // roughnessTexture,
-        // metalnessTexture,
-
-        albedoFactor = [1, 1, 1, 1],
-        // emissionFactor = [0, 0, 0],
-        // normalFactor = 1,
-        aoFactor = 1,
-        roughnessFactor = 1,
-        metalnessFactor = 1,
+        baseTexture,
+        base = [1, 1, 1],
+        metallic = 1.0,
+        roughness = 1.0,
+        emission = 0.0,
+        // subsurface = 0.0,
+        // specular = 0.5,
+        // specularTint = 0.0,
+        // clearcoat = 0.0,
     } = {}) {
-        this.albedoTexture = albedoTexture;
-        // this.emissionTexture = emissionTexture;
-        // this.normalTexture = normalTexture;
-        // this.occlusionTexture = occlusionTexture;
-        // this.roughnessTexture = roughnessTexture;
-        // this.metalnessTexture = metalnessTexture;
-
-        this.albedoFactor = albedoFactor;
-        // this.emissionFactor = emissionFactor;
-        // this.normalFactor = normalFactor;
-        this.aoFactor = aoFactor;
-        this.roughnessFactor = roughnessFactor;
-        this.metalnessFactor = metalnessFactor;
+        this.baseTexture = baseTexture;
+        this.base = base;
+        this.metallic = metallic;
+        this.roughness = roughness;
+        this.emission = emission;
+        // this.subsurface = subsurface;
+        // this.specular = specular;
+        // this.specularTint = specularTint;
+        // this.clearcoat = clearcoat;
     }
 
 }

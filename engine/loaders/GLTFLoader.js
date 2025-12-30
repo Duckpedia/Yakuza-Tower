@@ -14,6 +14,7 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
+import { vec3 } from 'glm';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -207,32 +208,36 @@ export class GLTFLoader {
         const pbr = gltfSpec.pbrMetallicRoughness;
         if (pbr) {
             if (pbr.baseColorTexture) {
-                options.albedoTexture = this.loadTexture(pbr.baseColorTexture.index);
-                options.albedoTexture.isSRGB = true;
+                options.baseTexture = this.loadTexture(pbr.baseColorTexture.index);
+                options.baseTexture.isSRGB = true;
             }
-            // if (pbr.metallicRoughnessTexture) {
-            //     options.metalnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-            //     options.roughnessTexture = this.loadTexture(pbr.metallicRoughnessTexture.index);
-            // }
-            options.albedoFactor = pbr.baseColorFactor;
-            options.metalnessFactor = pbr.metallicFactor;
-            options.roughnessFactor = pbr.roughnessFactor;
+            options.base = pbr.baseColorFactor;
+            options.metallic = pbr.metallicFactor;
+            options.roughness = pbr.roughnessFactor;
         }
 
-        // if (gltfSpec.normalTexture) {
-        //     options.normalTexture = this.loadTexture(gltfSpec.normalTexture.index);
-        //     options.normalFactor = gltfSpec.normalTexture.scale;
+        // debugger;
+        const ext = gltfSpec.extensions ?? {};
+
+        if (ext.KHR_materials_emissive_strength?.emissiveStrength != null) {
+            options.emission = ext.KHR_materials_emissive_strength.emissiveStrength;
+        }
+        
+        // if (ext.KHR_materials_clearcoat?.clearcoatFactor != null) {
+        //     options.clearcoat = ext.KHR_materials_clearcoat.clearcoatFactor;
         // }
 
-        // if (gltfSpec.emissiveTexture) {
-        //     options.emissionTexture = this.loadTexture(gltfSpec.emissiveTexture.index);
-        //     options.emissionTexture.isSRGB = true;
-        //     options.emissionFactor = gltfSpec.emissiveFactor;
+        // if (ext.KHR_materials_clearcoat?.clearcoatFactor != null) {
+        //     options.clearcoat = ext.KHR_materials_clearcoat.clearcoatFactor;
         // }
 
-        // if (gltfSpec.occlusionTexture) {
-        //     options.occlusionTexture = this.loadTexture(gltfSpec.occlusionTexture.index);
-        //     options.occlusionFactor = gltfSpec.occlusionTexture.strength;
+        // if (ext.KHR_materials_specular) {
+        //     options.specular = ext.KHR_materials_specular.specularFactor;
+        //     options.specularColorFactor = sp.specularColorFactor.slice(0, 3);
+        // }
+
+        // if (ext.KHR_materials_ior?.ior != null) {
+        //     options.ior = ext.KHR_materials_ior.ior;
         // }
 
         const material = new Material(options);

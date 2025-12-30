@@ -248,7 +248,7 @@ function update(t, dt) {
 
     if (Inputs.isPressed('KeyG'))
     {
-        World.poprSettings.pass = (World.poprSettings.pass + 1) % 6;
+        World.poprSettings.pass = (World.poprSettings.pass + 1) % 7;
         World.poprSettings.showBloom = World.poprSettings.pass == 0;
         World.poprSettings.showSkybox = World.poprSettings.pass == 0;
         World.poprSettings.showUI = World.poprSettings.pass == 0;

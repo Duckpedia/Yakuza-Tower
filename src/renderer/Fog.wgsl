@@ -8,7 +8,7 @@
 @group(1) @binding(5) var brdfConvolution:        texture_2d<f32>;
 @group(1) @binding(6) var linearSampler:          sampler;
 
-@group(2) @binding(0) var worldAndRoughnessTexture: texture_2d<f32>;
+@group(2) @binding(0) var depthTexture: texture_depth_2d;
 
 @group(3) @binding(0) var<storage, read> lights: array<Light>;
 
@@ -51,13 +51,12 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let loc = vec2i(input.uv * vec2f(textureDimensions(worldAndRoughnessTexture)));
-    let worldAndRoughness = textureLoad(worldAndRoughnessTexture, loc, 0);
-    let world = worldAndRoughness.xyz;
-    let roughness = worldAndRoughness.w; 
     let uv = input.uv; 
+    let loc = vec2i(uv * vec2f(textureDimensions(depthTexture)));
+    let depth = textureLoad(depthTexture, loc, 0);
+    let world = recreateWorld(uv, depth, camera.inverseViewMatrix * camera.inverseProjectionMatrix);
     
-    let is_skybox = roughness < 0.0;
+    let is_skybox = false;
 
     var scatter = vec3f(0.0);
     var transmit = 1.0;

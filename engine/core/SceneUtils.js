@@ -1,6 +1,5 @@
 import { mat4 } from 'glm';
 
-import { Camera } from './Camera.js';
 import { Transform } from './Transform.js';
 
 export function getLocalModelMatrix(entity) {
@@ -19,16 +18,4 @@ export function getGlobalModelMatrix(entity) {
     } else {
         return getLocalModelMatrix(entity);
     }
-}
-
-export function getLocalViewMatrix(entity) {
-    return getLocalModelMatrix(entity).invert();
-}
-
-export function getGlobalViewMatrix(entity) {
-    return getGlobalModelMatrix(entity).invert();
-}
-
-export function getProjectionMatrix(entity) {
-    return entity.getComponentOfType(Camera)?.projectionMatrix ?? mat4.create();
 }

@@ -31,7 +31,7 @@ export class BaseRenderer {
         this.format = format;
         
         this.dummyMaterial = new Material({
-            albedoTexture: new Texture({
+            baseTexture: new Texture({
                 image: defaultTextureImage,
                 sampler: new Sampler({
                     minFilter: 'nearest',
@@ -40,8 +40,8 @@ export class BaseRenderer {
                     addressModeV: 'repeat',
                 }),
             }),
-            roughnessFactor: 0.5,
-            metalnessFactor: 0.5,
+            metallic: 0.5,
+            roughness: 0.5
         });
     }
 

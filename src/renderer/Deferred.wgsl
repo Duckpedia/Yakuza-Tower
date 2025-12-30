@@ -32,8 +32,8 @@ struct VertexOutput {
 
 @group(1) @binding(0) var<storage, read> joints: array<Joint>;
 
-@group(2) @binding(0) var albedoTexture: texture_2d<f32>;
-@group(2) @binding(1) var albedoTextureSampler: sampler;
+@group(2) @binding(0) var baseTexture: texture_2d<f32>;
+@group(2) @binding(1) var baseTextureSampler: sampler;
 @group(2) @binding(2) var<uniform> material: Material;
 
 @vertex
@@ -81,11 +81,11 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 @fragment
 fn fragment(input: VertexOutput) -> DeferredOutput {
     let world = input.worldPosition;
-    var albedo = textureSample(albedoTexture, albedoTextureSampler, input.texcoords).rgb * material.albedo;
-    let normal = normalize(input.normal);
+    var base = textureSample(baseTexture, baseTextureSampler, input.texcoords).rgb * material.base;
+    let normal = oct_encode(normalize(input.normal));
     var output: DeferredOutput; 
-    output.albedoAndMetallic = vec4f(albedo, material.metallic);
-    output.worldAndRoughness = vec4f(world.xyz, material.roughness);
-    output.normalAndDepth = vec4f(normal, input.viewPosition.z);
+    output.baseAndMetallic = vec4f(base, material.metallic);
+    output.normalEmissionRoughness = vec4f(normal, material.emission, material.roughness);
+    // output.subsurfaceSpecularSpecularTintClearcoat = vec4f(0.0);
     return output;
 }

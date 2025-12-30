@@ -8,10 +8,11 @@
 @group(1) @binding(5) var brdfConvolution:        texture_2d<f32>;
 @group(1) @binding(6) var linearSampler:          sampler;
 
-@group(2) @binding(0) var albedoAndMetallicTexture: texture_2d<f32>;
-@group(2) @binding(1) var worldAndRoughnessTexture: texture_2d<f32>;
-@group(2) @binding(2) var normalAndviewzTexture:    texture_2d<f32>;
-@group(2) @binding(3) var fogTexture:               texture_2d<f32>;
+@group(2) @binding(0) var baseAndMetallicTexture:                         texture_2d<f32>;
+@group(2) @binding(1) var normalEmissionRoughnessTexture:                      texture_2d<f32>;
+// @group(2) @binding(2) var subsurfaceSpecularSpecularTintClearcoatTexture: texture_2d<f32>;
+@group(2) @binding(2) var fogTexture:                                     texture_2d<f32>;
+@group(2) @binding(3) var depthTexture:                                   texture_depth_2d;
 
 @group(3) @binding(0) var<storage, read> lights: array<Light>;
 
@@ -79,16 +80,16 @@ fn calculateShadow(light: Light, world: vec3f) -> f32
 }
 
 // learnopengl
-fn calculateAO(world: vec3f, normal: vec3f, viewz: f32, uv: vec2f) -> f32
+fn calculateAO(view: vec3f, normal: vec3f, ndc: vec3f) -> f32
 {
-    let worldView = (camera.viewMatrix * vec4(world, 1.0)).xyz;
     let normalView = normalize((camera.viewMatrix * vec4(normal, 0.0)).xyz);
 
     let radius = settings.ssaoRadius;
     let bias = settings.ssaoBias;
     let maxDelta = settings.ssaoMaxDelta;
 
-    let randomVec = normalize(vec3(hash22(uv), 0.0));
+    let randomVec = normalize(vec3(hash22(ndc.xy * 0.5 + 0.5), 0.0));
+    let depthTextureDimensions = vec2f(textureDimensions(depthTexture));
 
     let tangent = normalize(randomVec - normalView * dot(randomVec, normalView));
     let bitangent = cross(normalView, tangent);
@@ -97,15 +98,16 @@ fn calculateAO(world: vec3f, normal: vec3f, viewz: f32, uv: vec2f) -> f32
     var occlusion = 0.0;
     for (var i = 0; i < 64; i += 1)
     {
-        let samplePos = worldView + (TBN * SSAO_KERNEL[i]) * radius; 
+        let samplePos = view + (TBN * SSAO_KERNEL[i]) * radius; 
         
         var offset = camera.projectionMatrix * vec4(samplePos, 1.0);
         offset = offset / offset.w;
         offset.y = -offset.y;
-        
-        let sampleDepth = textureSample(normalAndviewzTexture, linearSampler, offset.xy * 0.5 + 0.5).w;
+
+        let depthLoc = vec2i((offset.xy * 0.5 + 0.5) * depthTextureDimensions); 
+        let sampleDepth = textureLoad(depthTexture, depthLoc, 0);
         let sampleDelta = max(sampleDepth - samplePos.z, 0.0); 
-        let depthDelta = abs(viewz - sampleDepth); 
+        let depthDelta = abs(view.z - sampleDepth); 
         if (sampleDelta >= bias && depthDelta < maxDelta)
         {
             occlusion += smoothstep(0.0, 1.0, radius / depthDelta);
@@ -116,11 +118,19 @@ fn calculateAO(world: vec3f, normal: vec3f, viewz: f32, uv: vec2f) -> f32
 }
 
 // learnopengl
-fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32, viewz: f32, uv : vec2f) -> vec3f
+fn PBR(world: vec3f, viewPos: vec3f, normal: vec3f, material: Material, ndc: vec3f, uv : vec2f) -> vec3f
 {
+    let base = material.base;
+    let metallic = material.metallic;
+    let roughness = material.roughness;
+    // let subsurface = material.subsurface;
+    // let specular = material.specular;
+    // let specularTint = material.specularTint;
+    // let clearcoat = material.clearcoat;
+
     let view = normalize(camera.position.xyz - world.xyz);
     let normalDotView = positiveDot(normal, view);
-    let f0 = mix(vec3(0.04), albedo, metallic);
+    let f0 = mix(vec3(0.04), base, metallic);
     var l0 = vec3(0.0);
 
     let nLights = arrayLength(&lights);
@@ -150,11 +160,11 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
             let radiance = light.color * light.intensity * attenuation;
             
             d = clamp((d - light.outerAngle) / (light.innerAngle - light.outerAngle), 0.0, 1.0);
-            l0 += (kd * albedo / PI + specular) * radiance * normalDotLight * shadow * d;
+            l0 += (kd * base / PI + specular) * radiance * normalDotLight * shadow * d;
         }
     }
     
-    let ao = select(calculateAO(world, normal, viewz, uv), 1.0, settings.ssao == 0);
+    let ao = select(calculateAO(viewPos, normal, ndc), 1.0, settings.ssao == 0);
     let f = fresnelSchlickRoughness(normalDotView, f0, roughness); 
     let reflected = reflect(-view, normal);
     let prefiltered = textureSampleLevel(prefilteredMap, linearSampler, reflected, roughness * 8).rgb; 
@@ -163,28 +173,42 @@ fn PBR(albedo: vec3f, world: vec3f, normal: vec3f, metallic: f32, roughness: f32
     let irradiance = textureSample(irradianceMap, linearSampler, normal).rgb;
     let ks = f;
     let kd = 1.0 - ks;
-    let diffuse = irradiance * albedo;
+    let diffuse = irradiance * base;
     let ambient = (kd * diffuse + specular) * ao; 
 
-    return ambient + l0;
+    return ambient + l0 + material.base * material.emission;
 }
 
 @fragment
 fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
-    let loc = vec2i(input.uv * vec2f(textureDimensions(albedoAndMetallicTexture)));
-    let albedoAndMetallic     = textureLoad(albedoAndMetallicTexture, loc, 0);
-    let worldAndRoughness     = textureLoad(worldAndRoughnessTexture, loc, 0);
-    let normalAndviewz        = textureLoad(normalAndviewzTexture, loc, 0);
+    let loc = vec2i(input.uv * vec2f(textureDimensions(baseAndMetallicTexture)));
+    let baseAndMetallic       = textureLoad(baseAndMetallicTexture, loc, 0);
+    let normalEmissionRoughness    = textureLoad(normalEmissionRoughnessTexture, loc, 0);
+    // let subsurfaceSpecularSpecularTintClearcoat = textureLoad(subsurfaceSpecularSpecularTintClearcoatTexture, loc, 0);
     let fogScatterAndTransmit = textureSample(fogTexture, linearSampler, input.uv);
-    let albedo    = albedoAndMetallic.xyz;
-    let world     = worldAndRoughness.xyz;
-    let normal    = normalize(normalAndviewz.xyz);
-    let metallic  = albedoAndMetallic.w;
-    let roughness = worldAndRoughness.w;
-    let viewz     = normalAndviewz.w;
+    let depth                 = textureLoad(depthTexture, loc, 0);
+    let normal                = normalize(oct_decode(normalEmissionRoughness.xy));
 
-    if (settings.passIndex >= 5.0) {
-        return vec4(vec3(roughness), 1.0);
+    var ndc = vec3(input.uv.xy * 2.0 - 1.0, depth);
+    ndc.y = -ndc.y;
+    let view = recreateView(ndc, camera.inverseProjectionMatrix);
+    let world = (camera.inverseViewMatrix * vec4(view, 1.0)).xyz;
+
+    var material: Material;
+    material.base         = baseAndMetallic.xyz;
+    material.metallic     = baseAndMetallic.w;
+    material.emission     = normalEmissionRoughness.z;
+    material.roughness    = normalEmissionRoughness.w;
+    // material.subsurface   = subsurfaceSpecularSpecularTintClearcoat.r;
+    // material.specular     = subsurfaceSpecularSpecularTintClearcoat.g;
+    // material.specularTint = subsurfaceSpecularSpecularTintClearcoat.b;
+    // material.clearcoat    = subsurfaceSpecularSpecularTintClearcoat.a;
+
+    if (settings.passIndex >= 6.0) {
+        return vec4(vec3((depth - 0.99) * 50.0), 1.0);
+    }
+    else if (settings.passIndex >= 5.0) {
+        return vec4(vec3(material.roughness), 1.0);
     }
     else if (settings.passIndex >= 4.0) {
         return vec4(world, 1.0);
@@ -193,19 +217,19 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         return vec4(normal, 1.0);
     }
     else if (settings.passIndex >= 2.0) {
-        return vec4(vec3(metallic), 1.0);
+        return vec4(vec3(material.metallic), 1.0);
     }
     else if (settings.passIndex >= 1.0) {
-        return vec4(albedo, 1.0);
+        return vec4(material.base, 1.0);
     }
 
-    let is_skybox = roughness < 0.0;
-    let material = select(
-        PBR(albedo, world, normal, metallic, roughness, viewz, input.uv),
-        albedo,
+    let is_skybox = material.roughness < 0.0;
+    let surface = select(
+        PBR(world, view, normal, material, ndc, input.uv),
+        material.base,
         is_skybox
     );
     
-    let color = fogScatterAndTransmit.rgb + material * fogScatterAndTransmit.w;
+    let color = fogScatterAndTransmit.rgb + surface * fogScatterAndTransmit.w;
     return vec4(color, 1.0);
 }

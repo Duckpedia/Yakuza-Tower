@@ -1,18 +1,24 @@
 struct Camera {
     viewMatrix: mat4x4f,
     projectionMatrix: mat4x4f,
+    inverseViewMatrix: mat4x4f,
+    inverseProjectionMatrix: mat4x4f,
     position: vec4f,
 }
 
 struct Joint {
-    m: mat4x4<f32>,
+    m: mat4x4f,
 }
 
 struct Material {
-    albedo: vec3f,
+    base: vec3f,
     metallic: f32,
     roughness: f32,
-    ao: f32,
+    emission: f32,
+    // subsurface: f32,
+    // specular: f32,
+    // specularTint: f32,
+    // clearcoat: f32,
 }
 
 struct Settings {
@@ -66,9 +72,9 @@ struct FullscreenVertexOutput {
 }
 
 struct DeferredOutput {
-    @location(0) albedoAndMetallic : vec4f,
-    @location(1) worldAndRoughness : vec4f,
-    @location(2) normalAndDepth : vec4f,
+    @location(0) baseAndMetallic : vec4f,
+    @location(1) normalEmissionRoughness : vec4f,
+    // @location(2) subsurfaceSpecularSpecularTintClearcoat : vec4f,
 }
 
 const PI = 3.14159265359;
@@ -223,11 +229,11 @@ fn length2(v: vec3f) -> f32 {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
-fn makeBasis(normal: vec3f) -> mat3x3<f32> {
+fn makeBasis(normal: vec3f) -> mat3x3f {
   let a = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(normal.y) > 0.999);
   let right = normalize(cross(a, normal));
   let up = cross(normal, right);
-  return mat3x3<f32>(right, up, normal);
+  return mat3x3f(right, up, normal);
 }
 
 fn pcg_hash_u32(x: u32) -> u32 {
@@ -253,4 +259,36 @@ fn projectionToUV(projection: mat4x4f, view: mat4x4f, world: vec4f) -> vec4f
     let clip = projection * view * world;
     let ndc = clip.xyz / clip.w;
     return vec4(vec2(ndc.x, -ndc.y) * 0.5 + 0.5, ndc.z, 1.0);
+}
+
+// https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
+fn oct_wrap(v: vec2f) -> vec2f {
+    return (1.0 - abs(v.yx)) * (select(vec2(-1.0), vec2(1.0), v.xy >= vec2(0.0))); 
+}
+
+fn oct_encode(n_in: vec3f) -> vec2f {
+    var n = n_in;
+    n /= abs(n.x) + abs(n.y) + abs(n.z);
+    return select(oct_wrap(n.xy), n.xy, n.z >= 0.0) * 0.5 + 0.5;
+}
+
+fn oct_decode(f_in: vec2f) -> vec3f {
+    var f = f_in * 2.0 - 1.0;
+
+    var n = vec3f(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
+    let t = clamp(-n.z, 0.0, 1.0);
+ 
+    let add = select(vec2f( t), vec2f(-t), n.xy >= vec2f(0.0));
+    return normalize(vec3f(n.xy + add, n.z));
+}
+
+fn recreateView(ndc: vec3f, inverseProjectionMatrix: mat4x4f) -> vec3f {
+    let view = inverseProjectionMatrix * vec4(ndc, 1.0);
+    return view.xyz / view.w;
+}
+
+fn recreateWorld(uv: vec2f, depth: f32, inverseViewProjectionMatrix: mat4x4f) -> vec3f {
+    var ndc = vec3(uv.xy * 2.0 - 1.0, depth);
+    let v = inverseViewProjectionMatrix * vec4(ndc.x, -ndc.y, ndc.z, 1.0);
+    return v.xyz / v.w;
 }
