@@ -250,6 +250,12 @@ if (Inputs.isPressed('KeyQ')) { // drop currently held item
     if (currentItem)
     {
         currentItem._transform.matrix = player._transform.matrix;
+        const forward = vec3.transformQuat(
+            vec3.create(),
+            [0, 0, -1],
+            player._transform.rotation
+        );
+        vec3.add(currentItem._transform.translation, currentItem._transform.translation, forward);
         currentItem.hidden = false;
         player.customProperties.currentItem = null;
     }
