@@ -564,8 +564,8 @@ export class GLTFLoader {
         return skeleton;
     }
 
-    loadNode(gltfSpec) {
-        const entity = new Entity();
+    loadNode(gltfSpec, scene) {
+        const entity = scene.createEntity();
 
         entity.name = gltfSpec.name;
 
@@ -609,14 +609,14 @@ export class GLTFLoader {
         return entity;
     }
 
-    loadScene(nameOrIndex = this.defaultScene) {
-        const gltfSpec = this.findByNameOrIndex(this.gltf.scenes, nameOrIndex);
+    build(scene) {
+        const gltfSpec = this.findByNameOrIndex(this.gltf.scenes, this.defaultScene);
         if (!gltfSpec) {
             return null;
         }
 
         const nodeEntities = [];
-        const scene = [];
+        const nodes = [];
         const to_add = [{index: gltfSpec.nodes[0], parent: null }];
         while(to_add.length > 0) {
             const {index, parent} = to_add.shift();
@@ -624,28 +624,24 @@ export class GLTFLoader {
             if (!gltfSpec) {
                 continue;
             }
-            const node = this.loadNode(gltfSpec);
+            const node = this.loadNode(gltfSpec, scene);
             node.parent = parent;
             nodeEntities[index] = node;
-            scene.push(node);
+            nodes.push(node);
             if (gltfSpec.children)
                 to_add.push(...gltfSpec.children.map(childIndex => ({ index: childIndex, parent: node})));
         }
 
-        for(const entity of scene) {
+        for(const entity of nodes) {
             const skeleton = entity.getComponentOfType(SkeletonComponent);
             if (!skeleton) continue;
             skeleton.joints = skeleton.jointIndices.map(index => nodeEntities[index]);
         }
 
-        return scene;
-    }
-
-    buildEntityFromScene(scene) {
-        const root = scene[0];
+        const root = nodes[0];
         root.skeleton = null;
         root.models = [];
-        for (const entity of scene)
+        for (const entity of nodes)
         {
             root.skeleton ??= entity.getComponentOfType(SkeletonComponent);
 
@@ -656,6 +652,7 @@ export class GLTFLoader {
             if (bounds) bounds.parentEntity = root;
         }
         root.animations = root.skeleton?.animations ?? [];
+        scene.addEntity(root);
         return root;
     }
 }

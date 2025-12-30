@@ -1,33 +1,35 @@
 export class Entity {
+    components = [];
+    children = [];
+    _parent = null;
+    hidden = false;
 
-    constructor(components = []) {
-        this.components = components;
-        this.children = [];
-        this._parent = null;
+    constructor(scene, parent = null) {
+        if (!scene)
+            console.error(new Error("created entity without scene"));
+        this.scene = scene;
+        this.parent = parent;
     }
 
     addComponent(component) {
-        if (component.constructor !== Object && this.hasComponentOfType(component.constructor))
-            console.error(new Error("entity " + this.name + " already has component " + component.constructor?.name ?? "Object"));
+        this.scene._addComponent(this, component)
         this.components.push(component);
         component.onAttach?.(this);
     }
 
     removeComponent(component) {
-        this.components = this.components.filter(c => c !== component);
-        component.onDetach?.(this);
-    }
-
-    hasComponentOfType(type) {
-        return this.components.find(component => component instanceof type) !== undefined;
+        const removed = this.scene._removeComponent(this, component)
+        const i = this.components.indexOf(removed);
+        if (i !== -1) this.components.splice(i, 1);
+        removed.onDetach?.(this);
     }
 
     getComponentOfType(type) {
-        return this.components.find(component => component instanceof type);
+        return this.scene._getComponentOfType(this, type);
     }
 
-    getComponentsOfType(type) {
-        return this.components.filter(component => component instanceof type);
+    hasComponentOfType(type) {
+        return this.getComponentOfType(type) !== null;
     }
     
     findChildByName(name) {
@@ -40,14 +42,32 @@ export class Entity {
         this.components.forEach(c => c.onCollision?.(this, other));
     }
 
+    isVisible() {
+        let e = this;
+        while (e) {
+            if (e.hidden) return false;
+            e = e.parent;
+        }
+        return true;
+    }
+
     get parent() {
        return this._parent; 
     }
 
     set parent(parent) {
-        if (this._parent)
-            this._parent.children.remove(this);
-        this._parent = parent;
-        parent?.children.push(this);
+        if (this._parent === parent) return;
+
+        if (this._parent) {
+            const i = this._parent.children.indexOf(this);
+            if (i !== -1) this._parent.children.splice(i, 1);
+        }
+
+        this._parent = parent ?? null;
+
+        if (this._parent) {
+            if (!this._parent.children.includes(this))
+                 this._parent.children.push(this);
+        }
     }
 }

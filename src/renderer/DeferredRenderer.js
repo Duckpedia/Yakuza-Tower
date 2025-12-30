@@ -2,9 +2,10 @@ import { mat4, vec2, vec3, vec4 } from 'glm';
 
 import * as WebGPU from '../../engine/WebGPU.js';
 
-import { Camera } from '../../engine/core/core.js';
+import { Camera, Model } from '../../engine/core/core.js';
 
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
+import { LightComponent } from '../components/LightComponent.js';
 
 export class DeferredRendererSettings {
     pass = 0;
@@ -798,7 +799,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    render(entities, camera, poprSettings) {
+    render(scene, camera, poprSettings) {
         if (this.defferedDepthTexture.width !== this.canvas.width || this.defferedDepthTexture.height !== this.canvas.height) {
             this.recreateRenderTargets();
         }
@@ -837,7 +838,7 @@ export class DeferredRenderer extends BaseRenderer {
         const target = this.context.getCurrentTexture().createView();
         const encoder = this.device.createCommandEncoder();
 
-        this.prepareRender(entities);
+        this.prepareRender(scene);
 
         this.renderDeferred(encoder, cameraBindGroup, poprSettings);
             
@@ -872,7 +873,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.device.queue.submit([encoder.finish()]);
     }
 
-    prepareRender(entities)
+    prepareRender(scene)
     {
         this.models.clear();
         this.skeletons.length = 0;
@@ -880,18 +881,8 @@ export class DeferredRenderer extends BaseRenderer {
         let nInstances = 0;
         let nJoints = 0;
         this.lights.length = 0;
-        for (const entity of entities) {
-            if (entity.hidden) continue;
-
-            const transform = entity._transform;
-            if (!transform) continue;
-
-            const light = entity._light;
-            if (light) this.lights.push(entity);
-
-            const model = entity._model;
-            if (!model) continue;
-
+        for (const [entity, model] of scene.query(Model))
+        {
             let data = this.models.get(model);
             if (!data) {
                 data = { arr: [], instanceOffset: 0 };
@@ -908,8 +899,13 @@ export class DeferredRenderer extends BaseRenderer {
                 }
             }
 
-            data.arr.push({ transform, skeleton });
+            data.arr.push({ transform: entity._transform, skeleton });
             nInstances += 1;
+        }
+
+        for (const [entity, light] of scene.query(LightComponent))
+        {
+            this.lights.push(entity);
         }
 
         if (this.skeletons.length > 0)
@@ -1453,7 +1449,6 @@ export class DeferredRenderer extends BaseRenderer {
         this.materialBuffer[3] = material.metallic;
         this.materialBuffer[4] = material.roughness;
         this.materialBuffer[5] = material.emission;
-        console.log(material.emission);
         // this.materialBuffer[5] = material.subsurface;
         // this.materialBuffer[6] = material.specular;
         // this.materialBuffer[7] = material.specularTint;

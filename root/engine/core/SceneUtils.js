@@ -1,34 +1,17 @@
 import { mat4 } from 'glm';
 
-import { Camera } from './Camera.js';
-import { Transform } from './Transform.js';
-
-export function getLocalModelMatrix(entity) {
-    const matrix = mat4.create();
-    for (const transform of entity.getComponentsOfType(Transform)) {
-        matrix.multiply(transform.matrix);
+export function updateWorldMatricesRecursive(entity, parentMatrix)
+{
+    const transform = entity._transform;
+    if (transform)
+    {
+        // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
+        mat4.mul(transform.final, parentMatrix, transform.matrix);
+        if (entity._calculateInverse)
+            mat4.invert(transform.inv_final, transform.final);
     }
-    return matrix;
-}
 
-export function getGlobalModelMatrix(entity) {
-    if (entity.parent) {
-        const parentMatrix = getGlobalModelMatrix(entity.parent);
-        const modelMatrix = getLocalModelMatrix(entity);
-        return parentMatrix.multiply(modelMatrix);
-    } else {
-        return getLocalModelMatrix(entity);
+    for (const child of entity.children) {
+        updateWorldMatricesRecursive(child, transform?.final ?? parentMatrix);
     }
-}
-
-export function getLocalViewMatrix(entity) {
-    return getLocalModelMatrix(entity).invert();
-}
-
-export function getGlobalViewMatrix(entity) {
-    return getGlobalModelMatrix(entity).invert();
-}
-
-export function getProjectionMatrix(entity) {
-    return entity.getComponentOfType(Camera)?.projectionMatrix ?? mat4.create();
 }

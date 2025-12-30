@@ -2,10 +2,11 @@ import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
 
 import { BulletComponent } from './BulletComponent.js';
+import { World } from '../World.js';
 
 
 export class EnemyComponent {
-    constructor(scene, entity, player, bulletModel = null, type = 'Melee') {
+    constructor(entity, player, bulletModel = null, type = 'Melee') {
         this.entity = entity;
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
@@ -35,7 +36,6 @@ export class EnemyComponent {
         this.hasFired = false;
 
         this.bulletModel = bulletModel;
-        this.scene = scene;
 
         entity.skeleton?.playAnimationByIndex(this.runAnim);
     }
@@ -227,8 +227,7 @@ export class EnemyComponent {
 
         if (!gun) return;
 
-        const bullet_scene = this.bulletModel.loadScene();
-        const bullet = this.bulletModel.buildEntityFromScene(bullet_scene);
+        const bullet = this.bulletModel.build(this.entity.scene);
         const transform = bullet.getComponentOfType(Transform);
         transform.translation = [...gun.getComponentOfType(Transform).final_position];
 
@@ -241,7 +240,5 @@ export class EnemyComponent {
         dir[1] = 0;
 
         bullet.addComponent(new BulletComponent(bullet, dir));
-
-        this.scene.push(...bullet_scene);
     }
 }

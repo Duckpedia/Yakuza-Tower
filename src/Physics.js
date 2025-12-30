@@ -5,17 +5,14 @@ import { vec4 } from '../lib/glm.js';
 import { World } from './World.js';
 
 export class Physics {
+    constructor() { }
 
-    constructor(scene) {
-        this.scene = scene;
-    }
-
-    update(t, dt) {
+    update(t, dt, scene) {
 
         const position = new vec4();
         const scale = new vec4();
         const mat = new mat4();
-        for (const entity of this.scene) {
+        for (const entity of scene.entities()) {
 
             // tvoji tastari
             if (World.poprSettings.debug && entity.aabb && entity.customProperties)
@@ -43,7 +40,7 @@ export class Physics {
 
             if (entity.customProperties?.isDynamic) 
             {
-                for (const other of this.scene) {
+                for (const other of scene.entities()) {
                     if (entity !== other && other.customProperties?.isStatic) {
                         this.resolveCollision(entity, other);
                     }
@@ -169,7 +166,7 @@ export class Physics {
 
     }
 
-    raycast(from, to){
+    raycast(from, to, scene){
         const dir = vec3.sub(vec3.create(), to, from); //naredimo vektor, direction pa length
         const maxDistance = vec3.length(dir); //tukaj imamo pa length raya
         vec3.normalize(dir, dir); //normaliziramo ker prejsna funkcija vrne dejanski distance
@@ -177,7 +174,7 @@ export class Physics {
         let closestHit = null;
         let closest = Infinity;
 
-        for(const entity of this.scene){
+        for(const entity of scene.entities()){
             //to je da samo skippa ce niso collidable pa brezveze matematiko
             if(!entity.customProperties?.isStatic) continue;
             if(!entity.aabb) continue;

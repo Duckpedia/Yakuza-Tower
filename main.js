@@ -10,13 +10,14 @@ import {
     Camera,
     Entity,
     Model,
-    Transform,
+    Transform
 } from 'engine/core/core.js';
+
+import { updateWorldMatricesRecursive } from './root/engine/core/SceneUtils.js';
 
 import { loadResources } from 'engine/loaders/resources.js';
 import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
-import { LightComponent } from './src/components/LightComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
 import { Physics } from './src/Physics.js';
@@ -46,7 +47,7 @@ function attachBoxCollider(parent, {
   halfExtents = [0.35, 1.0, 0.35],
   isStatic = true,
 } = {}) {
-  const c = new Entity();
+  const c = World.scene.createEntity();
   c.name = name;
 
   c.addComponent(new Transform({
@@ -70,17 +71,13 @@ function attachBoxCollider(parent, {
 // make the weapons n shit (anything made with this will be pickable up)
 function createPickup(modelResource, position, scale = [0.2, 0.2, 0.2], rotationAxis = [1,0,0], rotationAngle = Math.PI/2, itemType = "generic")
 {
-    const pickupScene = modelResource.loadScene();
-    const visualEntity = modelResource.buildEntityFromScene(pickupScene);
+    const visualEntity = modelResource.build(World.scene);
 
     const transform = visualEntity.getComponentOfType(Transform);
-    transform.translation = position;
     transform.scale = scale;
     glm.quat.setAxisAngle(transform.rotation, rotationAxis, rotationAngle);
 
-    scene.push(...pickupScene);
-
-    const collider = new Entity();
+    const collider = World.scene.addEntity(World.scene.createEntity());
     collider.name = modelResource.name + "Collider";
     collider.addComponent(new Transform({ translation: position }));
     collider.customProperties = { isStatic: true, itemType };
@@ -91,10 +88,8 @@ function createPickup(modelResource, position, scale = [0.2, 0.2, 0.2], rotation
     };
 
     collider.isPickup = true;
-    collider.visualEntities = pickupScene;
 
-    scene.push(collider);
-
+    visualEntity.parent = collider;
     return collider;
 }
 
@@ -103,10 +98,11 @@ const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image, resources.dirt_image);
 
 const inputs = new Inputs(canvas);
+const physics = new Physics(World.scene);
 
 //player creation
 
-const player = new Entity();
+const player = World.scene.addEntity(World.scene.createEntity());
 player.addComponent(new Transform({
     translation: [0, 1.2, 2],
 }));
@@ -124,8 +120,6 @@ player.aabb = {
   max: [ 0.2,  0.2,  0.2],
 };
 
-const scene = [player];
-
 //reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
 const itemResources = {
     katana: resources.katana_model,
@@ -137,7 +131,7 @@ const katanaPickup = createPickup(resources.katana_model, [2,0.1,0], [0.2,0.2,0.
 const pistolPickup = createPickup(resources.pistol_model, [3,0.1,1], [0.2,0.2,0.2], undefined, undefined, "gun");
 
 
-const invisibleWallCollider = new Entity();
+const invisibleWallCollider = World.scene.addEntity(World.scene.createEntity());
 invisibleWallCollider.name = 'InvisibleWall';
 invisibleWallCollider.addComponent(new Transform({ translation: [4, 0.1, 0] }));
 invisibleWallCollider.customProperties = { isStatic: true };
@@ -146,76 +140,42 @@ invisibleWallCollider.aabb = {
   min: [-0.05, -0.1, -2.0],
   max: [ 0.05, 10.0, 2.0]
 };
-scene.push(invisibleWallCollider);
 
-const soba_scene = resources.soba_model.loadScene();
-const soba = resources.soba_model.buildEntityFromScene(soba_scene);
+const soba = resources.soba_model.build(World.scene);
 soba.customProperties = { isStatic: true };
-scene.push(...soba_scene);
 
-const guy_scene = resources.guy_model.loadScene();
-const guy = resources.guy_model.buildEntityFromScene(guy_scene);
+const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimationByIndex(3);
-guy.addComponent(new EnemyComponent(scene, guy, player));
+guy.addComponent(new EnemyComponent(guy, player));
 guy.customProperties = { isDynamic: true };
 guy.aabbManual = true;
 guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
-scene.push(...guy_scene);
 
-const rangedGuyScene = resources.guy_model.loadScene();
-const rangedGuy = resources.guy_model.buildEntityFromScene(rangedGuyScene);
+const rangedGuy = resources.guy_model.build(World.scene);
 rangedGuy.skeleton.playAnimationByIndex(3);
-rangedGuy.addComponent(new EnemyComponent(scene, rangedGuy, player, resources.bullet_model,'Ranged'));
+rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_model,'Ranged'));
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = [1, 0, 1];
 rangedGuy.customProperties = { isDynamic: true };
 rangedGuy.aabbManual = true;
 rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
-scene.push(...rangedGuyScene);
 
 {
-    const littleguy_scene = resources.katana_model.loadScene();
-    const littleguy = resources.katana_model.buildEntityFromScene(littleguy_scene);
-    littleguy.addComponent(new EnemyComponent(scene, littleguy, player));
+    const littleguy = resources.katana_model.build(World.scene);
+    // littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
     littleguy_transform.scale = [16, 16, 16];
 
-    const littleguy2_scene = resources.pistol_model.loadScene();
-    const littleguy2 = resources.pistol_model.buildEntityFromScene(littleguy2_scene);
-    littleguy2.addComponent(new EnemyComponent(scene, littleguy2, player));
+    const littleguy2 = resources.pistol_model.build(World.scene);
+    // littleguy2.addComponent(new EnemyComponent(littleguy2, player));
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
     littleguy2_transform.scale = [20, 20, 20];
 
     littleguy2.parent = rangedGuy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:RightHand");
-    scene.push(...littleguy_scene);
-    scene.push(...littleguy2_scene);
 }
-// // stackoverflow
-// function hsv2rgb(h,s,v) 
-// {                              
-//   let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
-//   return [f(5),f(3),f(1)];       
-// }  
 
-// const rotationMat = new glm.mat4();
-// glm.mat4.fromYRotation(rotationMat, .016);
-
-// const degreesToRads = deg => (deg * Math.PI) / 180.0;
-// for (let i = 0; i < 360; i += 60)
-// {
-//     const light = new Entity();
-//     let translation = new vec4(Math.cos(degreesToRads(i)), Math.random() + 0.1, Math.sin(degreesToRads(i)), 1);
-//     vec3.scale(translation, translation, Math.random() * 9 + 1);
-//     light.transform = new Transform({ translation });
-//     light.addComponent(light.transform);
-//     light.addComponent(new LightComponent({ color: hsv2rgb(Math.random() * 360, 1.0, 1.0), intensity: Math.random() * 70 + 22230.0 }));
-//     light.addComponent({ update(t, dt) { glm.vec4.transformMat4(light.transform.translation, light.transform.translation, rotationMat); }});
-//     scene.push(light);
-// }
-
-const physics = new Physics(scene);
-for (const entity of scene) {
+for (const entity of World.scene.entities()) {
   if (entity.aabbManual) continue;
 
   const model = entity.getComponentOfType(Model);
@@ -226,7 +186,7 @@ for (const entity of scene) {
 }
 
 const cameras = []
-for (const entity of scene)
+for (const entity of World.scene.entities())
 {
     const c = entity.getComponentOfType(Camera);
     if (c) cameras.push(entity);
@@ -252,6 +212,11 @@ function update(t, dt) {
         World.poprSettings.showBloom = World.poprSettings.pass == 0;
         World.poprSettings.showSkybox = World.poprSettings.pass == 0;
         World.poprSettings.showUI = World.poprSettings.pass == 0;
+    }
+
+    if (Inputs.isPressed('KeyE'))
+    {
+        guy.hidden = !guy.hidden;
     }
 
     if (Inputs.isPressed('KeyH'))
@@ -282,17 +247,10 @@ function update(t, dt) {
 
 if (Inputs.isPressed('KeyQ')) { // drop currently held item
     const currentItem = player.customProperties.currentItem;
-    if (currentItem) {
-        const playerTransform = player.getComponentOfType(Transform);
-        const spawnPosition = vec3.clone(playerTransform.translation);
-
-        const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], playerTransform.rotation);
-        vec3.scaleAndAdd(spawnPosition, spawnPosition, forward, 0.5);
-
-        const resource = itemResources[currentItem];
-        createPickup(resource, spawnPosition, [0.2, 0.2, 0.2], [1,0,0], Math.PI/2, currentItem);
-
-        // clear item, can comment this if u wanna spawn lots
+    if (currentItem)
+    {
+        currentItem._transform.matrix = player._transform.matrix;
+        currentItem.hidden = false;
         player.customProperties.currentItem = null;
     }
     else {
@@ -314,54 +272,29 @@ if (Inputs.isPressed('KeyQ')) { // drop currently held item
             50.0
         );
 
-        const hit = physics.raycast(from, to);
-
+        const hit = physics.raycast(from, to, World.scene);
         if (hit && hit.entity.isPickup) {
             const distance = vec3.distance(from, hit.point);
             if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
                 console.log("PICKUP HIT", hit.point, hit.distance);
-
-                // drop current item if there is one
-                if (player.customProperties.currentItem) {
-                    const playerTransform = player.getComponentOfType(Transform);
-                    const dropPosition = vec3.clone(playerTransform.translation);
-                    const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], playerTransform.rotation);
-                    vec3.scaleAndAdd(dropPosition, dropPosition, forward, 0.5);
-
-                    const resource = itemResources[player.customProperties.currentItem];
-                    createPickup(resource, dropPosition, [0.2, 0.2, 0.2], [1, 0, 0], Math.PI/2, player.customProperties.currentItem);
-
-                    console.log("dropped previous item:", player.customProperties.currentItem);
-                }
-
                 // pick up new item
                 if (hit.entity.customProperties?.itemType) {
                     player.customProperties.currentItem = hit.entity.customProperties.itemType;
                     console.log("Picked up:", player.customProperties.currentItem);
                 }
-
-                // remove visual and collider of pickedup
-                const i = scene.indexOf(hit.entity);
-                if (i !== -1) scene.splice(i, 1);
-
-                if (hit.entity.visualEntities) {
-                    for (const v of hit.entity.visualEntities) {
-                        const vi = scene.indexOf(v);
-                        if (vi !== -1) scene.splice(vi, 1);
-                    }
-                }
+                player.customProperties.currentItem = hit.entity;
+                player.customProperties.currentItem.hidden = true;
             } else {
                 console.log("too far to pick up", hit.entity.name, distance);
             }
         } else {
             console.log("MISS or not a pickup");
         }
-
     }
 }
 
     const scaledDt = dt * World.timeScale;
-    for (const entity of scene) {
+    for (const entity of World.scene.entities()) {
         for (const component of entity.components) {
             if (component instanceof PlayerComponent) {
                 component.update?.(t, dt);    
@@ -371,29 +304,15 @@ if (Inputs.isPressed('KeyQ')) { // drop currently held item
         }
     }
 
-    for (const entity of scene)
-    {
-        if (!entity.parent) updateWorldMatricesRecursive(entity, new mat4());
-    }
+    updateWorldMatricesRecursive(World.scene.root, new mat4());
         
     inputs.update();
-    physics.update(t, dt);
+    physics.update(t, dt, World.scene);
 }
 
-function updateWorldMatricesRecursive(entity, parentMatrix)
+function render() 
 {
-    const transform = entity._transform;
-    // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
-    mat4.mul(transform.final, parentMatrix, transform.matrix);
-    if (entity._calculateInverse)
-        mat4.invert(transform.inv_final, transform.final);
-    for (const child of entity.children) {
-        updateWorldMatricesRecursive(child, transform.final);
-    }
-}
-
-function render() {
-    renderer.render(scene, World.activeCamera, World.poprSettings);
+    renderer.render(World.scene, World.activeCamera, World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {
