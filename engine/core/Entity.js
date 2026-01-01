@@ -1,20 +1,20 @@
 export class Entity {
     components = [];
     children = [];
-    _parent = null;
     hidden = false;
 
     constructor(scene, parent = null) {
-        if (!scene)
-            console.error(new Error("created entity without scene"));
+        if (!scene) console.error(new Error("created entity without scene"));
         this.scene = scene;
         this.parent = parent;
     }
 
     addComponent(component) {
-        this.scene._addComponent(this, component)
-        this.components.push(component);
-        component.onAttach?.(this);
+        if (this.scene._addComponent(this, component))
+        {
+            this.components.push(component);
+            component.onAttach?.(this);
+        }
     }
 
     removeComponent(component) {
@@ -65,9 +65,7 @@ export class Entity {
 
         this._parent = parent ?? null;
 
-        if (this._parent) {
-            if (!this._parent.children.includes(this))
-                 this._parent.children.push(this);
-        }
+        if (this._parent && !this._parent.children.includes(this))
+            this._parent.children.push(this);
     }
 }

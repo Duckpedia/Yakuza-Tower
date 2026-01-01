@@ -74,17 +74,18 @@ export class Scene {
         const type = component?.constructor;
         if (typeof type !== "function") {
             console.error(new Error("uhh"));
-            return;
+            return null;
         }
 
         const data = this._getComponentData(type);
         if (data.has(entity))
         {
             console.error(new Error("entity already has component"));
-            return;
+            return null;
         }
 
         data.add(entity, component);
+        return component;
     }
 
     _removeComponent(entity, component)

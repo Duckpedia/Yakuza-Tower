@@ -26,7 +26,7 @@ export class DeferredRendererSettings {
         agxPower: [1.35, 1.35, 1.35],
         agxSat: 1.4
     };
-    blackAndWhite = false;
+    blackAndWhite = 0.0;
     wireframe = false;
     debug = false;
     test = 0.0;
@@ -38,6 +38,14 @@ export class DeferredRendererSettings {
     fogStrength = 0.006;
     fogLightFactor = 1.0;
     fogSteps = 60;
+    vignette = 0.0;
+    vignetteRadius = 0.0;
+    vignetteSoftness = 0.0;
+    caX = 5.0;
+    caY = 5.0;
+    scanlines = 0.0;
+    scanlinesDensity = 0.0;
+    scanlinesSpeed = 0.0;
 }
 
 class GPUBuffer {
@@ -71,7 +79,7 @@ export class DeferredRenderer extends BaseRenderer {
 
     materialBuffer = new Float32Array(4 + 4);
     cameraBuffer = new Float32Array(16 + 16 + 16 + 16 + 4);
-    poprSettingsBufferArray = new Float32Array(4 + 4 + 4 + 4 + 4 + 4);
+    poprSettingsBufferArray = new Float32Array(4 * 8);
     poprSettingsBuffer = null;
     lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
     lightsDefaultInverseProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100).invert();
@@ -105,6 +113,11 @@ export class DeferredRenderer extends BaseRenderer {
             addressModeU: 'clamp-to-edge',
             addressModeV: 'clamp-to-edge',
         });
+        this.filteringSamplerBindGroupLayout = this.createBindGroupLayout([filteringSamplerBindGroupEntry])
+        this.filteringSamplerBindGroup = this.device.createBindGroup({
+            layout: this.filteringSamplerBindGroupLayout,
+            entries: [ { binding: 0, resource: this.linearTextureSampler } ],
+        });
 
         this.jointsBuffer = new GPUBuffer(this.device, 0, 16, Float32Array, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.lightsBuffer = new GPUBuffer(this.device, 0, 16 + 4 + 4 + 4 + 4, Float32Array, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
@@ -122,6 +135,7 @@ export class DeferredRenderer extends BaseRenderer {
         await this.setUpLighting();
         await this.setUpDebug();
         await this.setUpPopr(dirtImage);
+        await this.setUpBloom();
         await this.setUpUI();
 
         this.recreateRenderTargets();
@@ -598,31 +612,26 @@ export class DeferredRenderer extends BaseRenderer {
     async setUpPopr(dirtImage) {
         console.log("setting up popr");
 
-        this.poprTextureBindGroupLayout = this.createBindGroupLayout([textureBindGroupEntry]);
-        const poprConstantsBindGroupLayout = this.createBindGroupLayout([filteringSamplerBindGroupEntry, textureBindGroupEntry, uniformBufferBindGroupEntry]);
-        const bloomParamsBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [ {
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "uniform", hasDynamicOffset: true, minBindingSize: 24,  },
-            } ] 
-        });
+        this.poprTextureBindGroupLayout = this.createBindGroupLayout([ textureBindGroupEntry ]);
+        const poprConstantsBindGroupLayout = this.createBindGroupLayout([
+            filteringSamplerBindGroupEntry,
+            uniformBufferBindGroupEntry,
+            textureBindGroupEntry
+        ]);
+        this.poprBloomTextureBindGroupLayout = this.createBindGroupLayout([ textureBindGroupEntry ]);
 
         const tonemapLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [
+            bindGroupLayouts: [ 
                 this.poprTextureBindGroupLayout,
                 poprConstantsBindGroupLayout,
-                this.poprTextureBindGroupLayout,
-                bloomParamsBindGroupLayout,
+                this.poprBloomTextureBindGroupLayout,
             ],
         });
 
-        const bloomLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [
+        const poprLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [ 
                 this.poprTextureBindGroupLayout,
                 poprConstantsBindGroupLayout,
-                null,
-                bloomParamsBindGroupLayout,
             ],
         });
 
@@ -630,9 +639,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.tonemapPipeline = await this.device.createRenderPipelineAsync({
             label: 'tonemap',
             layout: tonemapLayout,
-            vertex: {
-                module,
-            },
+            vertex: { module },
             fragment: {
                 module,
                 entryPoint: 'tonemap',
@@ -640,25 +647,68 @@ export class DeferredRenderer extends BaseRenderer {
             },
         });
 
+        this.poprPipeline = await this.device.createRenderPipelineAsync({
+            label: 'popr',
+            layout: poprLayout,
+            vertex: { module },
+            fragment: {
+                module,
+                entryPoint: 'popr',
+                targets: [{ format: this.format }],
+            },
+        });
+
+        this.dirtTexture = WebGPU.createTexture(this.device, {
+            source: dirtImage,
+            format: 'rgba8unorm',
+        });
+
+        this.poprConstantsBindGroup = this.device.createBindGroup({
+            layout: poprConstantsBindGroupLayout,
+            entries: [
+                { binding: 0, resource: this.linearTextureSampler },
+                { binding: 1, resource: this.poprSettingsBuffer },
+                { binding: 2, resource: this.dirtTexture.createView() }
+            ],
+        });
+    }
+
+    async setUpBloom() {
+        console.log("setting up bloom");
+
+        this.bloomTextureBindGroupLayout = this.createBindGroupLayout([
+            textureBindGroupEntry
+        ]);
+        const bloomConstantsBindGroupLayout = this.createBindGroupLayout([
+            {
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: { 
+                    type: "uniform",
+                    hasDynamicOffset: true, 
+                    minBindingSize: 24
+                },
+            }
+        ]);
+
+        const layout = this.device.createPipelineLayout({
+            bindGroupLayouts: [ this.bloomTextureBindGroupLayout, this.filteringSamplerBindGroupLayout, bloomConstantsBindGroupLayout ],
+        });
+        
+        const module = await this.loadShaderModule('Bloom.wgsl');
         this.downsamplePipeline = await this.device.createRenderPipelineAsync({
             label: 'downsample',
-            layout: bloomLayout,
-            vertex: {
-                module,
-            },
+            layout,
+            vertex: { module },
             fragment: {
                 module,
                 entryPoint: 'downsample',
                 targets: [{ format: 'rgba16float' }],
             },
         });
-
         this.upsamplePipeline = await this.device.createRenderPipelineAsync({
             label: 'upsample',
-            layout: bloomLayout,
-            vertex: {
-                module,
-            },
+            layout,
+            vertex: { module },
             fragment: {
                 module,
                 entryPoint: 'upsample',
@@ -681,20 +731,6 @@ export class DeferredRenderer extends BaseRenderer {
             },
         });
 
-        this.dirtTexture = WebGPU.createTexture(this.device, {
-            source: dirtImage,
-            format: 'rgba8unorm',
-        });
-
-        this.poprConstantsBindGroup = this.device.createBindGroup({
-            layout: poprConstantsBindGroupLayout,
-            entries: [
-                { binding: 0, resource: this.linearTextureSampler },
-                { binding: 1, resource: this.dirtTexture.createView() },
-                { binding: 2, resource: this.poprSettingsBuffer }
-            ],
-        });
-
         this.bloomParamsStride = this.device.limits.minUniformBufferOffsetAlignment;
         this.maxBloomPasses = 5 * 2;
         this.bloomParamsBufferArray = new Float32Array((this.bloomParamsStride / 4) * this.maxBloomPasses);
@@ -704,12 +740,9 @@ export class DeferredRenderer extends BaseRenderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-        this.bloomParamsBindGroup = this.device.createBindGroup({
-            layout: bloomParamsBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: { buffer: this.bloomParamsBuffer, offset: 0, size: 24 },
-            }],
+        this.bloomConstantsBindGroup = this.device.createBindGroup({
+            layout: bloomConstantsBindGroupLayout,
+            entries: [ { binding: 0, resource: { buffer: this.bloomParamsBuffer, offset: 0, size: 24 } } ],
         });
     }
 
@@ -721,12 +754,13 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.defferedDepthTextureView = this.defferedDepthTexture.createView();
 
-        this.deferredBaseAndMetallicTexture = this.device.createTexture({
+        this.colorTexture = this.device.createTexture({
             format: 'bgra8unorm',
             size: [this.canvas.width, this.canvas.height],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
-        this.deferredBaseAndMetallicTextureView = this.deferredBaseAndMetallicTexture.createView();
+        this.deferredBaseAndMetallicTextureView = this.colorTexture.createView();
+        this.colorTextureView = this.colorTexture.createView();
 
         this.deferredNormalEmissionRoughnessTexture = this.device.createTexture({
             format: 'rgba16float',
@@ -744,7 +778,6 @@ export class DeferredRenderer extends BaseRenderer {
 
         this.fogTexture = this.device.createTexture({
             format: 'bgra8unorm',
-            // TODO: figure out good values for this / MSAA :pray:
             size: [this.canvas.width * 0.4, this.canvas.height * 0.4],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
@@ -773,9 +806,14 @@ export class DeferredRenderer extends BaseRenderer {
         });
         this.lightingTextureView = this.lightingTexture.createView();
 
-        this.lightingTextureBindGroup = this.device.createBindGroup({
+        this.tonemapTextureBindGroup = this.device.createBindGroup({
             layout: this.poprTextureBindGroupLayout,
             entries: [ { binding: 0, resource: this.lightingTextureView } ],
+        });
+
+        this.poprTextureBindGroup = this.device.createBindGroup({
+            layout: this.poprTextureBindGroupLayout,
+            entries: [ { binding: 0, resource: this.colorTextureView } ],
         });
 
         this.bloomTextures.length = 0;
@@ -821,6 +859,14 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[20] = poprSettings.fogStrength;
         this.poprSettingsBufferArray[21] = poprSettings.fogLightFactor;
         this.poprSettingsBufferArray[22] = poprSettings.showFog ? poprSettings.fogSteps : 0;
+        this.poprSettingsBufferArray[23] = poprSettings.vignette;
+        this.poprSettingsBufferArray[24] = poprSettings.vignetteRadius;
+        this.poprSettingsBufferArray[25] = poprSettings.vignetteSoftness;
+        this.poprSettingsBufferArray[26] = poprSettings.caX;
+        this.poprSettingsBufferArray[27] = poprSettings.caY;
+        this.poprSettingsBufferArray[28] = poprSettings.scanlines;
+        this.poprSettingsBufferArray[29] = poprSettings.scanlinesDensity;
+        this.poprSettingsBufferArray[30] = poprSettings.scanlinesSpeed;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
@@ -856,7 +902,7 @@ export class DeferredRenderer extends BaseRenderer {
             this.renderBloom(encoder, poprSettings);
         }
 
-        this.renderTonemap(encoder, target);
+        this.renderPopr(encoder, target);
             
         if (poprSettings.debug)
         {
@@ -1203,7 +1249,7 @@ export class DeferredRenderer extends BaseRenderer {
 
         { // downsample
             let input = { 
-                bindGroup: this.lightingTextureBindGroup, 
+                bindGroup: this.tonemapTextureBindGroup, 
                 width: this.bloomTextures[0].width * 2, 
                 height: this.bloomTextures[1].height * 2
             };
@@ -1225,8 +1271,8 @@ export class DeferredRenderer extends BaseRenderer {
                 });
                 renderPass.setPipeline(this.downsamplePipeline);
                 renderPass.setBindGroup(0, input.bindGroup);
-                renderPass.setBindGroup(1, this.poprConstantsBindGroup);
-                renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                renderPass.setBindGroup(1, this.filteringSamplerBindGroup);
+                renderPass.setBindGroup(2, this.bloomConstantsBindGroup, [paramsBufferOffset]);
                 renderPass.draw(6);
                 renderPass.end();
 
@@ -1254,8 +1300,8 @@ export class DeferredRenderer extends BaseRenderer {
                 });
                 renderPass.setPipeline(this.upsamplePipeline);
                 renderPass.setBindGroup(0, input.bindGroup);
-                renderPass.setBindGroup(1, this.poprConstantsBindGroup);
-                renderPass.setBindGroup(3, this.bloomParamsBindGroup, [paramsBufferOffset]);
+                renderPass.setBindGroup(1, this.filteringSamplerBindGroup);
+                renderPass.setBindGroup(2, this.bloomConstantsBindGroup, [paramsBufferOffset]);
                 renderPass.draw(6);
                 renderPass.end();
 
@@ -1264,27 +1310,48 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    renderTonemap(encoder, target)
+    renderPopr(encoder, target)
     {
-        const renderPass = encoder.beginRenderPass({
-            colorAttachments: [
-                {
-                    view: target,
-                    clearValue: [0.0, 0.0, 0.0, 1.0 ],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-            ],
-        });
+        { // tonemap
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: this.colorTextureView,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
 
-        renderPass.setPipeline(this.tonemapPipeline);
-        renderPass.setBindGroup(0, this.lightingTextureBindGroup);
-        renderPass.setBindGroup(1, this.poprConstantsBindGroup);
-        renderPass.setBindGroup(2, this.bloomTextures[0].bindGroup);
-        renderPass.setBindGroup(3, this.bloomParamsBindGroup, [0]);
-        renderPass.draw(6);
+            renderPass.setPipeline(this.tonemapPipeline);
+            renderPass.setBindGroup(0, this.tonemapTextureBindGroup);
+            renderPass.setBindGroup(1, this.poprConstantsBindGroup);
+            renderPass.setBindGroup(2, this.bloomTextures[0].bindGroup);
+            renderPass.draw(6);
 
-        renderPass.end();
+            renderPass.end();
+        }
+
+        { // popr
+            const renderPass = encoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: target,
+                        clearValue: [0.0, 0.0, 0.0, 1.0 ],
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    },
+                ],
+            });
+
+            renderPass.setPipeline(this.poprPipeline);
+            renderPass.setBindGroup(0, this.poprTextureBindGroup);
+            renderPass.setBindGroup(1, this.poprConstantsBindGroup);
+            renderPass.draw(6);
+
+            renderPass.end();
+        }
     }
 
     renderDebug(encoder, target, cameraBindGroup)
@@ -1353,7 +1420,7 @@ export class DeferredRenderer extends BaseRenderer {
 
             if (materials)
             {
-                const { materialBindGroup, materialUniformBuffer } = this.prepareMaterial(material);
+                const { materialBindGroup } = this.prepareMaterial(material);
                 renderPass.setBindGroup(2, materialBindGroup);
             }
 
@@ -1468,7 +1535,7 @@ export class DeferredRenderer extends BaseRenderer {
             ],
         });
 
-        const gpuObjects = { materialBindGroup, materialUniformBuffer };
+        const gpuObjects = { materialBindGroup };
         this.gpuObjects.set(material, gpuObjects);
         return gpuObjects;
     }

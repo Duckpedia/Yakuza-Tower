@@ -32,7 +32,7 @@ struct Settings {
     agxPower: vec4f,
 
     agxSat: f32,
-    blackAndWhite: u32,
+    blackAndWhite: f32,
     test: f32,
     time: f32,
 
@@ -44,6 +44,15 @@ struct Settings {
     fogStrength: f32,
     fogLightFactor: f32,
     fogSteps: f32,
+    vignette: f32,
+
+    vignetteRadius: f32,
+    vignetteSoftness: f32,
+    chromaticAbberation: vec2f,
+
+    scanlines: f32,
+    scanlinesDensity: f32,
+    scanlinesSpeed: f32,
 }
 
 // wasteful but meh

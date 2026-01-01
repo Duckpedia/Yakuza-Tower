@@ -238,7 +238,7 @@ function update(t, dt) {
             World.poprSettings = structuredClone(World.poprSettings);
             World.poprSettings.bloom.dirtStrength = 20.0;
             World.poprSettings.bloom.strength = 0.05;
-            World.poprSettings.blackAndWhite = 1;
+            World.poprSettings.blackAndWhite = 1.0;
         }
         else{
             World.poprSettings = defaultPoprSettings;
@@ -337,6 +337,7 @@ const gui = new GUI();
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'strength', 0.0, 1.0);
+gui.add(World.poprSettings.bloom, 'dirtStrength', 0.0, 100.0);
 gui.add(World.poprSettings.tonemapping, 'index', 0, 3);
 gui.add(World.poprSettings.tonemapping.agxSlope, 0, 0.0, 1.0).name('slopeX');
 gui.add(World.poprSettings.tonemapping.agxSlope, 1, 0.0, 1.0).name('slopeY');
@@ -354,3 +355,12 @@ gui.add(World.poprSettings, 'fogStrength', 0.0, 0.1);
 gui.add(World.poprSettings, 'fogLightFactor', 0.0, 10.0);
 gui.add(World.poprSettings, 'fogSteps', 0, 160);
 gui.add(World.poprSettings, 'showFog', 0, 1);
+gui.add(World.poprSettings, 'vignette', 0.0, 1.0);
+gui.add(World.poprSettings, 'vignetteRadius', 0.0, 2.0);
+gui.add(World.poprSettings, 'vignetteSoftness', 0.0, 2.0);
+gui.add(World.poprSettings, 'caX', -10.0, 10.0);
+gui.add(World.poprSettings, 'caY', -10.0, 10.0);
+gui.add(World.poprSettings, 'blackAndWhite', 0.0, 1.0);
+gui.add(World.poprSettings, 'scanlines', 0.0, 1.0);
+gui.add(World.poprSettings, 'scanlinesDensity', 0.0, 1.0);
+gui.add(World.poprSettings, 'scanlinesSpeed', 0.0, 1.0);

@@ -5,7 +5,6 @@ import {
     Accessor,
     Camera,
     Model,
-    Entity,
     Primitive,
     Sampler,
     Texture,
@@ -14,7 +13,6 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
-import { vec3 } from 'glm';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -216,7 +214,6 @@ export class GLTFLoader {
             options.roughness = pbr.roughnessFactor;
         }
 
-        // debugger;
         const ext = gltfSpec.extensions ?? {};
 
         if (ext.KHR_materials_emissive_strength?.emissiveStrength != null) {
@@ -347,23 +344,18 @@ export class GLTFLoader {
         const position = accessors.POSITION;
         const texcoords = accessors.TEXCOORD_0;
         const normal = accessors.NORMAL;
-        const tangent = accessors.TANGENT;
         const joints0 = accessors.JOINTS_0;
         const weights0 = accessors.WEIGHTS_0;
 
         const vertexCount = position.count;
         const vertices = [];
-
         for (let i = 0; i < vertexCount; i++) {
             const options = {};
-
             if (position) { options.position = position.get(i); }
             if (texcoords) { options.texcoords = texcoords.get(i); }
             if (normal) { options.normal = normal.get(i); }
-            // if (tangent) { options.tangent = tangent.get(i); }
             if (joints0) { options.joints = joints0.get(i); }
             if (weights0) { options.weights = weights0.get(i); }
-
             vertices.push(new Vertex(options));
         }
 
@@ -395,35 +387,21 @@ export class GLTFLoader {
                 continue;
             }
 
-            const options = {};
-            options.mesh = this.createMeshFromPrimitive(primitiveSpec);
-
-            if (primitiveSpec.material !== undefined) {
-                options.material = this.loadMaterial(primitiveSpec.material);
-                if (gltfSpec.name === "SCREEN")
-                    options.material.screen = true;
-            }
-            else {
-                console.warn("primitive ", gltfSpec, " without material wont be rendered on ", this.gltf);
-            }
-            
-        
-            const primitive = new Primitive(options);
+            const mesh = this.createMeshFromPrimitive(primitiveSpec);
+            const primitive = new Primitive({ mesh });
             primitives.push(primitive);
-            if (options.material)
+            
+            const material = (primitiveSpec.material !== undefined) ? this.loadMaterial(primitiveSpec.material) : null;
+            let prims = primitivesByMaterial.get(material);
+            if (!prims)
             {
-                let prims = primitivesByMaterial.get(options.material);
-                if (!prims)
-                {
-                    prims = [];
-                    primitivesByMaterial.set(options.material, prims);
-                }
-                prims.push(primitive);
+                prims = [];
+                primitivesByMaterial.set(material, prims);
             }
+            prims.push(primitive);
         }
 
         const model = new Model({ primitives, primitivesByMaterial });
-
         this.cache.set(gltfSpec, model);
         return model;
     }

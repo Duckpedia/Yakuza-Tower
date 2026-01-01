@@ -4,11 +4,12 @@ struct VertexOutput {
 }
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
+
 @group(1) @binding(0) var tex_sampler: sampler;
-@group(1) @binding(1) var dirt_tex: texture_2d<f32>;
-@group(1) @binding(2) var<uniform> settings: Settings;
+@group(1) @binding(1) var<uniform> settings: Settings;
+@group(1) @binding(2) var dirt_tex: texture_2d<f32>;
+
 @group(2) @binding(0) var bloom_tex: texture_2d<f32>;
-@group(3) @binding(0) var<uniform> bloomParams: BloomParams;
 
 @vertex
 fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
@@ -111,9 +112,10 @@ fn agxLook(input: vec3f) -> vec3f {
 fn tonemap(input: VertexOutput) -> @location(0) vec4<f32> {
     var uv = input.uv;
     let hdr = textureSample(tex, tex_sampler, uv).rgb;
-    let bloom = textureSample(bloom_tex, tex_sampler, uv).rgb;
-    let dirt = textureSample(dirt_tex, tex_sampler, uv).rgb * settings.bloomDirtStrength;
-    let color = mix(hdr, bloom + bloom * dirt, settings.bloomStrength); 
+    var bloom = textureSample(bloom_tex, tex_sampler, uv).rgb;
+    let dirt = textureSample(dirt_tex, tex_sampler, uv).rgb;
+    bloom += bloom * dirt * settings.bloomDirtStrength;
+    let color = hdr + bloom * settings.bloomStrength; 
 
     var tonemapped = color;
     if (settings.tonemapperIndex >= 2.0)
@@ -127,77 +129,44 @@ fn tonemap(input: VertexOutput) -> @location(0) vec4<f32> {
         tonemapped = reinhard(tonemapped);
     }
 
-    let gammaCorrected = pow(tonemapped, vec3(1.0/2.2));
+    return vec4(tonemapped, 1.0);
+}
 
-    if (settings.blackAndWhite > 0)
-    {   
-        return vec4(gammaCorrected.bbb, 1.0);
+@fragment
+fn popr(input: VertexOutput) -> @location(0) vec4<f32> {
+    let resolution = vec2f(textureDimensions(tex).xy);
+    let aspect = resolution.x / resolution.y;
+    var uv = input.uv;
+
+    let ndc = uv * 2.0 - 1.0;
+    let uvDist = length(ndc);
+    var color = vec3(0.0);
+
+    { // chromatic abberation
+        let diff = settings.chromaticAbberation / resolution * uvDist;
+        color = vec3(
+            textureSample(tex, tex_sampler, uv + diff).r,
+            textureSample(tex, tex_sampler, uv).g,
+            textureSample(tex, tex_sampler, uv - diff).b
+        );
+    }
+    
+    { // vignette
+        let v = smoothstep(settings.vignetteRadius, settings.vignetteRadius - settings.vignetteSoftness, uvDist);
+        color *= mix(1.0, v, saturate(settings.vignette));
     }
 
+    { // scanlines
+        let t = (uv.y * PI * resolution.y) * settings.scanlinesDensity * 0.5;
+        let s = sin(t + settings.time * settings.scanlinesSpeed * resolution.y * settings.scanlinesDensity);
+        color *= mix(1.0, s, saturate(settings.scanlines));
+    }
+
+    { // black and white
+        let luma = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+        color = mix(color, vec3f(luma), settings.blackAndWhite);
+    }
+
+    var gammaCorrected = pow(color, vec3(1.0/2.2));
     return vec4(gammaCorrected, 1.0f);
-}
-
-@fragment
-fn downsample(input: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = input.uv;
-
-    let srcTexelSize = 1.0 / bloomParams.srcResolution;
-    let x = srcTexelSize.x;
-    let y = srcTexelSize.y;
-
-    let a = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - 2.0*x, uv.y + 2.0*y), 0.0).rgb;
-    let b = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,         uv.y + 2.0*y), 0.0).rgb;
-    let c = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + 2.0*x, uv.y + 2.0*y), 0.0).rgb;
-
-    let d = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - 2.0*x, uv.y), 0.0).rgb;
-    let e = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,         uv.y), 0.0).rgb;
-    let f = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + 2.0*x, uv.y), 0.0).rgb;
-
-    let g = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - 2.0*x, uv.y - 2.0*y), 0.0).rgb;
-    let h = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,         uv.y - 2.0*y), 0.0).rgb;
-    let i = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + 2.0*x, uv.y - 2.0*y), 0.0).rgb;
-
-    let j = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - x, uv.y + y), 0.0).rgb;
-    let k = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + x, uv.y + y), 0.0).rgb;
-    let l = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - x, uv.y - y), 0.0).rgb;
-    let m = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + x, uv.y - y), 0.0).rgb;
-
-    var outc = e * 0.125;
-    outc += (a + c + g + i) * 0.03125;
-    outc += (b + d + f + h) * 0.0625;
-    outc += (j + k + l + m) * 0.125;
-
-    // TODO: the is nans are a bandage, ideally we wouldnt need them
-    if (length(outc) < bloomParams.threshold || isnan(outc.r) || isnan(outc.g) || isnan(outc.b))
-    {
-        outc = vec3f(0.0f);
-    }
-
-    return vec4f(outc, 1.0);
-}
-@fragment
-fn upsample(input: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = input.uv;
-
-    let x = bloomParams.filterRadius;
-    let y = bloomParams.filterRadius;
-
-    let a = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - x, uv.y + y), 0.0).rgb;
-    let b = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,     uv.y + y), 0.0).rgb;
-    let c = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + x, uv.y + y), 0.0).rgb;
-
-    let d = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - x, uv.y), 0.0).rgb;
-    let e = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,     uv.y), 0.0).rgb;
-    let f = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + x, uv.y), 0.0).rgb;
-
-    let g = textureSampleLevel(tex, tex_sampler, vec2f(uv.x - x, uv.y - y), 0.0).rgb;
-    let h = textureSampleLevel(tex, tex_sampler, vec2f(uv.x,     uv.y - y), 0.0).rgb;
-    let i = textureSampleLevel(tex, tex_sampler, vec2f(uv.x + x, uv.y - y), 0.0).rgb;
-
-    var outc = e * 4.0;
-    outc += (b + d + f + h) * 2.0;
-    outc += (a + c + g + i);
-    outc *= 1.0 / 16.0;
-
-    return vec4f(outc, 1.0);
 }
