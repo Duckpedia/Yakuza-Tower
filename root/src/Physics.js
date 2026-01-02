@@ -10,7 +10,7 @@ export class Physics {
         this.scene = scene;
     }
 
-    update(t, dt) {
+    update() {
         const position = new vec4();
         const scale = new vec4();
         const mat = new mat4();

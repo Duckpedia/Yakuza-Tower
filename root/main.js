@@ -43,8 +43,8 @@ const resources = await loadResources({
 //box helper colider, da ne bo problemov z animated mesh
 function attachBoxCollider(parent, {
   name = 'Collider',
-  offset = [0, 1.0, 0],
-  halfExtents = [0.35, 1.0, 0.35],
+  offset = new vec3(0, 1.0, 0),
+  halfExtents = new vec3(0.35, 1.0, 0.35),
   isStatic = true,
 } = {}) {
   const c = new Entity();
@@ -78,7 +78,7 @@ const inputs = new Inputs(canvas);
 
 const player = new Entity();
 player.addComponent(new Transform({
-    translation: [0, 1.2, 2],
+    translation: new vec3(0, 1.2, 2),
 }));
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
@@ -97,8 +97,8 @@ const pickupKatanaScene = resources.katana_model.loadScene();
 const pickupKatana = resources.katana_model.buildEntityFromScene(pickupKatanaScene);
 
 const kt = pickupKatana.getComponentOfType(Transform);
-kt.translation = [2, 0.1, 0];
-kt.scale = [0.2, 0.2, 0.2];
+kt.translation = new vec3(2, 0.1, 0);
+kt.scale = new vec3(0.2, 0.2, 0.2);
 
 glm.quat.setAxisAngle(kt.rotation, [1, 0, 0], Math.PI * 0.5);
 
@@ -145,7 +145,7 @@ const rangedGuy = resources.guy_model.buildEntityFromScene(rangedGuyScene);
 rangedGuy.skeleton.playAnimationByIndex(3);
 rangedGuy.addComponent(new EnemyComponent(scene, rangedGuy, player, resources.bullet_model,'Ranged'));
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
-rangedGuy_transform.translation = [1, 0, 1];
+rangedGuy_transform.translation = new vec3(1, 0, 1);
 rangedGuy.customProperties = { isDynamic: true };
 rangedGuy.aabbManual = true;
 rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
@@ -156,13 +156,13 @@ scene.push(...rangedGuyScene);
     const littleguy = resources.katana_model.buildEntityFromScene(littleguy_scene);
     littleguy.addComponent(new EnemyComponent(scene, littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
-    littleguy_transform.scale = [16, 16, 16];
+    littleguy_transform.scale = new vec3(16, 16, 16);
 
     const littleguy2_scene = resources.pistol_model.loadScene();
     const littleguy2 = resources.pistol_model.buildEntityFromScene(littleguy2_scene);
     littleguy2.addComponent(new EnemyComponent(scene, littleguy2, player));
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
-    littleguy2_transform.scale = [20, 20, 20];
+    littleguy2_transform.scale = new vec3(20, 20, 20);
 
     littleguy2.parent = rangedGuy.findChildByName("mixamorig:RightHand");
     littleguy.parent = guy.findChildByName("mixamorig:RightHand");

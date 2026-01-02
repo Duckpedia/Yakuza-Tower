@@ -1,51 +1,148 @@
-import * as glm from 'glm';
-import { Transform } from '../../engine/core/Transform.js';
+import { World } from '../World.js';
+import { quat, vec3, vec4 } from '../../lib/glm.js';
 
-export class SkeletonComponent {
-    constructor({jointIndices = [], joints = [], inverseBindMatrices = [], name = "", animations = []} = {}) {
+// goated video
+// https://www.youtube.com/watch?v=Jkv0pbp0ckQ
+class Pose {
+    transforms = []
+    constructor(transforms)
+    {
+        this.transforms = transforms;
+    }
+
+    static fromOther(other)
+    {
+        return new Pose(other.transforms.map(t => ({
+            translation: vec3.clone(t.translation),
+            rotation: quat.clone(t.rotation),
+            scale: vec3.clone(t.scale),
+        })));
+    }
+
+    copyFrom(other)
+    {
+        for (var i = 0; i < other.transforms.length; i++)
+        {
+            const transform = this.transforms[i];
+            const transform2 = other.transforms[i];
+            vec3.copy(transform.translation, transform2.translation);
+            quat.copy(transform.rotation, transform2.rotation);
+            vec3.copy(transform.scale, transform2.scale);
+        }
+    }
+
+    blend(other, t)
+    {
+        for (var i = 0; i < other.transforms.length; i++)
+        {
+            const transform = this.transforms[i];
+            const transform2 = other.transforms[i];
+            vec3.lerp(transform.translation, transform.translation, transform2.translation, t);
+            quat.slerp(transform.rotation, transform.rotation, transform2.rotation, t);
+            vec3.lerp(transform.scale, transform.scale, transform2.scale, t);
+        }
+    }
+}
+
+export class SkeletonComponent 
+{
+    constructor({jointIndices = [], inverseBindMatrices = [], name = "", animations = []} = {}) 
+    {
         this.jointIndices = jointIndices;
         this.inverseBindMatrices = inverseBindMatrices;
         this.name = name;
         this.animations = animations;
+        this.layers = {};
+        this.active = false; // hack around multiple skeletons for the same mesh
+    }
+    
+    setJoints(joints)
+    {
         this.joints = joints;
-        this.currentAnimation = null;
-        this.time = 0.0;
+        this.restPose = new Pose(this.joints.map(t => ({
+            translation: vec3.clone(t._transform.translation),
+            rotation: quat.clone(t._transform.rotation),
+            scale: vec3.clone(t._transform.scale),
+        })));
     }
 
     clone()
     {
         return new SkeletonComponent(this);
     }
-    
-    playAnimationByIndex(index, loop = true) {
-        if (!this.animations || index >= this.animations.length) 
-            return false;
-        this.currentAnimation = this.animations[index];
-        this.time = 0.0;
-        this.loop = loop;
-        return true;
+
+    // TODO: just make animations into a map
+    getAnimationIndex(name)
+    {
+        return this.animations.findIndex(anim => anim.name === name);
     }
 
-    playAnimation(name, loop = true) {
-        return this.playAnimationByIndex(this.animations.findIndex(anim => anim.name === name), loop);
-    }
-    
-    update(t, dt) {
-        const anim = this.currentAnimation;
-        if (!anim)
+    playAnimation(name, layer = "base", transitionTime = 0.3, options = ({ loop: true, weight: 1.0, additive: false, fadeinTime: 0.1 }))
+    {
+        const index = typeof name === 'number' ? name : this.getAnimationIndex(name);
+        if (index < 0 || index >= this.animations.length) 
             return;
-        
-        this.time += dt;
-        if (this.time > anim.duration)
-        {
-            if (!this.loop){
-                this.currentAnimation = null;
-                return;
-            }
-            this.time = this.time % anim.duration;
-        }
+        this.active = true;
+        this.layers[layer] ??= {};
+        const l = this.layers[layer];
+        if (transitionTime >= 0.0 && l.active)
+            this.stopAnimation(layer, transitionTime);
 
-        for (const channel of this.currentAnimation.channels)
+        l.active = {
+            name, 
+            anim: this.animations[index], 
+            startTime: World.getTime(),
+            fadeoutTime: 0.0,
+            ...options 
+        };
+    }
+
+    stopAnimation(layer, fadeoutTime = 0.0)
+    {
+        const l = this.layers[layer];
+        l.stopping = l.active;
+        l.stopping.stopTime = World.getTime();
+        l.stopping.fadeoutTime = fadeoutTime;
+    }
+
+    calculatePoseForLayer(pose, intermediatePose, layer, time, prefix = "")
+    {
+        const l = this.layers[layer];
+        if (!l) return;
+
+        this.calculatePose(pose, l.active, time);
+        if (l.stopping)
+        {
+            const weight = this.calculateWeight(l.stopping, time);
+            this.calculatePose(intermediatePose, l.stopping, time);
+            pose.blend(intermediatePose, weight);
+        }
+    }
+
+    update()
+    {
+        if (!this.active) return;
+        const pose = Pose.fromOther(this.restPose);
+        const intermediatePose = Pose.fromOther(this.restPose);
+        this.calculatePoseForLayer(pose, intermediatePose, "base", World.getTime());
+        for (let i = 0; i < pose.transforms.length; i++)
+        {
+            const transform = pose.transforms[i];
+            const joint = this.joints[i];
+            vec3.copy(joint._transform.translation, transform.translation);
+            quat.copy(joint._transform.rotation, transform.rotation);
+            vec3.copy(joint._transform.scale, transform.scale);
+        }
+    }
+    
+    calculatePose(pose, options, time)
+    {
+        pose.copyFrom(this.restPose);
+        const anim = options.anim;
+        time -= options.startTime;
+        if (options.loop) time %= anim.duration;
+
+        for (const channel of anim.channels)
         {
             const times = channel.times;
             const values = channel.values;
@@ -53,44 +150,53 @@ export class SkeletonComponent {
 
             let i = 0;
             for (i; i + 1 < times.length; i++)
-                if (this.time < times[i + 1])
+                if (time < times[i + 1])
                     break
 
             let value;
-            if (i === times.length - 1 || channel.interpolation === 'STEP') {
+            if (i === times.length - 1 || channel.interpolation === 'STEP') 
+            {
                 value = values[i];
-            } else {
-                const t = (this.time - times[i]) / (times[i + 1] - times[i]);
+            }
+            else 
+            {
+                const t = (time - times[i]) / (times[i + 1] - times[i]);
                 const v0 = values[i];
                 const v1 = values[i + 1];
                 if (channel.targetPath == 'rotation') {
-                    value = glm.quat.slerp(new glm.quat(), v0, v1, t);
+                    value = quat.slerp(new quat(), v0, v1, t);
                 }
                 else {
-                    value = glm.vec4.lerp(new glm.vec4(), v0, v1, t);
+                    value = vec3.lerp(new vec3(), v0, v1, t);
                 }
             }
 
             if (!value) continue;
 
-            const jointEntity = this.joints[channel.targetNodeIndex];
-            if (!jointEntity) continue;
-
-            const transform = jointEntity._transform;
+            const transform = pose.transforms[channel.targetNodeIndex];
             if (!transform) continue;
 
             switch (channel.targetPath) {
                 case "translation":
-                    transform.translation = value;
-                    break;
-                case "scale":
-                    transform.scale = value;
+                    vec3.copy(transform.translation, value);
                     break;
                 case "rotation":
-                    transform.rotation = value;
+                    quat.copy(transform.rotation, value);
+                    break;
+                case "scale":
+                    vec3.copy(transform.scale, value);
                     break;
             }
         }
+    }
+
+    calculateWeight(anim, time)
+    {
+        let weight = anim.weight;
+        if (anim.fadeinTime > 0.0) weight *= Math.min((time - anim.startTime) / anim.fadeinTime, 1.0);
+        if (anim.stopTime)
+            weight *= 1.0 - (anim.fadeoutTime > 0.0 ? Math.min((time - anim.stopTime) / anim.fadeoutTime, 1.0) : 0.0);
+        return weight;
     }
     
     onAttach(entity)

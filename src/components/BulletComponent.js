@@ -1,5 +1,6 @@
 import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
+import { World } from '../World.js';
 
 
 export class BulletComponent {
@@ -9,7 +10,7 @@ export class BulletComponent {
         this.lifetime = lifetime;
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
-        this.transform.scale = [0.002, 0.002, 0.002];
+        this.transform.scale = new glm.vec3(0.002, 0.002, 0.002);
 
         const forward = glm.vec3.fromValues(0, 1, 0);
         const q = glm.quat.create();
@@ -21,8 +22,8 @@ export class BulletComponent {
 
     }
 
-    update(t, dt) {
-        
+    update() {
+        let dt = World.getDt();
 
         glm.vec3.scaleAndAdd(
             this.transform.translation,

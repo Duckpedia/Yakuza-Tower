@@ -41,7 +41,7 @@ export class EnemyComponent {
     }
 
 
-    update(t, dt) {
+    update() {
         switch(this.enemyType){
             case 'Melee':
                 this.MeleeEnemyBehaviour(t, dt);

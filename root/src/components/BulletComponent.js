@@ -21,7 +21,7 @@ export class BulletComponent {
 
     }
 
-    update(t, dt) {
+    update() {
         
 
         glm.vec3.scaleAndAdd(

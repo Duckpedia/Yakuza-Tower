@@ -53,7 +53,8 @@ export class PlayerComponent {
         return a + (b - a) * t;
     }
 
-    update(t, dt) { 
+    update() {
+        let dt = World.getDt();
 
         this.updateInput();
 
@@ -179,7 +180,7 @@ export class PlayerComponent {
         if (Inputs.isHeld('KeyF')) {
             if (DeferredRenderer.randomRectangle.scale[0] > 0.020)
             {
-                this.playerTimeScale = 0.5; // slower player
+                this.playerTimeScale = 50.0; // slower player
                 World.timeScale = 0.01; // slower enemies/world
                 this.isSlowTime = true
             }

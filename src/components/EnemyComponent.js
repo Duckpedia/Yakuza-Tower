@@ -37,17 +37,18 @@ export class EnemyComponent {
 
         this.bulletModel = bulletModel;
 
-        entity.skeleton?.playAnimationByIndex(this.runAnim);
+        entity.skeleton?.playAnimation(this.runAnim);
     }
 
 
-    update(t, dt) {
+    update() {
+        let dt = World.getDt();
         switch(this.enemyType){
             case 'Melee':
-                this.MeleeEnemyBehaviour(t, dt);
+                this.MeleeEnemyBehaviour(dt);
                 break;
             case 'Ranged':
-                this.RangedEnemyBehaviour(t, dt);
+                this.RangedEnemyBehaviour(dt);
                 break;
             default:
                 break;    
@@ -58,7 +59,7 @@ export class EnemyComponent {
     }
 
 
-    MeleeEnemyBehaviour(t, dt){
+    MeleeEnemyBehaviour(dt){
         if (!this.player) return;
 
         const playerTransform = this.player.getComponentOfType(Transform);
@@ -103,7 +104,7 @@ export class EnemyComponent {
 
 
                 let attackAnim = Math.floor(Math.random() * 2 + 4);
-                this.entity.skeleton?.playAnimationByIndex(attackAnim);
+                this.entity.skeleton?.playAnimation(attackAnim);
             }
         }
 
@@ -118,13 +119,13 @@ export class EnemyComponent {
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
-                this.entity.skeleton?.playAnimationByIndex(this.runAnim);
+                this.entity.skeleton?.playAnimation(this.runAnim);
             }
         }
     }
 
 
-    RangedEnemyBehaviour(t, dt){
+    RangedEnemyBehaviour(dt){
         //Tle je behaviour za enemije s pistolo, za določanje lah uporabljaš this.enemyType
         if (!this.player) return;
 
@@ -171,7 +172,7 @@ export class EnemyComponent {
             
 
 
-                this.entity.skeleton?.playAnimationByIndex(this.gunShootingAnim);
+                this.entity.skeleton?.playAnimation(this.gunShootingAnim);
             }
         }
 
@@ -192,7 +193,7 @@ export class EnemyComponent {
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
                 this.hasFired = false;
-                this.entity.skeleton?.playAnimationByIndex(this.runAnim);
+                this.entity.skeleton?.playAnimation(this.runAnim);
             }
         }
     }

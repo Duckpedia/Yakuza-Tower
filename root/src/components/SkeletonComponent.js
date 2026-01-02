@@ -30,7 +30,7 @@ export class SkeletonComponent {
         return this.playAnimationByIndex(this.animations.findIndex(anim => anim.name === name), loop);
     }
     
-    update(t, dt) {
+    update() {
         const anim = this.currentAnimation;
         if (!anim)
             return;

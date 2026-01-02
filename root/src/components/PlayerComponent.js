@@ -53,7 +53,8 @@ export class PlayerComponent {
         return a + (b - a) * t;
     }
 
-    update(t, dt) { 
+    update() { 
+        let dt = World.getDt();
 
         this.updateInput();
 

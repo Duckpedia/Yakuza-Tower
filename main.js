@@ -43,8 +43,8 @@ const resources = await loadResources({
 //box helper colider, da ne bo problemov z animated mesh
 function attachBoxCollider(parent, {
   name = 'Collider',
-  offset = [0, 1.0, 0],
-  halfExtents = [0.35, 1.0, 0.35],
+  offset = new vec3(0, 1.0, 0),
+  halfExtents = new vec3(0.35, 1.0, 0.35),
   isStatic = true,
 } = {}) {
   const c = World.scene.createEntity();
@@ -69,7 +69,7 @@ function attachBoxCollider(parent, {
 }
 
 // make the weapons n shit (anything made with this will be pickable up)
-function createPickup(modelResource, position, scale = [0.2, 0.2, 0.2], rotationAxis = [1,0,0], rotationAngle = Math.PI/2, itemType = "generic")
+function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), rotationAxis = new vec3(1,0,0), rotationAngle = Math.PI/2, itemType = "generic")
 {
     const visualEntity = modelResource.build(World.scene);
 
@@ -104,7 +104,7 @@ const physics = new Physics(World.scene);
 
 const player = World.scene.addEntity(World.scene.createEntity());
 player.addComponent(new Transform({
-    translation: [0, 1.2, 2],
+    translation: new vec3(0, 1.2, 2),
 }));
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
@@ -127,13 +127,13 @@ const itemResources = {
 };
 
 //make pickups like this!!
-const katanaPickup = createPickup(resources.katana_model, [2,0.1,0], [0.2,0.2,0.2], [1,0,0], Math.PI/2, "katana");
-const pistolPickup = createPickup(resources.pistol_model, [3,0.1,1], [0.2,0.2,0.2], undefined, undefined, "gun");
+const katanaPickup = createPickup(resources.katana_model, new vec3(2,0.1,0), new vec3(0.2,0.2,0.2), new vec3(1,0,0), Math.PI/2, "katana");
+const pistolPickup = createPickup(resources.pistol_model, new vec3(3,0.1,1), new vec3(0.2,0.2,0.2), undefined, undefined, "gun");
 
 
 const invisibleWallCollider = World.scene.addEntity(World.scene.createEntity());
 invisibleWallCollider.name = 'InvisibleWall';
-invisibleWallCollider.addComponent(new Transform({ translation: [4, 0.1, 0] }));
+invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1, 0) }));
 invisibleWallCollider.customProperties = { isStatic: true };
 invisibleWallCollider.aabbManual = true;
 invisibleWallCollider.aabb = {
@@ -145,17 +145,17 @@ const soba = resources.soba_model.build(World.scene);
 soba.customProperties = { isStatic: true };
 
 const guy = resources.guy_model.build(World.scene);
-guy.skeleton.playAnimationByIndex(3);
+guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
 guy.customProperties = { isDynamic: true };
 guy.aabbManual = true;
 guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 
 const rangedGuy = resources.guy_model.build(World.scene);
-rangedGuy.skeleton.playAnimationByIndex(3);
+// rangedGuy.skeleton.playAnimationByIndex(3);
 rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_model,'Ranged'));
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
-rangedGuy_transform.translation = [1, 0, 1];
+rangedGuy_transform.translation = new vec3(1, 0, 1);
 rangedGuy.customProperties = { isDynamic: true };
 rangedGuy.aabbManual = true;
 rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
@@ -164,15 +164,15 @@ rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
     const littleguy = resources.katana_model.build(World.scene);
     // littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
-    littleguy_transform.scale = [16, 16, 16];
+    littleguy_transform.scale = new vec3(16, 16, 16);
 
     const littleguy2 = resources.pistol_model.build(World.scene);
     // littleguy2.addComponent(new EnemyComponent(littleguy2, player));
     const littleguy2_transform = littleguy2.getComponentOfType(Transform);
-    littleguy2_transform.scale = [20, 20, 20];
+    littleguy2_transform.scale = new vec3(20, 20, 20);
 
-    littleguy2.parent = rangedGuy.findChildByName("mixamorig:RightHand");
-    littleguy.parent = guy.findChildByName("mixamorig:RightHand");
+    littleguy2.parent = rangedGuy.findChildByName("up_righthand");
+    littleguy.parent = guy.findChildByName("up_righthand");
 }
 
 for (const entity of World.scene.entities()) {
@@ -195,8 +195,16 @@ let active_camera = 0;
 World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
+let mat = new mat4();
+console.log(World.scene);
+
 function update(t, dt) {
-    World.poprSettings.time = t;
+    World.timers.global.time = t;
+    World.timers.global.dt = dt;
+    World.timers.game.dt = dt * World.timeScale;
+    World.timers.game.time += World.timers.game.dt;
+    World.poprSettings.time = World.timers.global.time;
+
     if (World.poprSettings.debug)
     {
         const x = -11;
@@ -245,68 +253,63 @@ function update(t, dt) {
         }
     }
 
-if (Inputs.isPressed('KeyQ')) { // drop currently held item
-    const currentItem = player.customProperties.currentItem;
-    if (currentItem)
-    {
-        currentItem._transform.matrix = player._transform.matrix;
-        const forward = vec3.transformQuat(
-            vec3.create(),
-            [0, 0, -1],
-            player._transform.rotation
-        );
-        vec3.add(currentItem._transform.translation, currentItem._transform.translation, forward);
-        currentItem.hidden = false;
-        player.customProperties.currentItem = null;
-    }
-    else {
-        const camEntity = World.activeCamera;
-        const camTransform = camEntity.getComponentOfType(Transform);
+    if (Inputs.isPressed('KeyQ')) { // drop currently held item
+        const currentItem = player.customProperties.currentItem;
+        if (currentItem)
+        {
+            currentItem._transform.matrix = player._transform.matrix;
+            const forward = vec3.transformQuat(
+                vec3.create(),
+                [0, 0, -1],
+                player._transform.rotation
+            );
+            vec3.add(currentItem._transform.translation, currentItem._transform.translation, forward);
+            currentItem.hidden = false;
+            player.customProperties.currentItem = null;
+        }
+        else {
+            const camEntity = World.activeCamera;
+            const camTransform = camEntity.getComponentOfType(Transform);
 
-        const from = vec3.clone(camTransform.translation);
+            const from = vec3.clone(camTransform.translation);
 
-        const forward = vec3.transformQuat(
-            vec3.create(),
-            [0, 0, -1],
-            camTransform.rotation
-        );
+            const forward = vec3.transformQuat(
+                vec3.create(),
+                [0, 0, -1],
+                camTransform.rotation
+            );
 
-        const to = vec3.scaleAndAdd(
-            vec3.create(),
-            from,
-            forward,
-            50.0
-        );
+            const to = vec3.scaleAndAdd(
+                vec3.create(),
+                from,
+                forward,
+                50.0
+            );
 
-        const hit = physics.raycast(from, to, World.scene);
-        if (hit && hit.entity.isPickup) {
-            const distance = vec3.distance(from, hit.point);
-            if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
-                console.log("PICKUP HIT", hit.point, hit.distance);
-                // pick up new item
-                if (hit.entity.customProperties?.itemType) {
-                    player.customProperties.currentItem = hit.entity.customProperties.itemType;
-                    console.log("Picked up:", player.customProperties.currentItem);
+            const hit = physics.raycast(from, to, World.scene);
+            if (hit && hit.entity.isPickup) {
+                const distance = vec3.distance(from, hit.point);
+                if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
+                    console.log("PICKUP HIT", hit.point, hit.distance);
+                    // pick up new item
+                    if (hit.entity.customProperties?.itemType) {
+                        player.customProperties.currentItem = hit.entity.customProperties.itemType;
+                        console.log("Picked up:", player.customProperties.currentItem);
+                    }
+                    player.customProperties.currentItem = hit.entity;
+                    player.customProperties.currentItem.hidden = true;
+                } else {
+                    console.log("too far to pick up", hit.entity.name, distance);
                 }
-                player.customProperties.currentItem = hit.entity;
-                player.customProperties.currentItem.hidden = true;
             } else {
-                console.log("too far to pick up", hit.entity.name, distance);
+                console.log("MISS or not a pickup");
             }
-        } else {
-            console.log("MISS or not a pickup");
         }
     }
-}
 
-    const scaledDt = dt * World.timeScale;
     for (const entity of World.scene.entities()) {
         for (const component of entity.components) {
-            if (component instanceof PlayerComponent) {
-                component.update?.(t, dt);    
-            } else {
-                component.update?.(t, scaledDt); 
-            }
+            component.update?.(); 
         }
     }
 

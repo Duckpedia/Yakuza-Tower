@@ -513,6 +513,8 @@ export class GLTFLoader {
         if (!gltfSpec) {
             return null;
         }
+
+        // TODO: this isnt fine but it works for now
         if (this.cache.has(gltfSpec)) {
             return this.cache.get(gltfSpec).clone();
         }
@@ -610,10 +612,10 @@ export class GLTFLoader {
                 to_add.push(...gltfSpec.children.map(childIndex => ({ index: childIndex, parent: node})));
         }
 
-        for(const entity of nodes) {
+        for (const entity of nodes) {
             const skeleton = entity.getComponentOfType(SkeletonComponent);
             if (!skeleton) continue;
-            skeleton.joints = skeleton.jointIndices.map(index => nodeEntities[index]);
+            skeleton.setJoints(skeleton.jointIndices.map(index => nodeEntities[index]));
         }
 
         const root = nodes[0];

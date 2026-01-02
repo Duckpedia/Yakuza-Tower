@@ -1,20 +1,52 @@
-import { mat4, vec3 } from 'glm';
+import { mat4, vec3, quat } from '../../lib/glm.js';
 
 export class Transform {
     constructor({
-        rotation = [0, 0, 0, 1],
-        translation = [0, 0, 0],
-        scale = [1, 1, 1],
+        rotation = quat.create(),
+        translation = new vec3(),
+        scale = new vec3(1, 1, 1),
         matrix,
     } = {}) {
+        this._rotation = quat.create();
+        this._translation = new vec3(0, 0, 0);
+        this._scale = new vec3(1, 1, 1);
+
         this.rotation = rotation;
         this.translation = translation;
         this.scale = scale;
+
         this.final = new mat4();
         this.inv_final = new mat4();
+
         if (matrix) {
             this.matrix = matrix;
         }
+    }
+
+    // zacele so se tezave k dostkrat assignas neki.translation = [1, 2, 3]
+    // tkoda to to resi !!
+    get translation() {
+        return this._translation;
+    }
+    set translation(v) {
+        if (v.length < 3) throw new Error("fuck you");
+        vec3.set(this._translation, v[0], v[1], v[2]);
+    }
+
+    get rotation() {
+        return this._rotation;
+    }
+    set rotation(v) {
+        if (v.length < 4) throw new Error("fuck you");
+        quat.set(this._rotation, v[0], v[1], v[2], v[3]);
+    }
+
+    get scale() {
+        return this._scale;
+    }
+    set scale(v) {
+        if (v.length < 3) throw new Error("fuck you");
+        vec3.set(this._scale, v[0], v[1], v[2]);
     }
 
     get final_position() {
