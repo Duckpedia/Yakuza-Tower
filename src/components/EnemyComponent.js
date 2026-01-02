@@ -53,9 +53,6 @@ export class EnemyComponent {
             default:
                 break;    
         }
-        
-        
-
     }
 
 

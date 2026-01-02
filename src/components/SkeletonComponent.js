@@ -1,59 +1,18 @@
 import { World } from '../World.js';
 import { quat, vec3, vec4 } from '../../lib/glm.js';
 
-// goated video
+// goated video, sam mu nism cis slediu ksm mau retarded
 // https://www.youtube.com/watch?v=Jkv0pbp0ckQ
-class Pose {
-    transforms = []
-    constructor(transforms)
-    {
-        this.transforms = transforms;
-    }
-
-    static fromOther(other)
-    {
-        return new Pose(other.transforms.map(t => ({
-            translation: vec3.clone(t.translation),
-            rotation: quat.clone(t.rotation),
-            scale: vec3.clone(t.scale),
-        })));
-    }
-
-    copyFrom(other)
-    {
-        for (var i = 0; i < other.transforms.length; i++)
-        {
-            const transform = this.transforms[i];
-            const transform2 = other.transforms[i];
-            vec3.copy(transform.translation, transform2.translation);
-            quat.copy(transform.rotation, transform2.rotation);
-            vec3.copy(transform.scale, transform2.scale);
-        }
-    }
-
-    blend(other, t)
-    {
-        for (var i = 0; i < other.transforms.length; i++)
-        {
-            const transform = this.transforms[i];
-            const transform2 = other.transforms[i];
-            vec3.lerp(transform.translation, transform.translation, transform2.translation, t);
-            quat.slerp(transform.rotation, transform.rotation, transform2.rotation, t);
-            vec3.lerp(transform.scale, transform.scale, transform2.scale, t);
-        }
-    }
-}
-
 export class SkeletonComponent 
 {
-    constructor({jointIndices = [], inverseBindMatrices = [], name = "", animations = []} = {}) 
+    constructor({ jointIndices = [], inverseBindMatrices = [], name = "", animations = [] } = {}) 
     {
         this.jointIndices = jointIndices;
         this.inverseBindMatrices = inverseBindMatrices;
         this.name = name;
         this.animations = animations;
         this.layers = {};
-        this.active = false; // hack around multiple skeletons for the same mesh
+        this.active = false; // HAX !!!!
     }
     
     setJoints(joints)
@@ -64,11 +23,10 @@ export class SkeletonComponent
             rotation: quat.clone(t._transform.rotation),
             scale: vec3.clone(t._transform.scale),
         })));
-    }
-
-    clone()
-    {
-        return new SkeletonComponent(this);
+        this.basePose = Pose.fromOther(this.restPose);
+        this.upperPose = Pose.fromOther(this.restPose);
+        this.addPose = Pose.fromOther(this.restPose);
+        this.intermediatePose = Pose.fromOther(this.restPose);
     }
 
     // TODO: just make animations into a map
@@ -77,7 +35,7 @@ export class SkeletonComponent
         return this.animations.findIndex(anim => anim.name === name);
     }
 
-    playAnimation(name, layer = "base", transitionTime = 0.3, options = ({ loop: true, weight: 1.0, additive: false, fadeinTime: 0.1 }))
+    playAnimation(name, layer = "base", transitionTime = 0.3, options = ({ loop: true, weight: 1.0, fadeinTime: 0.1 }))
     {
         const index = typeof name === 'number' ? name : this.getAnimationIndex(name);
         if (index < 0 || index >= this.animations.length) 
@@ -85,12 +43,20 @@ export class SkeletonComponent
         this.active = true;
         this.layers[layer] ??= {};
         const l = this.layers[layer];
+        if (l.active?.index === index) return;
         if (transitionTime >= 0.0 && l.active)
             this.stopAnimation(layer, transitionTime);
 
+        const anim = this.animations[index];
+        if (!anim.referencePose)
+        {
+            anim.referencePose = Pose.fromOther(this.restPose);
+            this.calculatePose(anim.referencePose, { startTime: 0.0, anim, fadeoutTime: 0.0 }, 0.0);
+        }
+
         l.active = {
-            name, 
-            anim: this.animations[index], 
+            index, 
+            anim, 
             startTime: World.getTime(),
             fadeoutTime: 0.0,
             ...options 
@@ -105,33 +71,76 @@ export class SkeletonComponent
         l.stopping.fadeoutTime = fadeoutTime;
     }
 
-    calculatePoseForLayer(pose, intermediatePose, layer, time, prefix = "")
-    {
-        const l = this.layers[layer];
-        if (!l) return;
-
-        this.calculatePose(pose, l.active, time);
-        if (l.stopping)
-        {
-            const weight = this.calculateWeight(l.stopping, time);
-            this.calculatePose(intermediatePose, l.stopping, time);
-            pose.blend(intermediatePose, weight);
-        }
-    }
-
     update()
     {
         if (!this.active) return;
-        const pose = Pose.fromOther(this.restPose);
-        const intermediatePose = Pose.fromOther(this.restPose);
-        this.calculatePoseForLayer(pose, intermediatePose, "base", World.getTime());
-        for (let i = 0; i < pose.transforms.length; i++)
+
+        const time = World.getTime();
+        
+        this.basePose.copyFrom(this.restPose);
+        this.upperPose.copyFrom(this.restPose);
+        this.addPose.copyFrom(this.restPose);
+
+        if (!this.calculatePoseForLayer(this.basePose, "base", time))
+            return;
+
+        if (this.layers.base?.active?.index !== this.layers.upper?.active?.index && 
+            this.calculatePoseForLayer(this.upperPose, "upper", time))
+            {
+                this.poseBlend(this.basePose, this.upperPose, 1, "up_");
+            }
+
+        if (this.calculatePoseForLayer(this.addPose, "add", time, true))
+            this.poseAdd(this.basePose, this.addPose);
+
+        for (let i = 0; i < this.basePose.transforms.length; i++)
         {
-            const transform = pose.transforms[i];
+            const transform = this.basePose.transforms[i];
             const joint = this.joints[i];
             vec3.copy(joint._transform.translation, transform.translation);
             quat.copy(joint._transform.rotation, transform.rotation);
             vec3.copy(joint._transform.scale, transform.scale);
+        }
+    }
+
+    poseBlend(a, b, t, filter = null)
+    {
+        for (var i = 0; i < a.transforms.length; i++)
+        {
+            if (filter && !this.joints[i].name.includes(filter)) continue;
+            const ta = a.transforms[i];
+            const tb = b.transforms[i];
+            vec3.lerp(ta.translation, ta.translation, tb.translation, t);
+            quat.slerp(ta.rotation, ta.rotation, tb.rotation, t);
+            vec3.lerp(ta.scale, ta.scale, tb.scale, t);
+        }
+    }
+
+    poseSubtract(a, b, filter = null)
+    {
+        const invQuat = new quat();
+        for (var i = 0; i < b.transforms.length; i++)
+        {
+            if (filter && !this.joints[i].name.includes(filter)) continue;
+            const ta = a.transforms[i];
+            const tb = b.transforms[i];
+            vec3.sub(ta.translation, ta.translation, tb.translation);
+            quat.invert(invQuat, tb.rotation);
+            quat.mul(ta.rotation, ta.rotation, invQuat);
+            vec3.sub(ta.scale, ta.scale, tb.scale);
+        }
+    }
+
+    poseAdd(a, b, filter = null)
+    {
+        for (var i = 0; i < b.transforms.length; i++)
+        {
+            if (filter && !this.joints[i].name.includes(filter)) continue;
+            const ta = a.transforms[i];
+            const tb = b.transforms[i];
+            vec3.add(ta.translation, ta.translation, tb.translation);
+            quat.mul(ta.rotation, ta.rotation, tb.rotation);
+            vec3.add(ta.scale, ta.scale, tb.scale);
         }
     }
     
@@ -198,6 +207,21 @@ export class SkeletonComponent
             weight *= 1.0 - (anim.fadeoutTime > 0.0 ? Math.min((time - anim.stopTime) / anim.fadeoutTime, 1.0) : 0.0);
         return weight;
     }
+
+    calculatePoseForLayer(pose, layer, time, subtract = false)
+    {
+        const l = this.layers[layer];
+        if (!l) return false;
+        this.calculatePose(pose, l.active, time);
+        if (l.stopping)
+        {
+            const weight = this.calculateWeight(l.stopping, time);
+            this.calculatePose(this.intermediatePose, l.stopping, time);
+            this.poseBlend(pose, this.intermediatePose, weight);
+        }
+        if (subtract) this.poseSubtract(pose, l.active.anim.referencePose);
+        return true;
+    }
     
     onAttach(entity)
     {
@@ -207,5 +231,39 @@ export class SkeletonComponent
     onDetach(entity)
     {
         entity._skeleton = undefined;
+    }
+
+    clone()
+    {
+        return new SkeletonComponent(this);
+    }
+}
+
+class Pose {
+    transforms = []
+    constructor(transforms)
+    {
+        this.transforms = transforms;
+    }
+
+    static fromOther(other)
+    {
+        return new Pose(other.transforms.map(t => ({
+            translation: vec3.clone(t.translation),
+            rotation: quat.clone(t.rotation),
+            scale: vec3.clone(t.scale),
+        })));
+    }
+
+    copyFrom(other)
+    {
+        for (var i = 0; i < other.transforms.length; i++)
+        {
+            const transform = this.transforms[i];
+            const transform2 = other.transforms[i];
+            vec3.copy(transform.translation, transform2.translation);
+            quat.copy(transform.rotation, transform2.rotation);
+            vec3.copy(transform.scale, transform2.scale);
+        }
     }
 }

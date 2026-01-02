@@ -196,7 +196,7 @@ World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
 let mat = new mat4();
-console.log(World.scene);
+console.log(World.scene, glm);
 
 function update(t, dt) {
     World.timers.global.time = t;
