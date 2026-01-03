@@ -21,12 +21,13 @@ import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
-import { Physics, Layers, BoundsComponent } from './src/Physics.js';
+import { Physics, Layers } from './src/Physics.js';
 
 import {
     calculateAxisAlignedBoundingBox,
     mergeAxisAlignedBoundingBoxes,
 } from 'engine/core/MeshUtils.js';
+import { PhysicsComponent } from './src/components/PhysicsComponent.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -83,7 +84,7 @@ function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), 
     collider.addComponent(new Transform({ translation: position }));
     collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
 
-    collider.addComponent(new BoundsComponent({
+    collider.addComponent(new PhysicsComponent({
     type: "aabb",
     localMin: [-scale[0], -scale[1], -scale[2]],
     localMax: [ scale[0],  scale[1],  scale[2]],
@@ -127,7 +128,7 @@ player.currentItem = null;
 
 //ok spremenila sm na bounds in sm dala player.currentItem namest customProperties da ne mixamo vec stvari
 
-player.addComponent(new BoundsComponent({
+player.addComponent(new PhysicsComponent({
   type: "aabb",
   localMin: [-0.2, -0.2, -0.2],
   localMax: [ 0.2,  0.2,  0.2],
@@ -153,7 +154,7 @@ invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1,
 
 const soba = resources.soba_model.build(World.scene);
 
-invisibleWallCollider.addComponent(new BoundsComponent({
+invisibleWallCollider.addComponent(new PhysicsComponent({
   type: "aabb",
   localMin: [-0.05, -0.1, -2.0],
   localMax: [ 0.05, 10.0, 2.0],
@@ -167,7 +168,7 @@ guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
 guy.addComponent(new RecordComponent());
 
-guy.addComponent(new BoundsComponent({
+guy.addComponent(new PhysicsComponent({
   type: "aabb",
   localMin: [-0.35, -0.1, -0.30],
   localMax: [ 0.35,  1.6,  0.30],
@@ -183,7 +184,7 @@ rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
 
-rangedGuy.addComponent(new BoundsComponent({
+rangedGuy.addComponent(new PhysicsComponent({
   type: "aabb",
   localMin: [-0.35, -0.1, -0.30],
   localMax: [ 0.35,  1.6,  0.30],
@@ -386,7 +387,8 @@ function update(t, dt) {
     if (Inputs.isHeld('KeyZ') && replay.frames.length !== 0)
     {
         const replayTime = time - replay.playbackStart;
-        const i = Math.min(replay.frames.findIndex(f => replayTime <= f.time), replay.frames.length - 1);
+        let i = replay.frames.findIndex(f => replayTime <= f.time);
+        if (i < 0) i = replay.frames.length - 1;
         const frame = replay.frames[Math.max(i - 1, 0)];
         const nextFrame = replay.frames[i];
         const delta = nextFrame.time - frame.time;
@@ -411,9 +413,9 @@ function update(t, dt) {
     }
 
     updateWorldMatricesRecursive(World.scene.root, new mat4());
-
         
     inputs.update();
+    
     physics.update(t, dt, World.scene);
 }
 

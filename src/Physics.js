@@ -1,26 +1,9 @@
-import { vec3, mat4 } from 'glm';
+import { vec3, mat4, quat } from 'glm';
 import { Transform } from 'engine/core/core.js';
-import { DeferredRenderer } from './renderer/DeferredRenderer.js';
 import { vec4 } from '../lib/glm.js';
 import { World } from './World.js';
-
-export class BoundsComponent{
-  constructor({
-    type = "aabb",
-    localMin = [-0.5, -0.5, -0.5],
-    localMax = [ 0.5,  0.5,  0.5],
-    isDynamic = false,
-    layer = 1 << 0,
-    mask = ~0,
-  } = {}) {
-    this.type = type;
-    this.localMin = localMin;
-    this.localMax = localMax;
-    this.isDynamic = isDynamic;
-    this.layer = layer;
-    this.mask = mask;
-  }
-}
+import { DeferredRenderer } from './renderer/DeferredRenderer.js';
+import { PhysicsComponent } from './components/PhysicsComponent.js';
 
 export const Layers = {
     WORLD:  1 << 0,
@@ -46,12 +29,13 @@ export class Physics {
     constructor() { }
 
     update(t, dt, scene) {
-        const position = new vec4();
+        const translation = new vec4();
         const scale = new vec4();
+        const rotation = new quat();
         const mat = new mat4();
 
         const g = -9.81;
-        const colliders = [...scene.query(BoundsComponent)]; //array komponent k so collidable
+        const colliders = [...scene.query(PhysicsComponent)];
         
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
         for (const [e, b] of colliders){
@@ -66,22 +50,18 @@ export class Physics {
             tr.translation[2] += e.velocity[2] * dt;
         }
 
-        for (const entity of scene.entities()) {
-            // tko bi mogl bit
-            if (World.poprSettings.debug && entity._bounds)
-            {
-                // entity._bounds.isDynamic;
-                // entity._bounds.layer;
-                // entity._bounds.type; == "aabb" | "obb" | krkol hocs pac
-                // obb zdej dobis iz _transform.final
-                // mat4.getScaling(scale, entity._transform.final);
-                // aabb vrjetn sezmer hocs met glede na ta obb da loh ze prej izlocis une k se def ne collidajo
-                // tkoda za dynamic stvari te na novo usak frame preracunas i think :D
-                DeferredRenderer.Draw3DBox(entity._transform.final, entity._bounds.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]);
-            }
-        }
-
         for (const [aEnt, aB] of colliders){
+            if (World.poprSettings.debug)
+            {
+                mat4.getTranslation(translation, aEnt._transform.final);
+                mat4.getScaling(scale, aEnt._transform.final);
+                DeferredRenderer.Draw3DBoxMinMax(
+                    aB.localMin, 
+                    aB.localMax, 
+                    mat4.fromRotationTranslationScale(mat, rotation, translation, scale), 
+                    aB.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]   
+                );
+            }
             if (!aB.isDynamic) continue;
 
             for (const [bEnt, bB] of colliders){
@@ -200,7 +180,7 @@ export class Physics {
         let closestHit = null;
         let closest = Infinity;
 
-        for (const [entity, b] of scene.query(BoundsComponent)){
+        for (const [entity, b] of scene.query(PhysicsComponent)){
             //sepravi zdej filtera by layer and mask ne pa samo static bs
             const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY;
             if ((b.layer & mask) === 0) continue;

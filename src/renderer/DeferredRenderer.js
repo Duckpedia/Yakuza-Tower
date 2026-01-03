@@ -1562,21 +1562,21 @@ export class DeferredRenderer extends BaseRenderer {
     {
         const center = vec3.fromValues((min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5, (min[2] + max[2]) * 0.5);
         const c = [
-            vec4.fromValues(min[0], min[1], min[2], 1.0),
-            vec4.fromValues(max[0], min[1], min[2], 1.0),
-            vec4.fromValues(max[0], max[1], min[2], 1.0),
-            vec4.fromValues(min[0], max[1], min[2], 1.0),
-            vec4.fromValues(min[0], min[1], max[2], 1.0),
-            vec4.fromValues(max[0], min[1], max[2], 1.0),
-            vec4.fromValues(max[0], max[1], max[2], 1.0),
-            vec4.fromValues(min[0], max[1], max[2], 1.0),
+            vec3.fromValues(min[0], min[1], min[2]),
+            vec3.fromValues(max[0], min[1], min[2]),
+            vec3.fromValues(max[0], max[1], min[2]),
+            vec3.fromValues(min[0], max[1], min[2]),
+            vec3.fromValues(min[0], min[1], max[2]),
+            vec3.fromValues(max[0], min[1], max[2]),
+            vec3.fromValues(max[0], max[1], max[2]),
+            vec3.fromValues(min[0], max[1], max[2]),
         ];
 
         if (mat)
         {
             for (let i = 0; i < c.length; i++) {
                 vec3.sub(c[i], c[i], center);
-                mat4.mul(c[i], mat, c[i]);
+                vec3.transformMat4(c[i], c[i], mat);
                 vec3.add(c[i], c[i], center);
             }
         }

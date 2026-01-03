@@ -1,6 +1,6 @@
 import { LightComponent } from '../../src/components/LightComponent.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
-import { BoundsComponent } from '../../src/components/BoundsComponent.js';
+import { PhysicsComponent } from '../../src/components/PhysicsComponent.js';
 import {
     Accessor,
     Camera,
@@ -582,7 +582,7 @@ export class GLTFLoader {
         {
             if (gltfSpec.extras.bounds)
             {
-                entity.addComponent(new BoundsComponent(gltfSpec.extras));
+                entity.addComponent(new PhysicsComponent(gltfSpec.extras));
             }
         }
 
@@ -628,7 +628,7 @@ export class GLTFLoader {
             const model = entity.getComponentOfType(Model);
             if (model) root.models.push(model);
 
-            const bounds = entity.getComponentOfType(BoundsComponent);
+            const bounds = entity.getComponentOfType(PhysicsComponent);
             if (bounds) bounds.parentEntity = root;
         }
         root.animations = root.skeleton?.animations ?? [];
