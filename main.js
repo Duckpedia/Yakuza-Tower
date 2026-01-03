@@ -21,7 +21,7 @@ import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
-import { Physics, Layers } from './src/Physics.js';
+import { Physics, Layers, BoundsComponent } from './src/Physics.js';
 
 import {
     calculateAxisAlignedBoundingBox,
@@ -83,14 +83,14 @@ function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), 
     collider.addComponent(new Transform({ translation: position }));
     collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
 
-    collider._bounds = {
+    collider.addComponent(new BoundsComponent({
     type: "aabb",
     localMin: [-scale[0], -scale[1], -scale[2]],
     localMax: [ scale[0],  scale[1],  scale[2]],
     isDynamic: true,
     layer: Layers.PICKUP,
     mask: Layers.WORLD | Layers.PLAYER, //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
-    };
+    }));
 
     collider.isPickup = true;
 
@@ -127,16 +127,15 @@ player.currentItem = null;
 
 //ok spremenila sm na bounds in sm dala player.currentItem namest customProperties da ne mixamo vec stvari
 
-player._bounds = {
+player.addComponent(new BoundsComponent({
   type: "aabb",
   localMin: [-0.2, -0.2, -0.2],
   localMax: [ 0.2,  0.2,  0.2],
   isDynamic: true,
   layer: Layers.PLAYER,
   mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP,
-};
+}));
 //layers!! koncno
-
 
 //reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
 const itemResources = {
@@ -154,28 +153,28 @@ invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1,
 
 const soba = resources.soba_model.build(World.scene);
 
-invisibleWallCollider._bounds = {
+invisibleWallCollider.addComponent(new BoundsComponent({
   type: "aabb",
   localMin: [-0.05, -0.1, -2.0],
   localMax: [ 0.05, 10.0, 2.0],
   isDynamic: false,
   layer: Layers.WORLD,
   mask: Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET,
-};
+}));
 
 const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
 guy.addComponent(new RecordComponent());
 
-guy._bounds = {
+guy.addComponent(new BoundsComponent({
   type: "aabb",
   localMin: [-0.35, -0.1, -0.30],
   localMax: [ 0.35,  1.6,  0.30],
   isDynamic: true,
   layer: Layers.ENEMY,
   mask: Layers.WORLD | Layers.PLAYER,
-};
+}));
 
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
@@ -184,14 +183,14 @@ rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
 
-rangedGuy._bounds = {
+rangedGuy.addComponent(new BoundsComponent({
   type: "aabb",
   localMin: [-0.35, -0.1, -0.30],
   localMax: [ 0.35,  1.6,  0.30],
   isDynamic: true,
   layer: Layers.ENEMY,
   mask: Layers.WORLD | Layers.PLAYER,
-};
+}));
 
 {
     const littleguy = resources.katana_model.build(World.scene);

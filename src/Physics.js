@@ -4,6 +4,24 @@ import { DeferredRenderer } from './renderer/DeferredRenderer.js';
 import { vec4 } from '../lib/glm.js';
 import { World } from './World.js';
 
+export class BoundsComponent{
+  constructor({
+    type = "aabb",
+    localMin = [-0.5, -0.5, -0.5],
+    localMax = [ 0.5,  0.5,  0.5],
+    isDynamic = false,
+    layer = 1 << 0,
+    mask = ~0,
+  } = {}) {
+    this.type = type;
+    this.localMin = localMin;
+    this.localMax = localMax;
+    this.isDynamic = isDynamic;
+    this.layer = layer;
+    this.mask = mask;
+  }
+}
+
 export const Layers = {
     WORLD:  1 << 0,
     PLAYER: 1 << 1,
@@ -33,18 +51,19 @@ export class Physics {
         const mat = new mat4();
 
         const g = -9.81;
-
+        const colliders = [...scene.query(BoundsComponent)]; //array komponent k so collidable
+        
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
-        for (const e of scene.entities()){
-        if (!e._bounds?.isDynamic) continue;
-        if (!e.velocity) continue;
+        for (const [e, b] of colliders){
+            if (!b.isDynamic) continue;
+            if (!e.velocity) continue;
 
-        e.velocity[1] += g * dt;
+            e.velocity[1] += g * dt;
 
-        const tr = e.getComponentOfType(Transform);
-        tr.translation[0] += e.velocity[0] * dt;
-        tr.translation[1] += e.velocity[1] * dt;
-        tr.translation[2] += e.velocity[2] * dt;
+            const tr = e.getComponentOfType(Transform);
+            tr.translation[0] += e.velocity[0] * dt;
+            tr.translation[1] += e.velocity[1] * dt;
+            tr.translation[2] += e.velocity[2] * dt;
         }
 
         for (const entity of scene.entities()) {
@@ -60,16 +79,20 @@ export class Physics {
                 // tkoda za dynamic stvari te na novo usak frame preracunas i think :D
                 DeferredRenderer.Draw3DBox(entity._transform.final, entity._bounds.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]);
             }
+        }
 
-            if (entity._bounds?.isDynamic){ //new system checkk
-                for (const other of scene.entities()) {
-                    if (entity === other) continue;
-                    if (!other._bounds) continue;
-                    if (!mutual(entity, other)) continue;
+        for (const [aEnt, aB] of colliders){
+            if (!aB.isDynamic) continue;
 
-                    if (!other._bounds.isDynamic) this.resolveCollision(entity, other);
-                    else this.resolveDynamicDynamic(entity, other); //vem da je supr ime
-                }
+            for (const [bEnt, bB] of colliders){
+                if (aEnt === bEnt) continue;
+
+                //filtriranje po maskah pa layerjih
+                if ((bB.layer & aB.mask) === 0) continue;
+                if ((aB.layer & bB.mask) === 0) continue;
+
+                if (!bB.isDynamic) this.resolveCollision(aEnt, aB, bEnt, bB);
+                else this.resolveDynamicDynamic(aEnt, aB, bEnt, bB);
             }
         }
     }
@@ -84,10 +107,10 @@ export class Physics {
             && this.intervalIntersection(aabb1.min[2], aabb1.max[2], aabb2.min[2], aabb2.max[2]);
     }
 
-    getTransformedAABB(entity) {
+    getTransformedAABB(entity, bounds) {
         // Transform all vertices of the AABB from local to global space.
         const matrix = entity._transform.final;
-        const { localMin: min, localMax: max } = entity._bounds; //wazzaaaaappp
+        const { localMin: min, localMax: max } = bounds; //wazzaaaaappp
         const vertices = [
             [min[0], min[1], min[2]],
             [min[0], min[1], max[2]],
@@ -108,17 +131,12 @@ export class Physics {
         return { min: newmin, max: newmax };
     }
 
-    resolveCollision(a, b) {
+    resolveCollision(aEnt, aB, bEnt, bB){
         //dodala da skipa entities brez aabb, nebodo mel physics nebo pa errorja.
-        if (!a._bounds || !b._bounds) return;
-        const aBox = this.getTransformedAABB(a);
-        const bBox = this.getTransformedAABB(b);
+        const aBox = this.getTransformedAABB(aEnt, aB);
+        const bBox = this.getTransformedAABB(bEnt, bB);
 
-        // Check if there is collision.
-        const isColliding = this.aabbIntersection(aBox, bBox);
-        if (!isColliding) {
-            return;
-        }
+        if (!this.aabbIntersection(aBox, bBox)) return;
 
         // Move entity A minimally to avoid collision.
         const diffa = vec3.sub(vec3.create(), bBox.max, aBox.min);
@@ -126,39 +144,21 @@ export class Physics {
 
         let minDiff = Infinity;
         let minDirection = [0, 0, 0];
-        if (diffa[0] >= 0 && diffa[0] < minDiff) {
-            minDiff = diffa[0];
-            minDirection = [minDiff, 0, 0];
-        }
-        if (diffa[1] >= 0 && diffa[1] < minDiff) {
-            minDiff = diffa[1];
-            minDirection = [0, minDiff, 0];
-        }
-        if (diffa[2] >= 0 && diffa[2] < minDiff) {
-            minDiff = diffa[2];
-            minDirection = [0, 0, minDiff];
-        }
-        if (diffb[0] >= 0 && diffb[0] < minDiff) {
-            minDiff = diffb[0];
-            minDirection = [-minDiff, 0, 0];
-        }
-        if (diffb[1] >= 0 && diffb[1] < minDiff) {
-            minDiff = diffb[1];
-            minDirection = [0, -minDiff, 0];
-        }
-        if (diffb[2] >= 0 && diffb[2] < minDiff) {
-            minDiff = diffb[2];
-            minDirection = [0, 0, -minDiff];
-        }
 
-        if (a.velocity && minDirection[1] > 0) a.velocity[1] = 0; //to prepreci jitter, minimal solution for now
+        if (diffa[0] >= 0 && diffa[0] < minDiff) { minDiff = diffa[0]; minDirection = [ minDiff, 0, 0]; }
+        if (diffa[1] >= 0 && diffa[1] < minDiff) { minDiff = diffa[1]; minDirection = [ 0, minDiff, 0]; }
+        if (diffa[2] >= 0 && diffa[2] < minDiff) { minDiff = diffa[2]; minDirection = [ 0, 0, minDiff]; }
 
-        const transform = a.getComponentOfType(Transform);
-        if (!transform) {
-            return;
-        }
+        if (diffb[0] >= 0 && diffb[0] < minDiff) { minDiff = diffb[0]; minDirection = [-minDiff, 0, 0]; }
+        if (diffb[1] >= 0 && diffb[1] < minDiff) { minDiff = diffb[1]; minDirection = [0, -minDiff, 0]; }
+        if (diffb[2] >= 0 && diffb[2] < minDiff) { minDiff = diffb[2]; minDirection = [0, 0, -minDiff]; }
 
-        vec3.add(transform.translation, transform.translation, minDirection);
+        if (aEnt.velocity && minDirection[1] > 0) aEnt.velocity[1] = 0;  //to prepreci jitter, minimal solution for now
+
+        const tr = aEnt.getComponentOfType(Transform);
+        if (!tr) return;
+
+        vec3.add(tr.translation, tr.translation, minDirection);
     }
 
     rayAABB(origin, dir, aabb){
@@ -200,14 +200,12 @@ export class Physics {
         let closestHit = null;
         let closest = Infinity;
 
-        for(const entity of scene.entities()){
+        for (const [entity, b] of scene.query(BoundsComponent)){
             //sepravi zdej filtera by layer and mask ne pa samo static bs
             const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY;
+            if ((b.layer & mask) === 0) continue;
 
-            if ((getLayer(entity) & mask) === 0) continue;
-            if (!entity._bounds) continue;
-
-            const worldAABB = this.getTransformedAABB(entity);
+            const worldAABB = this.getTransformedAABB(entity, b);
             const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
 
             if(t !== null && t <= maxDistance && t < closest){
@@ -234,11 +232,9 @@ export class Physics {
     }
 
     //psiho koda incoming
-    resolveDynamicDynamic(a, b) {
-        if (!a._bounds || !b._bounds) return;
-
-        const aBox = this.getTransformedAABB(a);
-        const bBox = this.getTransformedAABB(b);
+    resolveDynamicDynamic(aEnt, aB, bEnt, bB){
+        const aBox = this.getTransformedAABB(aEnt, aB);
+        const bBox = this.getTransformedAABB(bEnt, bB);
         if (!this.aabbIntersection(aBox, bBox)) return;
 
         //half half logika, podobno kot prej 
@@ -256,12 +252,12 @@ export class Physics {
         if (diffb[1] >= 0 && diffb[1] < minDiff) { minDiff = diffb[1]; pushA = [0, -minDiff, 0]; }
         if (diffb[2] >= 0 && diffb[2] < minDiff) { minDiff = diffb[2]; pushA = [0, 0, -minDiff]; }
 
-        const ta = a.getComponentOfType(Transform);
-        const tb = b.getComponentOfType(Transform);
+        const ta = aEnt.getComponentOfType(Transform);
+        const tb = bEnt.getComponentOfType(Transform);
         if (!ta || !tb) return;
 
         vec3.add(ta.translation, ta.translation, vec3.scale(vec3.create(), pushA,  0.5));
         vec3.add(tb.translation, tb.translation, vec3.scale(vec3.create(), pushA, -0.5));
-        }
+    }
 
 }
