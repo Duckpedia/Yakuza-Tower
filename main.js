@@ -106,6 +106,25 @@ await renderer.initialize(resources.white_image, resources.dirt_image);
 const inputs = new Inputs(canvas);
 const physics = new Physics(World.scene);
 
+const floor = World.scene.addEntity(World.scene.createEntity());
+floor.name = "Floor";
+
+floor.addComponent(new Transform({
+  translation: [0, 0, 0], // Y = floor height
+}));
+
+floor.addComponent(new PhysicsComponent({
+  type: "aabb",
+
+  // big flat box
+  localMin: [-50, -0.1, -50],
+  localMax: [ 50,  0.1,  50],
+
+  isDynamic: false,
+  layer: Layers.WORLD,
+  mask: Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET,
+}));
+
 //player creation
 
 const player = World.scene.addEntity(World.scene.createEntity());
