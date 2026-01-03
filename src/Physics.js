@@ -4,6 +4,26 @@ import { DeferredRenderer } from './renderer/DeferredRenderer.js';
 import { vec4 } from '../lib/glm.js';
 import { World } from './World.js';
 
+export const Layers = {
+    WORLD:  1 << 0,
+    PLAYER: 1 << 1,
+    ENEMY:  1 << 2,
+    PICKUP: 1 << 3,
+    BULLET: 1 << 4,
+};
+
+function getLayer(e){
+    return e.layer ?? Layers.WORLD;
+}
+
+function getMask(e){
+    return e.mask ?? ~0; //default je da se collidajo z vsem
+}
+
+function mutual(a, b) {
+  return (getLayer(b) & getMask(a)) !== 0 && (getLayer(a) & getMask(b)) !== 0; //da se mutually colidata
+}
+
 export class Physics {
     constructor() { }
 
@@ -12,6 +32,22 @@ export class Physics {
         const position = new vec4();
         const scale = new vec4();
         const mat = new mat4();
+
+        const g = -9.81;
+
+        //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
+        for (const e of scene.entities()){
+        if (!e.customProperties?.isDynamic) continue;
+        if (!e.velocity) continue;
+
+        e.velocity[1] += g * dt;
+
+        const tr = e.getComponentOfType(Transform);
+        tr.translation[0] += e.velocity[0] * dt;
+        tr.translation[1] += e.velocity[1] * dt;
+        tr.translation[2] += e.velocity[2] * dt;
+        }
+
         for (const entity of scene.entities()) {
 
             // tvoji tastari
@@ -38,11 +74,17 @@ export class Physics {
                 DeferredRenderer.Draw3DBox(entity._transform.final, entity._bounds.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]);
             }
 
-            if (entity.customProperties?.isDynamic) 
-            {
+            if (entity.customProperties?.isDynamic) {
                 for (const other of scene.entities()) {
-                    if (entity !== other && other.customProperties?.isStatic) {
-                        this.resolveCollision(entity, other);
+                    if (entity === other) continue;
+                    if (!other.customProperties) continue;
+                    if (!mutual(entity, other)) continue;
+
+                    if (other.customProperties.isStatic) {
+                    this.resolveCollision(entity, other);
+                    } else if (other.customProperties.isDynamic) {
+                    //vem da je supr ime
+                    this.resolveDynamicDynamic(entity, other);
                     }
                 }
             }
@@ -86,7 +128,6 @@ export class Physics {
     resolveCollision(a, b) {
         //dodala da skipa entities brez aabb, nebodo mel physics nebo pa errorja.
         if (!a.aabb || !b.aabb) return;
-
         const aBox = this.getTransformedAABB(a);
         const bBox = this.getTransformedAABB(b);
 
@@ -126,6 +167,8 @@ export class Physics {
             minDiff = diffb[2];
             minDirection = [0, 0, -minDiff];
         }
+
+        if (a.velocity && minDirection[1] > 0) a.velocity[1] = 0; //to prepreci jitter, minimal solution for now
 
         const transform = a.getComponentOfType(Transform);
         if (!transform) {
@@ -175,8 +218,11 @@ export class Physics {
         let closest = Infinity;
 
         for(const entity of scene.entities()){
-            //to je da samo skippa ce niso collidable pa brezveze matematiko
-            if(!entity.customProperties?.isStatic) continue;
+            //sepravi zdej filtera by layer and mask ne pa samo static bs
+            const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY;
+
+            if ((getLayer(entity) & mask) === 0) continue;
+            if (!entity.aabb) continue;
             if(!entity.aabb) continue;
 
             const worldAABB = this.getTransformedAABB(entity);
@@ -204,5 +250,36 @@ export class Physics {
             distance: closest,
         };
     }
+
+    //psiho koda incoming
+    resolveDynamicDynamic(a, b) {
+        if (!a.aabb || !b.aabb) return;
+
+        const aBox = this.getTransformedAABB(a);
+        const bBox = this.getTransformedAABB(b);
+        if (!this.aabbIntersection(aBox, bBox)) return;
+
+        //half half logika, podobno kot prej 
+        const diffa = vec3.sub(vec3.create(), bBox.max, aBox.min);
+        const diffb = vec3.sub(vec3.create(), aBox.max, bBox.min);
+
+        let minDiff = Infinity;
+        let pushA = [0, 0, 0];
+
+        if (diffa[0] >= 0 && diffa[0] < minDiff) { minDiff = diffa[0]; pushA = [ minDiff, 0, 0]; }
+        if (diffa[1] >= 0 && diffa[1] < minDiff) { minDiff = diffa[1]; pushA = [ 0, minDiff, 0]; }
+        if (diffa[2] >= 0 && diffa[2] < minDiff) { minDiff = diffa[2]; pushA = [ 0, 0, minDiff]; }
+
+        if (diffb[0] >= 0 && diffb[0] < minDiff) { minDiff = diffb[0]; pushA = [-minDiff, 0, 0]; }
+        if (diffb[1] >= 0 && diffb[1] < minDiff) { minDiff = diffb[1]; pushA = [0, -minDiff, 0]; }
+        if (diffb[2] >= 0 && diffb[2] < minDiff) { minDiff = diffb[2]; pushA = [0, 0, -minDiff]; }
+
+        const ta = a.getComponentOfType(Transform);
+        const tb = b.getComponentOfType(Transform);
+        if (!ta || !tb) return;
+
+        vec3.add(ta.translation, ta.translation, vec3.scale(vec3.create(), pushA,  0.5));
+        vec3.add(tb.translation, tb.translation, vec3.scale(vec3.create(), pushA, -0.5));
+        }
 
 }

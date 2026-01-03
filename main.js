@@ -21,7 +21,7 @@ import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
-import { Physics } from './src/Physics.js';
+import { Physics, Layers } from './src/Physics.js';
 
 import {
     calculateAxisAlignedBoundingBox,
@@ -81,12 +81,16 @@ function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), 
     const collider = World.scene.addEntity(World.scene.createEntity());
     collider.name = modelResource.name + "Collider";
     collider.addComponent(new Transform({ translation: position }));
-    collider.customProperties = { isStatic: true, itemType };
+    collider.customProperties = { isDynamic: true, itemType }; 
+    collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
     collider.aabbManual = true;
     collider.aabb = { 
         min: [-scale[0], -scale[1], -scale[2]], 
         max: [ scale[0],  scale[1],  scale[2]] 
     };
+    collider.layer = Layers.PICKUP;
+    collider.mask  = Layers.WORLD | Layers.PLAYER; //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
+
 
     collider.isPickup = true;
 
@@ -116,11 +120,14 @@ player.customProperties = { isDynamic: true, currentItem: null };
 //current item bo zdj storeal kaj si picku up, pol pa lah droppas
 //bi bilo zelo uporabno ce bi kdo hotu naredit weapone!!!!
 
-
 player.aabb = {
   min: [-0.2, -0.2, -0.2],
   max: [ 0.2,  0.2,  0.2],
 };
+
+//layers!! koncno
+player.layer = Layers.PLAYER;
+player.mask  = Layers.WORLD | Layers.ENEMY | Layers.PICKUP;
 
 //reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
 const itemResources = {
@@ -146,6 +153,14 @@ invisibleWallCollider.aabb = {
 const soba = resources.soba_model.build(World.scene);
 soba.customProperties = { isStatic: true };
 
+//more layers...
+soba.layer = Layers.WORLD;
+soba.mask  = Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET;
+
+//and even more layers...
+invisibleWallCollider.layer = Layers.WORLD;
+invisibleWallCollider.mask  = soba.mask;
+
 const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
@@ -153,6 +168,10 @@ guy.addComponent(new RecordComponent());
 guy.customProperties = { isDynamic: true };
 guy.aabbManual = true;
 guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
+
+//layers!!
+guy.layer = Layers.ENEMY;
+guy.mask  = Layers.WORLD | Layers.PLAYER;
 
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
@@ -163,6 +182,10 @@ rangedGuy_transform.translation = new vec3(1, 0, 1);
 rangedGuy.customProperties = { isDynamic: true };
 rangedGuy.aabbManual = true;
 rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
+
+//layers...
+rangedGuy.layer = Layers.ENEMY;
+rangedGuy.mask  = Layers.WORLD | Layers.PLAYER;
 
 {
     const littleguy = resources.katana_model.build(World.scene);
