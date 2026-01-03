@@ -438,9 +438,7 @@ function update(t, dt) {
     {
         inputs.update();
 
-        console.log("ubi se");
         physics.update(t, dt, World.scene);
-        console.log("2x");
     }
 }
 
