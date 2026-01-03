@@ -182,7 +182,7 @@ export class Physics {
 
         for (const [entity, b] of scene.query(PhysicsComponent)){
             //sepravi zdej filtera by layer and mask ne pa samo static bs
-            const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY;
+            const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY | Layers.PICKUP;;
             if ((b.layer & mask) === 0) continue;
 
             const worldAABB = this.getTransformedAABB(entity, b);
