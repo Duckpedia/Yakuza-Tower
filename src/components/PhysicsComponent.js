@@ -1,3 +1,5 @@
+import { Layers } from "../Physics.js";
+
 export class PhysicsComponent{
     constructor({
         type = "aabb",
@@ -11,7 +13,7 @@ export class PhysicsComponent{
         this.localMin = localMin;
         this.localMax = localMax;
         this.isDynamic = isDynamic;
-        this.layer = layer;
+        this.layer = typeof layer === 'number' ? layer : Layers[layer.toUpperCase()];
         this.mask = mask;
     }
     

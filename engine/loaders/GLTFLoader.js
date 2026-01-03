@@ -13,6 +13,7 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
+import { vec3 } from '../../lib/glm.js';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -582,6 +583,8 @@ export class GLTFLoader {
         {
             if (gltfSpec.extras.bounds)
             {
+                gltfSpec.extras.localMin = vec3.mul(new vec3(), [ -1, -1, -1 ], entity._transform.scale);
+                gltfSpec.extras.localMax = vec3.mul(new vec3(), [  1,  1,  1 ], entity._transform.scale);
                 entity.addComponent(new PhysicsComponent(gltfSpec.extras));
             }
         }
