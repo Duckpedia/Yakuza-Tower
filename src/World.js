@@ -7,6 +7,7 @@ export class World {
     static scene = new Scene();
     static activeCamera = null;
     static timers = { global: { time: 0.0, dt: 0.0 }, game: { time: 0.0, dt: 0.0 } };
+    static doUpdate = true;
 
     static getDt(name = 'game')
     {

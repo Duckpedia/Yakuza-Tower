@@ -1,10 +1,11 @@
-import { mat4, vec4, vec3 } from 'glm';
+import { mat4, quat, vec3 } from 'glm';
 import * as glm from 'glm';
 import { GUI } from 'dat';
 
 import { ResizeSystem } from 'engine/systems/ResizeSystem.js';
 import { UpdateSystem } from 'engine/systems/UpdateSystem.js';
 import { PlayerComponent } from 'src/components/PlayerComponent.js';
+import { RecordComponent } from 'src/components/RecordComponent.js';
 
 import {
     Camera,
@@ -107,6 +108,7 @@ player.addComponent(new Transform({
     translation: new vec3(0, 1.2, 2),
 }));
 player.addComponent(new Camera());
+player.addComponent(new RecordComponent());
 player.addComponent(new PlayerComponent(player, canvas));
 
 // to samo doda da dejansko dela aabb collision
@@ -147,6 +149,7 @@ soba.customProperties = { isStatic: true };
 const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
+guy.addComponent(new RecordComponent());
 guy.customProperties = { isDynamic: true };
 guy.aabbManual = true;
 guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
@@ -154,6 +157,7 @@ guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
 rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_model,'Ranged'));
+rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
 rangedGuy.customProperties = { isDynamic: true };
@@ -195,10 +199,12 @@ let active_camera = 0;
 World.activeCamera = cameras[0];
 const defaultPoprSettings = World.poprSettings;
 
-let mat = new mat4();
 console.log(World.scene, glm);
 
+const replay = { frames: [] };
+
 function update(t, dt) {
+    const time = World.getTime();
     World.timers.global.time = t;
     World.timers.global.dt = dt;
     World.timers.game.dt = dt * World.timeScale;
@@ -307,13 +313,77 @@ function update(t, dt) {
         }
     }
 
-    for (const entity of World.scene.entities()) {
-        for (const component of entity.components) {
-            component.update?.(); 
+    if (Inputs.isPressed('KeyX'))
+    {
+        replay.start = time;
+        replay.frames.length = 0;
+    }
+
+    if (Inputs.isHeld('KeyX'))
+    {
+        const frame = { data: new Map() };
+        frame.time = time - replay.start;
+        for (const [entity, _] of World.scene.query(RecordComponent)) {
+            frame.data.set(entity, ({
+                hidden: entity.hidden,
+                translation: vec3.clone(entity._transform.translation),
+                rotation: quat.clone(entity._transform.rotation),
+                scale: vec3.clone(entity._transform.scale),
+            }));
+            entity.forEachChild((child) => {
+                if (!child._transform) return;
+                frame.data.set(child, ({
+                    hidden: child.hidden,
+                    translation: vec3.clone(child._transform.translation),
+                    rotation: quat.clone(child._transform.rotation),
+                    scale: vec3.clone(child._transform.scale),
+                }));
+            });
+        }
+        replay.frames.push(frame);
+    }
+
+    if (Inputs.isPressed('KeyZ'))
+    {
+        replay.playbackStart = time;
+        World.doUpdate = false;
+    }
+    
+    if (Inputs.isReleased('KeyZ'))
+    {
+        replay.playbackStart = time;
+        World.doUpdate = true;
+    }
+
+    if (Inputs.isHeld('KeyZ') && replay.frames.length !== 0)
+    {
+        const replayTime = time - replay.playbackStart;
+        const i = Math.min(replay.frames.findIndex(f => replayTime <= f.time), replay.frames.length - 1);
+        const frame = replay.frames[Math.max(i - 1, 0)];
+        const nextFrame = replay.frames[i];
+        const delta = nextFrame.time - frame.time;
+        const t = delta > 0.0 ? Math.min((replayTime - frame.time) / delta, 1.0) : 0.0;
+        for (const [entity, a] of frame.data.entries())
+        {
+            const b = nextFrame.data.get(entity) ?? a;
+            entity.hidden = t < 0.5 ? a.hidden : b.hidden;
+            vec3.lerp(entity._transform.translation, a.translation, b.translation, t);
+            quat.slerp(entity._transform.rotation, a.rotation, b.rotation, t);
+            vec3.lerp(entity._transform.scale, a.scale, b.scale, t);
+        }
+    }
+    
+    if (World.doUpdate)
+    {
+        for (const entity of World.scene.entities()) {
+            for (const component of entity.components) {
+                component.update?.(); 
+            }
         }
     }
 
     updateWorldMatricesRecursive(World.scene.root, new mat4());
+
         
     inputs.update();
     physics.update(t, dt, World.scene);
@@ -337,6 +407,7 @@ new UpdateSystem({ update, render }).start();
 
 
 const gui = new GUI();
+gui.add(World, 'doUpdate', 0, 1);
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'strength', 0.0, 1.0);
