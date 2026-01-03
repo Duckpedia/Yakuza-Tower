@@ -139,7 +139,6 @@ export class Physics {
         if (bB.isDynamic)
         {
             const actualB = bB.parentEntity ?? bEnt;
-            console.log("collision between " + actualA.name + " and " + actualB.name);
             const tb = actualB._transform;
             if (!tb) return;
 
