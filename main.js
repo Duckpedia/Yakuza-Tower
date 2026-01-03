@@ -22,11 +22,6 @@ import { EnemyComponent } from './src/components/EnemyComponent.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
 import { Physics, Layers } from './src/Physics.js';
-
-import {
-    calculateAxisAlignedBoundingBox,
-    mergeAxisAlignedBoundingBoxes,
-} from 'engine/core/MeshUtils.js';
 import { PhysicsComponent } from './src/components/PhysicsComponent.js';
 
 //tukej se vsi resources dodajajo
@@ -85,12 +80,12 @@ function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), 
     collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
 
     collider.addComponent(new PhysicsComponent({
-    type: "aabb",
-    localMin: [-scale[0], -scale[1], -scale[2]],
-    localMax: [ scale[0],  scale[1],  scale[2]],
-    isDynamic: true,
-    layer: Layers.PICKUP,
-    mask: Layers.WORLD | Layers.PLAYER, //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
+        type: "aabb",
+        localMin: [-scale[0], -scale[1], -scale[2]],
+        localMax: [ scale[0],  scale[1],  scale[2]],
+        isDynamic: true,
+        layer: Layers.PICKUP,
+        mask: Layers.WORLD | Layers.PLAYER, //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
     }));
 
     collider.isPickup = true;
@@ -111,18 +106,6 @@ floor.name = "Floor";
 
 floor.addComponent(new Transform({
   translation: [0, 0, 0], // Y = floor height
-}));
-
-floor.addComponent(new PhysicsComponent({
-  type: "aabb",
-
-  // big flat box
-  localMin: [-50, -0.1, -50],
-  localMax: [ 50,  0.1,  50],
-
-  isDynamic: false,
-  layer: Layers.WORLD,
-  mask: Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET,
 }));
 
 //player creation
@@ -173,28 +156,10 @@ invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1,
 
 const soba = resources.soba_model.build(World.scene);
 
-invisibleWallCollider.addComponent(new PhysicsComponent({
-  type: "aabb",
-  localMin: [-0.05, -0.1, -2.0],
-  localMax: [ 0.05, 10.0, 2.0],
-  isDynamic: false,
-  layer: Layers.WORLD,
-  mask: Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET,
-}));
-
 const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
 guy.addComponent(new RecordComponent());
-
-guy.addComponent(new PhysicsComponent({
-  type: "aabb",
-  localMin: [-0.35, -0.1, -0.30],
-  localMax: [ 0.35,  1.6,  0.30],
-  isDynamic: true,
-  layer: Layers.ENEMY,
-  mask: Layers.WORLD | Layers.PLAYER,
-}));
 
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
@@ -202,15 +167,6 @@ rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_mo
 rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
-
-rangedGuy.addComponent(new PhysicsComponent({
-  type: "aabb",
-  localMin: [-0.35, -0.1, -0.30],
-  localMax: [ 0.35,  1.6,  0.30],
-  isDynamic: true,
-  layer: Layers.ENEMY,
-  mask: Layers.WORLD | Layers.PLAYER,
-}));
 
 {
     const littleguy = resources.katana_model.build(World.scene);
@@ -227,15 +183,15 @@ rangedGuy.addComponent(new PhysicsComponent({
     littleguy.parent = guy.findChildByName("up_righthand");
 }
 
-for (const entity of World.scene.entities()) {
-  if (entity.aabbManual) continue;
+// for (const entity of World.scene.entities()) {
+//   if (entity.aabbManual) continue;
 
-  const model = entity.getComponentOfType(Model);
-  if (!model) continue;
+//   const model = entity.getComponentOfType(Model);
+//   if (!model) continue;
 
-  const boxes = model.primitives.map(p => calculateAxisAlignedBoundingBox(p.mesh));
-  entity.aabb = mergeAxisAlignedBoundingBoxes(boxes);
-}
+//   const boxes = model.primitives.map(p => calculateAxisAlignedBoundingBox(p.mesh));
+//   entity.aabb = mergeAxisAlignedBoundingBoxes(boxes);
+// }
 
 const cameras = []
 for (const entity of World.scene.entities())

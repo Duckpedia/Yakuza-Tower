@@ -583,8 +583,8 @@ export class GLTFLoader {
         {
             if (gltfSpec.extras.bounds)
             {
-                gltfSpec.extras.localMin = vec3.mul(new vec3(), [ -1, -1, -1 ], entity._transform.scale);
-                gltfSpec.extras.localMax = vec3.mul(new vec3(), [  1,  1,  1 ], entity._transform.scale);
+                gltfSpec.extras.localMin = [ -1, -1, -1 ];
+                gltfSpec.extras.localMax = [  1,  1,  1 ];
                 entity.addComponent(new PhysicsComponent(gltfSpec.extras));
             }
         }
@@ -631,8 +631,8 @@ export class GLTFLoader {
             const model = entity.getComponentOfType(Model);
             if (model) root.models.push(model);
 
-            const bounds = entity.getComponentOfType(PhysicsComponent);
-            if (bounds) bounds.parentEntity = root;
+            const physics = entity.getComponentOfType(PhysicsComponent);
+            if (physics) physics.parentEntity = root;
         }
         root.animations = root.skeleton?.animations ?? [];
         scene.addEntity(root);

@@ -83,14 +83,6 @@ player.addComponent(new Transform({
 player.addComponent(new Camera());
 player.addComponent(new PlayerComponent(player, canvas));
 
-// to samo doda da dejansko dela aabb collision
-player.customProperties = { isDynamic: true };
-
-player.aabb = {
-  min: [-0.2, -0.2, -0.2],
-  max: [ 0.2,  0.2,  0.2],
-};
-
 const scene = [player];
 
 const pickupKatanaScene = resources.katana_model.loadScene();

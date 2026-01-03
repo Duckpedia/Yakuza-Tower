@@ -71,8 +71,7 @@ export class Physics {
                 if ((bB.layer & aB.mask) === 0) continue;
                 if ((aB.layer & bB.mask) === 0) continue;
 
-                if (!bB.isDynamic) this.resolveCollision(aEnt, aB, bEnt, bB);
-                else this.resolveDynamicDynamic(aEnt, aB, bEnt, bB);
+                this.resolveCollision(aEnt, aB, bEnt, bB);
             }
         }
     }
@@ -121,30 +120,44 @@ export class Physics {
         // Move entity A minimally to avoid collision.
         const diffa = vec3.sub(vec3.create(), bBox.max, aBox.min);
         const diffb = vec3.sub(vec3.create(), aBox.max, bBox.min);
-
+        
         let minDiff = Infinity;
         let minDirection = [0, 0, 0];
-
+        
         if (diffa[0] >= 0 && diffa[0] < minDiff) { minDiff = diffa[0]; minDirection = [ minDiff, 0, 0]; }
         if (diffa[1] >= 0 && diffa[1] < minDiff) { minDiff = diffa[1]; minDirection = [ 0, minDiff, 0]; }
         if (diffa[2] >= 0 && diffa[2] < minDiff) { minDiff = diffa[2]; minDirection = [ 0, 0, minDiff]; }
-
+        
         if (diffb[0] >= 0 && diffb[0] < minDiff) { minDiff = diffb[0]; minDirection = [-minDiff, 0, 0]; }
         if (diffb[1] >= 0 && diffb[1] < minDiff) { minDiff = diffb[1]; minDirection = [0, -minDiff, 0]; }
         if (diffb[2] >= 0 && diffb[2] < minDiff) { minDiff = diffb[2]; minDirection = [0, 0, -minDiff]; }
+        
+        const actualA = aB.parentEntity ?? aEnt; // enemyji alpkj majo loh vec colliderjov tkoda vsi v resnici kazejo nanga
+        const ta = actualA._transform;
+        if(!ta) return;
+        
+        if (bB.isDynamic)
+        {
+            const actualB = bB.parentEntity ?? bEnt;
+            console.log("collision between " + actualA.name + " and " + actualB.name);
+            const tb = actualB._transform;
+            if (!tb) return;
 
-        if (aEnt.velocity && minDirection[1] > 0) aEnt.velocity[1] = 0;  //to prepreci jitter, minimal solution for now
-
-        const tr = aEnt.getComponentOfType(Transform);
-        if (!tr) return;
-
-        vec3.add(tr.translation, tr.translation, minDirection);
+            vec3.scale(minDirection, minDirection,  0.5)
+            vec3.add(ta.translation, ta.translation, minDirection);
+            vec3.sub(tb.translation, tb.translation, minDirection);
+        }
+        else
+        {
+            if (actualA.velocity && minDirection[1] > 0) actualA.velocity[1] = 0;  //to prepreci jitter, minimal solution for now
+            vec3.add(ta.translation, ta.translation, minDirection);
+        }
     }
 
     rayAABB(origin, dir, aabb){
-    //slab metoda (P(t) = origin + t · dir) in potrebujemo intersection vseh tri axis
-    let tmin = -Infinity;
-    let tmax = Infinity;
+        //slab metoda (P(t) = origin + t · dir) in potrebujemo intersection vseh tri axis
+        let tmin = -Infinity;
+        let tmax = Infinity;
 
         for(let i = 0; i < 3; i++){
             if(Math.abs(dir[i]) < 1e-6){ //tole prepreci napako pr ful mejhnih spremembah
@@ -208,35 +221,6 @@ export class Physics {
             point: hitPoint,
             distance: closest,
         };
-    }
-
-    //psiho koda incoming
-    resolveDynamicDynamic(aEnt, aB, bEnt, bB){
-        const aBox = this.getTransformedAABB(aEnt, aB);
-        const bBox = this.getTransformedAABB(bEnt, bB);
-        if (!this.aabbIntersection(aBox, bBox)) return;
-
-        //half half logika, podobno kot prej 
-        const diffa = vec3.sub(vec3.create(), bBox.max, aBox.min);
-        const diffb = vec3.sub(vec3.create(), aBox.max, bBox.min);
-
-        let minDiff = Infinity;
-        let pushA = [0, 0, 0];
-
-        if (diffa[0] >= 0 && diffa[0] < minDiff) { minDiff = diffa[0]; pushA = [ minDiff, 0, 0]; }
-        if (diffa[1] >= 0 && diffa[1] < minDiff) { minDiff = diffa[1]; pushA = [ 0, minDiff, 0]; }
-        if (diffa[2] >= 0 && diffa[2] < minDiff) { minDiff = diffa[2]; pushA = [ 0, 0, minDiff]; }
-
-        if (diffb[0] >= 0 && diffb[0] < minDiff) { minDiff = diffb[0]; pushA = [-minDiff, 0, 0]; }
-        if (diffb[1] >= 0 && diffb[1] < minDiff) { minDiff = diffb[1]; pushA = [0, -minDiff, 0]; }
-        if (diffb[2] >= 0 && diffb[2] < minDiff) { minDiff = diffb[2]; pushA = [0, 0, -minDiff]; }
-
-        const ta = aEnt.getComponentOfType(Transform);
-        const tb = bEnt.getComponentOfType(Transform);
-        if (!ta || !tb) return;
-
-        vec3.add(ta.translation, ta.translation, vec3.scale(vec3.create(), pushA,  0.5));
-        vec3.add(tb.translation, tb.translation, vec3.scale(vec3.create(), pushA, -0.5));
     }
 
 }
