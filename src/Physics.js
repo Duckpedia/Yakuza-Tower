@@ -36,6 +36,7 @@ export class Physics {
 
         const g = -9.81;
         const colliders = [...scene.query(PhysicsComponent)];
+        debugger;
         
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
         for (const [e, b] of colliders){
@@ -172,7 +173,7 @@ export class Physics {
 
     }
 
-    raycast(from, to, scene){
+    raycast(from, to, scene, mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY | Layers.PICKUP){
         const dir = vec3.sub(vec3.create(), to, from); //naredimo vektor, direction pa length
         const maxDistance = vec3.length(dir); //tukaj imamo pa length raya
         vec3.normalize(dir, dir); //normaliziramo ker prejsna funkcija vrne dejanski distance
@@ -182,7 +183,6 @@ export class Physics {
 
         for (const [entity, b] of scene.query(PhysicsComponent)){
             //sepravi zdej filtera by layer and mask ne pa samo static bs
-            const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY | Layers.PICKUP;;
             if ((b.layer & mask) === 0) continue;
 
             const worldAABB = this.getTransformedAABB(entity, b);
