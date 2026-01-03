@@ -36,7 +36,6 @@ export class Physics {
 
         const g = -9.81;
         const colliders = [...scene.query(PhysicsComponent)];
-        debugger;
         
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
         for (const [e, b] of colliders){

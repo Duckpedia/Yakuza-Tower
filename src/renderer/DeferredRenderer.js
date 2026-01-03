@@ -909,7 +909,7 @@ export class DeferredRenderer extends BaseRenderer {
             this.renderDebug(encoder, target, cameraBindGroup);
         }
         
-        this.debugLines.length = 0;
+        this.clearDebug();
 
         if (poprSettings.showUI)
         {
@@ -917,6 +917,11 @@ export class DeferredRenderer extends BaseRenderer {
         }
 
         this.device.queue.submit([encoder.finish()]);
+    }
+
+    clearDebug()
+    {
+        this.debugLines.length = 0;
     }
 
     prepareRender(scene)

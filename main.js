@@ -252,6 +252,7 @@ console.log(World.scene, glm);
 const replay = { frames: [] };
 
 function update(t, dt) {
+    renderer.clearDebug();
     const time = World.getTime();
     World.timers.global.time = t;
     World.timers.global.dt = dt;
@@ -433,9 +434,14 @@ function update(t, dt) {
 
     updateWorldMatricesRecursive(World.scene.root, new mat4());
         
-    inputs.update();
-    
-    physics.update(t, dt, World.scene);
+    if (World.doUpdate)
+    {
+        inputs.update();
+
+        console.log("ubi se");
+        physics.update(t, dt, World.scene);
+        console.log("2x");
+    }
 }
 
 function render() 
