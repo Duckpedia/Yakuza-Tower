@@ -81,16 +81,16 @@ function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), 
     const collider = World.scene.addEntity(World.scene.createEntity());
     collider.name = modelResource.name + "Collider";
     collider.addComponent(new Transform({ translation: position }));
-    collider.customProperties = { isDynamic: true, itemType }; 
     collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
-    collider.aabbManual = true;
-    collider.aabb = { 
-        min: [-scale[0], -scale[1], -scale[2]], 
-        max: [ scale[0],  scale[1],  scale[2]] 
-    };
-    collider.layer = Layers.PICKUP;
-    collider.mask  = Layers.WORLD | Layers.PLAYER; //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
 
+    collider._bounds = {
+    type: "aabb",
+    localMin: [-scale[0], -scale[1], -scale[2]],
+    localMax: [ scale[0],  scale[1],  scale[2]],
+    isDynamic: true,
+    layer: Layers.PICKUP,
+    mask: Layers.WORLD | Layers.PLAYER, //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
+    };
 
     collider.isPickup = true;
 
@@ -116,18 +116,27 @@ player.addComponent(new RecordComponent());
 player.addComponent(new PlayerComponent(player, canvas));
 
 // to samo doda da dejansko dela aabb collision
-player.customProperties = { isDynamic: true, currentItem: null };
+
+player.currentItem = null;
+//ce bi hotl da ni direkt na player:
+//player.game = player.game ?? {};
+//player.game.currentItem = null;
+
 //current item bo zdj storeal kaj si picku up, pol pa lah droppas
 //bi bilo zelo uporabno ce bi kdo hotu naredit weapone!!!!
 
-player.aabb = {
-  min: [-0.2, -0.2, -0.2],
-  max: [ 0.2,  0.2,  0.2],
-};
+//ok spremenila sm na bounds in sm dala player.currentItem namest customProperties da ne mixamo vec stvari
 
+player._bounds = {
+  type: "aabb",
+  localMin: [-0.2, -0.2, -0.2],
+  localMax: [ 0.2,  0.2,  0.2],
+  isDynamic: true,
+  layer: Layers.PLAYER,
+  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP,
+};
 //layers!! koncno
-player.layer = Layers.PLAYER;
-player.mask  = Layers.WORLD | Layers.ENEMY | Layers.PICKUP;
+
 
 //reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
 const itemResources = {
@@ -139,39 +148,34 @@ const itemResources = {
 const katanaPickup = createPickup(resources.katana_model, new vec3(2,0.1,0), new vec3(0.2,0.2,0.2), new vec3(1,0,0), Math.PI/2, "katana");
 const pistolPickup = createPickup(resources.pistol_model, new vec3(3,0.1,1), new vec3(0.2,0.2,0.2), undefined, undefined, "gun");
 
-
 const invisibleWallCollider = World.scene.addEntity(World.scene.createEntity());
 invisibleWallCollider.name = 'InvisibleWall';
 invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1, 0) }));
-invisibleWallCollider.customProperties = { isStatic: true };
-invisibleWallCollider.aabbManual = true;
-invisibleWallCollider.aabb = {
-  min: [-0.05, -0.1, -2.0],
-  max: [ 0.05, 10.0, 2.0]
-};
 
 const soba = resources.soba_model.build(World.scene);
-soba.customProperties = { isStatic: true };
 
-//more layers...
-soba.layer = Layers.WORLD;
-soba.mask  = Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET;
-
-//and even more layers...
-invisibleWallCollider.layer = Layers.WORLD;
-invisibleWallCollider.mask  = soba.mask;
+invisibleWallCollider._bounds = {
+  type: "aabb",
+  localMin: [-0.05, -0.1, -2.0],
+  localMax: [ 0.05, 10.0, 2.0],
+  isDynamic: false,
+  layer: Layers.WORLD,
+  mask: Layers.PLAYER | Layers.ENEMY | Layers.PICKUP | Layers.BULLET,
+};
 
 const guy = resources.guy_model.build(World.scene);
 guy.skeleton.playAnimation(2, "base");
 guy.addComponent(new EnemyComponent(guy, player));
 guy.addComponent(new RecordComponent());
-guy.customProperties = { isDynamic: true };
-guy.aabbManual = true;
-guy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 
-//layers!!
-guy.layer = Layers.ENEMY;
-guy.mask  = Layers.WORLD | Layers.PLAYER;
+guy._bounds = {
+  type: "aabb",
+  localMin: [-0.35, -0.1, -0.30],
+  localMax: [ 0.35,  1.6,  0.30],
+  isDynamic: true,
+  layer: Layers.ENEMY,
+  mask: Layers.WORLD | Layers.PLAYER,
+};
 
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
@@ -179,13 +183,15 @@ rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_mo
 rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
-rangedGuy.customProperties = { isDynamic: true };
-rangedGuy.aabbManual = true;
-rangedGuy.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
 
-//layers...
-rangedGuy.layer = Layers.ENEMY;
-rangedGuy.mask  = Layers.WORLD | Layers.PLAYER;
+rangedGuy._bounds = {
+  type: "aabb",
+  localMin: [-0.35, -0.1, -0.30],
+  localMax: [ 0.35,  1.6,  0.30],
+  isDynamic: true,
+  layer: Layers.ENEMY,
+  mask: Layers.WORLD | Layers.PLAYER,
+};
 
 {
     const littleguy = resources.katana_model.build(World.scene);
@@ -283,7 +289,7 @@ function update(t, dt) {
     }
 
     if (Inputs.isPressed('KeyQ')) { // drop currently held item
-        const currentItem = player.customProperties.currentItem;
+        const currentItem = player.currentItem;
         if (currentItem)
         {
             currentItem._transform.matrix = player._transform.matrix;
@@ -294,7 +300,7 @@ function update(t, dt) {
             );
             vec3.add(currentItem._transform.translation, currentItem._transform.translation, forward);
             currentItem.hidden = false;
-            player.customProperties.currentItem = null;
+            player.currentItem = null;
         }
         else {
             const camEntity = World.activeCamera;
@@ -321,12 +327,12 @@ function update(t, dt) {
                 if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
                     console.log("PICKUP HIT", hit.point, hit.distance);
                     // pick up new item
-                    if (hit.entity.customProperties?.itemType) {
-                        player.customProperties.currentItem = hit.entity.customProperties.itemType;
-                        console.log("Picked up:", player.customProperties.currentItem);
+                    if (hit.entity.itemType) {
+                        player.currentItem = hit.entity.itemType;
+                        console.log("Picked up:", player.currentItem);
                     }
-                    player.customProperties.currentItem = hit.entity;
-                    player.customProperties.currentItem.hidden = true;
+                    player.currentItem = hit.entity;
+                    player.currentItem.hidden = true;
                 } else {
                     console.log("too far to pick up", hit.entity.name, distance);
                 }

@@ -13,11 +13,11 @@ export const Layers = {
 };
 
 function getLayer(e){
-    return e.layer ?? Layers.WORLD;
+    return e._bounds?.layer ?? Layers.WORLD;
 }
 
 function getMask(e){
-    return e.mask ?? ~0; //default je da se collidajo z vsem
+    return e._bounds?.mask ?? ~0; //default je da se collidajo z vsem
 }
 
 function mutual(a, b) {
@@ -28,7 +28,6 @@ export class Physics {
     constructor() { }
 
     update(t, dt, scene) {
-
         const position = new vec4();
         const scale = new vec4();
         const mat = new mat4();
@@ -37,7 +36,7 @@ export class Physics {
 
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
         for (const e of scene.entities()){
-        if (!e.customProperties?.isDynamic) continue;
+        if (!e._bounds?.isDynamic) continue;
         if (!e.velocity) continue;
 
         e.velocity[1] += g * dt;
@@ -49,18 +48,6 @@ export class Physics {
         }
 
         for (const entity of scene.entities()) {
-
-            // tvoji tastari
-            if (World.poprSettings.debug && entity.aabb && entity.customProperties)
-            {
-                mat4.getTranslation(position, entity._transform.final);
-                mat4.getScaling(scale, entity._transform.final);
-                mat4.identity(mat);
-                mat4.translate(mat, mat, position);
-                mat4.scale(mat, mat, scale);
-                DeferredRenderer.Draw3DBoxMinMax(entity.aabb.min, entity.aabb.max, mat);
-            }
-
             // tko bi mogl bit
             if (World.poprSettings.debug && entity._bounds)
             {
@@ -74,18 +61,14 @@ export class Physics {
                 DeferredRenderer.Draw3DBox(entity._transform.final, entity._bounds.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]);
             }
 
-            if (entity.customProperties?.isDynamic) {
+            if (entity._bounds?.isDynamic){ //new system checkk
                 for (const other of scene.entities()) {
                     if (entity === other) continue;
-                    if (!other.customProperties) continue;
+                    if (!other._bounds) continue;
                     if (!mutual(entity, other)) continue;
 
-                    if (other.customProperties.isStatic) {
-                    this.resolveCollision(entity, other);
-                    } else if (other.customProperties.isDynamic) {
-                    //vem da je supr ime
-                    this.resolveDynamicDynamic(entity, other);
-                    }
+                    if (!other._bounds.isDynamic) this.resolveCollision(entity, other);
+                    else this.resolveDynamicDynamic(entity, other); //vem da je supr ime
                 }
             }
         }
@@ -104,7 +87,7 @@ export class Physics {
     getTransformedAABB(entity) {
         // Transform all vertices of the AABB from local to global space.
         const matrix = entity._transform.final;
-        const { min , max } = entity.aabb;
+        const { localMin: min, localMax: max } = entity._bounds; //wazzaaaaappp
         const vertices = [
             [min[0], min[1], min[2]],
             [min[0], min[1], max[2]],
@@ -127,7 +110,7 @@ export class Physics {
 
     resolveCollision(a, b) {
         //dodala da skipa entities brez aabb, nebodo mel physics nebo pa errorja.
-        if (!a.aabb || !b.aabb) return;
+        if (!a._bounds || !b._bounds) return;
         const aBox = this.getTransformedAABB(a);
         const bBox = this.getTransformedAABB(b);
 
@@ -222,8 +205,7 @@ export class Physics {
             const mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY;
 
             if ((getLayer(entity) & mask) === 0) continue;
-            if (!entity.aabb) continue;
-            if(!entity.aabb) continue;
+            if (!entity._bounds) continue;
 
             const worldAABB = this.getTransformedAABB(entity);
             const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
@@ -253,7 +235,7 @@ export class Physics {
 
     //psiho koda incoming
     resolveDynamicDynamic(a, b) {
-        if (!a.aabb || !b.aabb) return;
+        if (!a._bounds || !b._bounds) return;
 
         const aBox = this.getTransformedAABB(a);
         const bBox = this.getTransformedAABB(b);
