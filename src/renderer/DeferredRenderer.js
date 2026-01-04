@@ -46,6 +46,7 @@ export class DeferredRendererSettings {
     scanlines = 0.0;
     scanlinesDensity = 0.0;
     scanlinesSpeed = 0.0;
+    environment = true;
 }
 
 class GPUBuffer {
@@ -181,12 +182,12 @@ export class DeferredRenderer extends BaseRenderer {
         };
     
         const environmentImages = await Promise.all([
-            './textures/cp/px.hdr',
-            './textures/cp/nx.hdr',
-            './textures/cp/py.hdr',
-            './textures/cp/ny.hdr',
-            './textures/cp/pz.hdr',
-            './textures/cp/nz.hdr',
+            './textures/cpsmall/px.hdr',
+            './textures/cpsmall/nx.hdr',
+            './textures/cpsmall/py.hdr',
+            './textures/cpsmall/ny.hdr',
+            './textures/cpsmall/pz.hdr',
+            './textures/cpsmall/nz.hdr',
         ].map(url => loadHDR(url)));
 
         const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
@@ -320,7 +321,7 @@ export class DeferredRenderer extends BaseRenderer {
             });
 
             const bindGroups = [];
-            const mipLevelCount = 9;
+            const mipLevelCount = 7;
             for (let i = 0; i < mipLevelCount; i++)
             {
                 const buffer = WebGPU.createBuffer(this.device, {
@@ -867,6 +868,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[28] = poprSettings.scanlines;
         this.poprSettingsBufferArray[29] = poprSettings.scanlinesDensity;
         this.poprSettingsBufferArray[30] = poprSettings.scanlinesSpeed;
+        this.poprSettingsBufferArray[31] = poprSettings.environment;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);

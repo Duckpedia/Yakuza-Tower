@@ -15,7 +15,7 @@ export class UpdateSystem {
 
         this.application.start?.();
 
-        this._time = performance.now() / 1000;
+        this._rendertime = this._time = performance.now() / 1000;
 
         this._updateFrame = setInterval(this._update, 0);
         this._renderFrame = requestAnimationFrame(this._render);
@@ -42,8 +42,11 @@ export class UpdateSystem {
 
     _render() {
         this._renderFrame = requestAnimationFrame(this._render);
+        const time = performance.now() / 1000;
+        const dt = time - this._rendertime;
+        this._rendertime = time;
 
-        this.application.render?.();
+        this.application.render?.(dt);
     }
 
 }

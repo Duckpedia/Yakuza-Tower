@@ -178,20 +178,24 @@ fn PBR(world: vec3f, viewPos: vec3f, normal: vec3f, material: Material, ndc: vec
 
     // base ibl   
     let baseF = fresnelSchlickRoughness(normalDotView, f0, roughness); 
-    let basePrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, roughness * 8).rgb; 
+    let basePrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, roughness * 6).rgb; 
     let baseBrdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, roughness)).rg;
     let baseSpec = basePrefilter * (baseF * baseBrdf.x + baseBrdf.y);
     let irradiance = textureSample(irradianceMap, linearSampler, normal).rgb;
     let kd = 1.0 - baseF;
     let diffuse = irradiance * base;
 
-    // coat ibl
-    let coatF = fresnelSchlickRoughness(normalDotView, f0, coatRoughness); 
-    let coatPrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, coatRoughness * 8).rgb; 
-    let coatBrdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, coatRoughness)).rg;
-    let coatSpec = coatPrefilter * (coatF * coatBrdf.x + coatBrdf.y);
+    // // coat ibl
+    // let coatF = fresnelSchlickRoughness(normalDotView, f0, coatRoughness); 
+    // let coatPrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, coatRoughness * 8).rgb; 
+    // let coatBrdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, coatRoughness)).rg;
+    // let coatSpec = coatPrefilter * (coatF * coatBrdf.x + coatBrdf.y);
     
-    let ambient = (kd * diffuse + baseSpec + material.wetness * coatSpec) * ao; 
+    let ambient = 
+    (
+        select(vec3(0.0), kd * diffuse + baseSpec, settings.environment > 0.0) + 
+        0.0// material.wetness * coatSpec
+    ) * ao; 
 
     return ambient + l0 + material.base * material.emission;
 }

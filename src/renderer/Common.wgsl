@@ -54,6 +54,7 @@ struct Settings {
     scanlines: f32,
     scanlinesDensity: f32,
     scanlinesSpeed: f32,
+    environment: f32,
 }
 
 // wasteful but meh
