@@ -8,11 +8,11 @@
 @group(1) @binding(5) var brdfConvolution:        texture_2d<f32>;
 @group(1) @binding(6) var linearSampler:          sampler;
 
-@group(2) @binding(0) var baseAndMetallicTexture:                         texture_2d<f32>;
-@group(2) @binding(1) var normalEmissionRoughnessTexture:                      texture_2d<f32>;
+@group(2) @binding(0) var baseAndMetallicWetnessTexture:  texture_2d<f32>;
+@group(2) @binding(1) var normalEmissionRoughnessTexture: texture_2d<f32>;
 // @group(2) @binding(2) var subsurfaceSpecularSpecularTintClearcoatTexture: texture_2d<f32>;
-@group(2) @binding(2) var fogTexture:                                     texture_2d<f32>;
-@group(2) @binding(3) var depthTexture:                                   texture_depth_2d;
+@group(2) @binding(2) var fogTexture:                     texture_2d<f32>;
+@group(2) @binding(3) var depthTexture:                   texture_depth_2d;
 
 @group(3) @binding(0) var<storage, read> lights: array<Light>;
 
@@ -65,7 +65,7 @@ fn calculateShadow(light: Light, world: vec3f) -> f32
     let tex_d = 1.0f / vec2f(resolution);
     for (var i = -1; i <= 1; i++) {
         for (var j = -1; j <= 1; j++) {
-            let diff = vec2f(f32(i), f32(j)) * tex_d * 2.0f;
+            let diff = vec2f(f32(i), f32(j)) * tex_d * 1.0f;
             avg_sampled_depth += textureSampleCompare(
                 lightsDepthMaps,
                 lightsDepthMapsSampler, 
@@ -123,6 +123,8 @@ fn PBR(world: vec3f, viewPos: vec3f, normal: vec3f, material: Material, ndc: vec
     let base = material.base;
     let metallic = material.metallic;
     let roughness = material.roughness;
+    let coatRoughness = clamp(mix(material.roughness, 0.04, material.wetness), 0.02, 1.0);
+    let coatF0 = vec3(0.04);
     // let subsurface = material.subsurface;
     // let specular = material.specular;
     // let specularTint = material.specularTint;
@@ -147,43 +149,58 @@ fn PBR(world: vec3f, viewPos: vec3f, normal: vec3f, material: Material, ndc: vec
             let half = normalize(view + l);
             let normalDotLight = positiveDot(normal, l);
             let normalDotHalf = positiveDot(normal, half);
+            let halfDotView = positiveDot(half, view);
+
+            let baseNdf = distributionGGX(normalDotHalf, roughness);
+            let baseG = geometrySmith(normalDotView, normalDotLight, roughness);
+            let baseF = fresnelSchlick(halfDotView, f0);
+            let baseSpec = (baseNdf * baseG * baseF) / (4.0f * normalDotView * normalDotLight + 0.0001f);
+            let baseDiffuse = (vec3(1.0f) - baseF) * (1.0f - metallic);
+
+            let coatNdf = distributionGGX(normalDotHalf, coatRoughness);
+            let coatG = geometrySmith(normalDotView, normalDotLight, coatRoughness);
+            let coatF = fresnelSchlick(halfDotView, coatF0);
+            let coatSpec = (coatNdf * coatG * coatF) / (4.0f * normalDotView * normalDotLight + 0.0001f);
+
+            let direct = baseDiffuse * base / PI + baseSpec + material.wetness * coatSpec;
 
             var attenuation = select(1.0f, 1.0f / length2(toLight), light.falloff > 0);
-
-            let ndf = distributionGGX(normalDotHalf, roughness);
-            let g = geometrySmith(normalDotView, normalDotLight, roughness);
-            let f = fresnelSchlick(positiveDot(half, view), f0);
-            let specular = (ndf * g * f) / (4.0f * normalDotView * normalDotLight + 0.0001f);
-
-            let kd = (vec3(1.0f) - f) * (1.0f - metallic);
-
             let radiance = light.color * light.intensity * attenuation;
             
             d = clamp((d - light.outerAngle) / (light.innerAngle - light.outerAngle), 0.0, 1.0);
-            l0 += (kd * base / PI + specular) * radiance * normalDotLight * shadow * d;
+            l0 += direct * radiance * normalDotLight * shadow * d;
         }
     }
-    
+
     let ao = select(calculateAO(viewPos, normal, ndc), 1.0, settings.ssao == 0);
-    let f = fresnelSchlickRoughness(normalDotView, f0, roughness); 
+
     let reflected = reflect(-view, normal);
-    let prefiltered = textureSampleLevel(prefilteredMap, linearSampler, reflected, roughness * 8).rgb; 
-    let brdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, roughness)).rg;
-    let specular = prefiltered * (f * brdf.x + brdf.y);
+
+    // base ibl   
+    let baseF = fresnelSchlickRoughness(normalDotView, f0, roughness); 
+    let basePrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, roughness * 8).rgb; 
+    let baseBrdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, roughness)).rg;
+    let baseSpec = basePrefilter * (baseF * baseBrdf.x + baseBrdf.y);
     let irradiance = textureSample(irradianceMap, linearSampler, normal).rgb;
-    let ks = f;
-    let kd = 1.0 - ks;
+    let kd = 1.0 - baseF;
     let diffuse = irradiance * base;
-    let ambient = (kd * diffuse + specular) * ao; 
+
+    // coat ibl
+    let coatF = fresnelSchlickRoughness(normalDotView, f0, coatRoughness); 
+    let coatPrefilter = textureSampleLevel(prefilteredMap, linearSampler, reflected, coatRoughness * 8).rgb; 
+    let coatBrdf = textureSample(brdfConvolution, linearSampler, vec2(normalDotView, coatRoughness)).rg;
+    let coatSpec = coatPrefilter * (coatF * coatBrdf.x + coatBrdf.y);
+    
+    let ambient = (kd * diffuse + baseSpec + material.wetness * coatSpec) * ao; 
 
     return ambient + l0 + material.base * material.emission;
 }
 
 @fragment
 fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
-    let loc = vec2i(input.uv * vec2f(textureDimensions(baseAndMetallicTexture)));
-    let baseAndMetallic       = textureLoad(baseAndMetallicTexture, loc, 0);
-    let normalEmissionRoughness    = textureLoad(normalEmissionRoughnessTexture, loc, 0);
+    let loc = vec2i(input.uv * vec2f(textureDimensions(baseAndMetallicWetnessTexture)));
+    let baseAndMetallicWetness  = textureLoad(baseAndMetallicWetnessTexture, loc, 0);
+    let normalEmissionRoughness = textureLoad(normalEmissionRoughnessTexture, loc, 0);
     // let subsurfaceSpecularSpecularTintClearcoat = textureLoad(subsurfaceSpecularSpecularTintClearcoatTexture, loc, 0);
     let fogScatterAndTransmit = textureSample(fogTexture, linearSampler, input.uv);
     let depth                 = textureLoad(depthTexture, loc, 0);
@@ -194,9 +211,12 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let view = recreateView(ndc, camera.inverseProjectionMatrix);
     let world = (camera.inverseViewMatrix * vec4(view, 1.0)).xyz;
 
+    let packedMetallicWetness = u32(baseAndMetallicWetness.w * 255.0 + 0.5);
+
     var material: Material;
-    material.base         = baseAndMetallic.xyz;
-    material.metallic     = baseAndMetallic.w;
+    material.base         = baseAndMetallicWetness.xyz;
+    material.metallic     = f32(packedMetallicWetness >> 4u) / 15.0;
+    material.wetness      = f32(packedMetallicWetness & 0xf) / 15.0;
     material.emission     = normalEmissionRoughness.z;
     material.roughness    = normalEmissionRoughness.w;
     // material.subsurface   = subsurfaceSpecularSpecularTintClearcoat.r;
@@ -204,7 +224,10 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // material.specularTint = subsurfaceSpecularSpecularTintClearcoat.b;
     // material.clearcoat    = subsurfaceSpecularSpecularTintClearcoat.a;
 
-    if (settings.passIndex >= 6.0) {
+    if (settings.passIndex >= 7.0) {
+        return vec4(vec3(material.wetness), 1.0);
+    }
+    else if (settings.passIndex >= 6.0) {
         return vec4(vec3((depth - 0.99) * 50.0), 1.0);
     }
     else if (settings.passIndex >= 5.0) {

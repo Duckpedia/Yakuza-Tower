@@ -83,8 +83,11 @@ fn fragment(input: VertexOutput) -> DeferredOutput {
     let world = input.worldPosition;
     var base = textureSample(baseTexture, baseTextureSampler, input.texcoords).rgb * material.base;
     let normal = oct_encode(normalize(input.normal));
-    var output: DeferredOutput; 
-    output.baseAndMetallic = vec4f(base, material.metallic);
+    let metallic = u32(material.metallic * 15.0 + 0.5);
+    let wetness = u32(material.wetness * 15.0 + 0.5);
+    let metallicWetness = f32((metallic << 4u) | wetness) / 255.0;
+    var output: DeferredOutput;
+    output.baseAndMetallicWetness = vec4f(base, metallicWetness);
     output.normalEmissionRoughness = vec4f(normal, material.emission, material.roughness);
     // output.subsurfaceSpecularSpecularTintClearcoat = vec4f(0.0);
     return output;

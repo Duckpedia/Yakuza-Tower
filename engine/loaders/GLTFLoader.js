@@ -221,9 +221,9 @@ export class GLTFLoader {
             options.emission = ext.KHR_materials_emissive_strength.emissiveStrength;
         }
         
-        // if (ext.KHR_materials_clearcoat?.clearcoatFactor != null) {
-        //     options.clearcoat = ext.KHR_materials_clearcoat.clearcoatFactor;
-        // }
+        if (ext.KHR_materials_clearcoat?.clearcoatFactor != null) {
+            options.clearcoat = ext.KHR_materials_clearcoat.clearcoatFactor;
+        }
 
         // if (ext.KHR_materials_clearcoat?.clearcoatFactor != null) {
         //     options.clearcoat = ext.KHR_materials_clearcoat.clearcoatFactor;

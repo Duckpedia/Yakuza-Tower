@@ -39,7 +39,7 @@ fn vertex(@builtin(vertex_index) v_index : u32) -> VertexOutput {
 fn fragment(input: VertexOutput) -> DeferredOutput {
     let rgb = textureSample(envTexture, envSampler, input.texcoords.xyz).rgb;
     var output: DeferredOutput; 
-    output.baseAndMetallic = vec4f(rgb, 0.0);
+    output.baseAndMetallicWetness = vec4f(rgb, 0.0);
     output.normalEmissionRoughness = vec4f(0.0, 0.0, 0.0, -1.0);
     // output.subsurfaceSpecularSpecularTintClearcoat = vec4f(0.0);
     return output;

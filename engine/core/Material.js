@@ -9,7 +9,7 @@ export class Material {
         // subsurface = 0.0,
         // specular = 0.5,
         // specularTint = 0.0,
-        // clearcoat = 0.0,
+        clearcoat = 0.0,
     } = {}) {
         this.baseTexture = baseTexture;
         this.base = base;
@@ -19,7 +19,7 @@ export class Material {
         // this.subsurface = subsurface;
         // this.specular = specular;
         // this.specularTint = specularTint;
-        // this.clearcoat = clearcoat;
+        this.clearcoat = clearcoat;
     }
 
 }

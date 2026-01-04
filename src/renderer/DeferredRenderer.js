@@ -181,12 +181,12 @@ export class DeferredRenderer extends BaseRenderer {
         };
     
         const environmentImages = await Promise.all([
-            './textures/zahod/px.hdr',
-            './textures/zahod/nx.hdr',
-            './textures/zahod/py.hdr',
-            './textures/zahod/ny.hdr',
-            './textures/zahod/pz.hdr',
-            './textures/zahod/nz.hdr',
+            './textures/cp/px.hdr',
+            './textures/cp/nx.hdr',
+            './textures/cp/py.hdr',
+            './textures/cp/ny.hdr',
+            './textures/cp/pz.hdr',
+            './textures/cp/nz.hdr',
         ].map(url => loadHDR(url)));
 
         const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
@@ -1519,8 +1519,9 @@ export class DeferredRenderer extends BaseRenderer {
 
         this.materialBuffer.set(material.base, 0);
         this.materialBuffer[3] = material.metallic;
-        this.materialBuffer[4] = material.roughness;
-        this.materialBuffer[5] = material.emission;
+        this.materialBuffer[4] = material.clearcoat;
+        this.materialBuffer[5] = material.roughness;
+        this.materialBuffer[6] = material.emission;
         // this.materialBuffer[5] = material.subsurface;
         // this.materialBuffer[6] = material.specular;
         // this.materialBuffer[7] = material.specularTint;

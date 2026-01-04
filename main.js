@@ -9,8 +9,6 @@ import { RecordComponent } from 'src/components/RecordComponent.js';
 
 import {
     Camera,
-    Entity,
-    Model,
     Transform
 } from 'engine/core/core.js';
 
@@ -32,7 +30,7 @@ const resources = await loadResources({
     'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
-    'soba_model' : new URL('./models/soba/soba.gltf', import.meta.url),
+    'soba_model' : new URL('./models/ulica/ulica.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullett.gltf', import.meta.url)
 });
@@ -227,7 +225,7 @@ function update(t, dt) {
 
     if (Inputs.isPressed('KeyG'))
     {
-        World.poprSettings.pass = (World.poprSettings.pass + 1) % 7;
+        World.poprSettings.pass = (World.poprSettings.pass + 1) % 8;
         World.poprSettings.showBloom = World.poprSettings.pass == 0;
         World.poprSettings.showSkybox = World.poprSettings.pass == 0;
         World.poprSettings.showUI = World.poprSettings.pass == 0;

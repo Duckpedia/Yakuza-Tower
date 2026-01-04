@@ -13,6 +13,7 @@ struct Joint {
 struct Material {
     base: vec3f,
     metallic: f32,
+    wetness: f32,
     roughness: f32,
     emission: f32,
     // subsurface: f32,
@@ -81,7 +82,7 @@ struct FullscreenVertexOutput {
 }
 
 struct DeferredOutput {
-    @location(0) baseAndMetallic : vec4f,
+    @location(0) baseAndMetallicWetness : vec4f,
     @location(1) normalEmissionRoughness : vec4f,
     // @location(2) subsurfaceSpecularSpecularTintClearcoat : vec4f,
 }
