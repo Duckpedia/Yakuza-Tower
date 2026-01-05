@@ -4,13 +4,13 @@ import { World } from '../World.js';
 
 
 export class BulletComponent {
-    constructor(entity, direction, speed = 35, lifetime = 2.0) {
+    constructor(entity, direction, speed = 4, lifetime = 2.0) {
         this.direction = glm.vec3.normalize(glm.vec3.create(), direction);
         this.speed = speed;
         this.lifetime = lifetime;
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
-        this.transform.scale = new glm.vec3(0.2, 0.2, 0.2);
+        this.transform.scale = new glm.vec3(2, 2, 2);
 
         const forward = glm.vec3.fromValues(0, 1, 0);
         const q = glm.quat.create();

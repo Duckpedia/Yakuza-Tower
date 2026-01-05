@@ -32,7 +32,7 @@ const resources = await loadResources({
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/ulica/ulica.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
-    'bullet_model' : new URL('./models/bullet/bullett.gltf', import.meta.url)
+    'bullet_model' : new URL('./models/bullet/bullett.gltf', import.meta.url),
 });
 
 //box helper colider, da ne bo problemov z animated mesh
@@ -142,6 +142,7 @@ player.addComponent(new PhysicsComponent({
 const itemResources = {
     katana: resources.katana_model,
     gun: resources.pistol_model,
+    bullet: resources.bullet_model,
 };
 
 //make pickups like this!!
@@ -161,12 +162,14 @@ guy.addComponent(new RecordComponent());
 
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
+console.log("bullet"+resources.bullet_model);
 rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_model,'Ranged'));
 rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
 
 {
+    
     const littleguy = resources.katana_model.build(World.scene);
     // littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);

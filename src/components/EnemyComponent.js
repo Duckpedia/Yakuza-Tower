@@ -225,9 +225,8 @@ export class EnemyComponent {
 
         if (!gun) return;
 
-
+        console.log(this.bulletModel);
         const bullet = this.bulletModel.build(World.scene);
-        console.log(bullet);
         const transform = bullet.getComponentOfType(Transform);
         transform.translation = [...gun.getComponentOfType(Transform).final_position];
 
@@ -237,11 +236,9 @@ export class EnemyComponent {
             gun.getComponentOfType(Transform).final_position
         );
 
-        dir[1] = 0;
-        glm.vec3.normalize(dir, dir);
 
         //dodaja gaussovo porazdelitev, da je mal random direction
-        let spread = 0.08;
+        let spread = 0.03;
 
         dir[0]+=this.randomGaussian(0, spread);
         dir[2]+=this.randomGaussian(0, spread);
