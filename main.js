@@ -145,8 +145,8 @@ const itemResources = {
 };
 
 //make pickups like this!!
-const katanaPickup = createPickup(resources.katana_model, new vec3(2,0.1,0), new vec3(0.2,0.2,0.2), new vec3(1,0,0), Math.PI/2, "katana");
-const pistolPickup = createPickup(resources.pistol_model, new vec3(3,0.1,1), new vec3(0.2,0.2,0.2), undefined, undefined, "gun");
+const katanaPickup = createPickup(resources.katana_model, new vec3(0,4,-5), new vec3(0.2,0.2,0.2), new vec3(1,0,0), Math.PI/2, "katana");
+const pistolPickup = createPickup(resources.pistol_model, new vec3(0,4,-2), new vec3(0.2,0.2,0.2), undefined, undefined, "gun");
 
 const invisibleWallCollider = World.scene.addEntity(World.scene.createEntity());
 invisibleWallCollider.name = 'InvisibleWall';
