@@ -208,24 +208,9 @@ console.log(World.scene, glm);
 
 const replay = { frames: [] };
 
-function update(t, dt) {
-    renderer.clearDebug();
+function updateInput()
+{
     const time = World.getTime();
-    World.timers.global.time = t;
-    World.timers.global.dt = dt;
-    World.timers.game.dt = dt * World.timeScale;
-    World.timers.game.time += World.timers.game.dt;
-    World.poprSettings.time = World.timers.global.time;
-
-    if (World.poprSettings.debug)
-    {
-        const x = -11;
-        DeferredRenderer.Draw3DLine([x, 1, -0.5], [x, 1, 0.5]);
-        DeferredRenderer.Draw3DBoxMinMax([x - 1, 0, -1], [x + 1, 1, 1], null);
-        DeferredRenderer.Draw3DBoxPosScale([x, 1, 0], [0.5, 0.5, 0.5], mat4.rotateY(new mat4(), new mat4(), t));
-        DeferredRenderer.DrawAxis([x, 0, 0], 3);
-    }
-
     if (Inputs.isPressed('KeyG'))
     {
         World.poprSettings.pass = (World.poprSettings.pass + 1) % 8;
@@ -298,7 +283,8 @@ function update(t, dt) {
                 50.0
             );
 
-            const hit = physics.raycast(from, to, World.scene);
+            const hit = physics.raycast(from, to, World.scene, Layers.PICKUP);
+            console.log(hit);
             if (hit && hit.entity.isPickup) {
                 const distance = vec3.distance(from, hit.point);
                 if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
@@ -379,7 +365,32 @@ function update(t, dt) {
             vec3.lerp(entity._transform.scale, a.scale, b.scale, t);
         }
     }
+}
+
+const elementUpdate = document.getElementById("update");
+const elementRender = document.getElementById("render");
+
+let updateTimeAccum = 0.0;
+let updateTimeSamples = 0;
+function update(t, dt) {
+    updateTimeAccum += dt;
+    updateTimeSamples += 1;
+    if (updateTimeAccum >= 0.5)
+    {
+        elementUpdate.innerText = "" + updateTimeSamples / updateTimeAccum;
+        updateTimeAccum = 0;
+        updateTimeSamples = 0;
+    }
     
+    renderer.clearDebug();
+    World.timers.global.time = t;
+    World.timers.global.dt = dt;
+    World.timers.game.dt = dt * World.timeScale;
+    World.timers.game.time += World.timers.game.dt;
+    World.poprSettings.time = World.timers.global.time;
+    
+    updateInput();
+
     if (World.doUpdate)
     {
         for (const entity of World.scene.entities()) {
@@ -399,8 +410,18 @@ function update(t, dt) {
     }
 }
 
-function render() 
+let renderTimeAccum = 0.0;
+let renderTimeSamples = 0;
+function render(dt) 
 {
+    renderTimeAccum += dt;
+    renderTimeSamples += 1;
+    if (renderTimeAccum >= 0.5)
+    {
+        elementRender.innerText = "" + renderTimeSamples / renderTimeAccum;
+        renderTimeAccum = 0;
+        renderTimeSamples = 0;
+    }
     renderer.render(World.scene, World.activeCamera, World.poprSettings);
 }
 
@@ -448,3 +469,4 @@ gui.add(World.poprSettings, 'blackAndWhite', 0.0, 1.0);
 gui.add(World.poprSettings, 'scanlines', 0.0, 1.0);
 gui.add(World.poprSettings, 'scanlinesDensity', 0.0, 1.0);
 gui.add(World.poprSettings, 'scanlinesSpeed', 0.0, 1.0);
+gui.add(World.poprSettings, 'environment', 0, 1);
