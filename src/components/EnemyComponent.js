@@ -229,6 +229,7 @@ export class EnemyComponent {
         const bullet = this.bulletModel.build(World.scene);
         const transform = bullet.getComponentOfType(Transform);
         transform.translation = [...gun.getComponentOfType(Transform).final_position];
+        transform.scale = new glm.vec3(0.0002, 0.0002, 0.0002);
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
@@ -238,7 +239,7 @@ export class EnemyComponent {
 
 
         //dodaja gaussovo porazdelitev, da je mal random direction
-        let spread = 0.03;
+        let spread = 0.025;
 
         dir[0]+=this.randomGaussian(0, spread);
         dir[2]+=this.randomGaussian(0, spread);

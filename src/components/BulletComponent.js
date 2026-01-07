@@ -10,7 +10,6 @@ export class BulletComponent {
         this.lifetime = lifetime;
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
-        this.transform.scale = new glm.vec3(2, 2, 2);
 
         const forward = glm.vec3.fromValues(0, 1, 0);
         const q = glm.quat.create();
