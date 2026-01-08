@@ -1424,10 +1424,10 @@ export class DeferredRenderer extends BaseRenderer {
 
     renderModel(model, instanceOffset, nInstances, renderPass, materials) {
         for (const [material, primitives] of model.primitivesByMaterial.entries()) {
-
+            
             if (materials)
             {
-                const { materialBindGroup } = this.prepareMaterial(material);
+                const { materialBindGroup } = this.prepareMaterial(material ?? this.dummyMaterial);
                 renderPass.setBindGroup(2, materialBindGroup);
             }
 
