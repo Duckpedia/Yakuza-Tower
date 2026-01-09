@@ -70,6 +70,7 @@ export class Scene {
     *query(componentType) {
         const data = this._getComponentData(componentType)
         for (const [entity, component] of data.entries()) {
+            if (!entity.isVisible()) continue;
             yield [entity, component];
         }
     }
