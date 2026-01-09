@@ -24,7 +24,7 @@ export class DeferredRendererSettings {
         index: 2, // 0 none, 1 reinhard, 2 agx
         agxSlope: [1.0, 1.0, 1.0],
         agxPower: [1.35, 1.35, 1.35],
-        agxSat: 1.4
+        agxSat: 4.0
     };
     blackAndWhite = 0.0;
     wireframe = false;
@@ -35,19 +35,19 @@ export class DeferredRendererSettings {
     ssaoBias = 0.025;
     ssaoMaxDelta = 0.17;
     showFog = true;
-    fogStrength = 0.01;
-    fogLightFactor = 1.0;
+    fogStrength = 0.05;
+    fogLightFactor = 0.0;
     fogSteps = 60;
-    vignette = 0.0;
-    vignetteRadius = 0.0;
-    vignetteSoftness = 0.0;
-    caX = 0.0;
-    caY = 0.0;
-    scanlines = 0.0;
-    scanlinesDensity = 0.0;
-    scanlinesSpeed = 0.0;
+    vignette = 0.1;
+    vignetteRadius = 2.0;
+    vignetteSoftness = 1.0;
+    caX = 10.0;
+    caY = 2.0;
+    scanlines = 0.2;
+    scanlinesDensity = 1.0;
+    scanlinesSpeed = 0.2;
     environment = true;
-    volumetricFog = 0.0;
+    volumetricFog = 1.0;
     depthFogDensity = 0.01;
 }
 
