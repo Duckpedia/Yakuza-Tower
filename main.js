@@ -124,6 +124,15 @@ player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
 // to samo doda da dejansko dela aabb collision
 
 player.currentItem = null;
+
+// Make player invulnerable for 2 seconds at start
+player.invulnerable = true;
+setTimeout(() => {
+    player.invulnerable = false;
+    console.log("Player invulnerability ended");
+}, 2000);
+
+
 //ce bi hotl da ni direkt na player:
 //player.game = player.game ?? {};
 //player.game.currentItem = null;

@@ -32,9 +32,18 @@ export class BulletComponent {
         const hitEnemy = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.ENEMY);
         const hit = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.WORLD | Layers.PLAYER | Layers.ENEMY);
         const hitPlayer = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER);
-        if (hitPlayer && (!hit || hitPlayer.distance < hit.distance)) {
+        if (hitPlayer && !hitPlayer.entity.invulnerable) {
             hitPlayer.entity.onCollision?.(this.entity);
             console.log("Bullet hit player");
+            this.pool.returnBullet(this.entity);
+            location.reload();
+            return;
+        }
+        if (hitEnemy) {
+            hitEnemy.entity.onCollision?.(this.entity);
+            console.log("Bullet hit enemy");
+            hitEnemy.entity._parent.hidden = true;
+            console.log(hitEnemy.entity);
             this.pool.returnBullet(this.entity);
             return;
         }
