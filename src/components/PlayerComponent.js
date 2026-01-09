@@ -26,6 +26,7 @@ export class PlayerComponent {
         this.entity = entity;
         this.domElement = domElement;
 
+        
         if (model) {
             this.guyEntity = model.build(this.entity.scene);
             this.guyEntity.parent = this.entity;
@@ -39,7 +40,7 @@ export class PlayerComponent {
                 layer: Layers.PLAYER,
                 mask: Layers.WORLD | Layers.ENEMY | Layers.BULLET,
             }));
-        }
+        } 
 
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded

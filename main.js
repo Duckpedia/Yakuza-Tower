@@ -22,6 +22,7 @@ import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
 import { Physics, Layers } from './src/Physics.js';
 import { PhysicsComponent } from './src/components/PhysicsComponent.js';
+import { KatanaComponent } from './src/components/KatanaComponent.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -132,14 +133,17 @@ player.currentItem = null;
 
 //ok spremenila sm na bounds in sm dala player.currentItem namest customProperties da ne mixamo vec stvari
 
+
+
 player.addComponent(new PhysicsComponent({
   type: "aabb",
   localMin: [-0.2, -0.2, -0.2],
   localMax: [ 0.2,  0.2,  0.2],
   isDynamic: true,
   layer: Layers.PLAYER,
-  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP,
+  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP ,
 }));
+
 //layers!! koncno
 
 //reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
@@ -175,6 +179,7 @@ rangedGuy_transform.translation = new vec3(1, 0, 1);
 {
     
     const littleguy = resources.katana_model.build(World.scene);
+    littleguy.addComponent(new KatanaComponent(littleguy));
     // littleguy.addComponent(new EnemyComponent(littleguy, player));
     const littleguy_transform = littleguy.getComponentOfType(Transform);
     littleguy_transform.scale = new vec3(16, 16, 16);

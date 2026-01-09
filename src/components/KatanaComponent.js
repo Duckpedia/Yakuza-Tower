@@ -5,10 +5,8 @@ import { World } from '../World.js';
 
 export class KatanaComponent {
 
-    constructor(entity, transform, world) {
+    constructor(entity) {
         this.entity = entity;
-        this.transform = transform;
-        this.world = world;
     }
 
     update() {
