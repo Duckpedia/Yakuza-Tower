@@ -47,7 +47,7 @@
 			]
 		}
 	},
-	"scene":0,
+	"scene":1,
 	"scenes":[
 		{
 			"name":"Scene",
@@ -6006,7 +6006,7 @@
 	"buffers":[
 		{
 			"byteLength":1876684,
-			"uri":"ulica.bin"
+			"uri":"tutorial.bin"
 		}
 	]
 }
