@@ -44,8 +44,8 @@ fn calculateShadow(light: Light, world: vec3f) -> f32
     return select(sampled_depth, 1.0, any(ndc.xy < vec2(-1.0)) || any(ndc.xy > vec2(1.0)));
 }
 
-@fragment
-fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+fn volumetricFog(input: FullscreenVertexOutput) -> vec4f
+{
     if (settings.fogSteps <= 0)
     {
         discard;
@@ -105,4 +105,26 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     }
 
     return vec4(scatter, transmit);
+}
+
+fn depthFog(input: FullscreenVertexOutput) -> vec4f
+{
+    let uv = input.uv; 
+    let loc = vec2i(uv * vec2f(textureDimensions(depthTexture)));
+    let depth = textureLoad(depthTexture, loc, 0);
+    var ndc = vec3(input.uv.xy * 2.0 - 1.0, depth);
+    ndc.y = -ndc.y;
+    let view = recreateView(vec3(ndc.x, -ndc.y, ndc.z), camera.inverseProjectionMatrix);
+    let fog = exp(-max(-view.z, 0.0) * settings.depthFogDensity);
+    return vec4f(vec3f(1.0 - fog), fog);
+}
+
+@fragment
+fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> 
+{
+    if (settings.volumetricFog > 0.5)
+    {
+        return volumetricFog(input);
+    }
+    return depthFog(input);
 }

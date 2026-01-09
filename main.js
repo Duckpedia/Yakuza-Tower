@@ -486,3 +486,5 @@ gui.add(World.poprSettings, 'scanlines', 0.0, 1.0);
 gui.add(World.poprSettings, 'scanlinesDensity', 0.0, 1.0);
 gui.add(World.poprSettings, 'scanlinesSpeed', 0.0, 1.0);
 gui.add(World.poprSettings, 'environment', 0, 1);
+gui.add(World.poprSettings, 'volumetricFog', 0.0, 1.0);
+gui.add(World.poprSettings, 'depthFogDensity', 0.0, 0.1);

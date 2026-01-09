@@ -47,6 +47,8 @@ export class DeferredRendererSettings {
     scanlinesDensity = 0.0;
     scanlinesSpeed = 0.0;
     environment = true;
+    volumetricFog = 0.0;
+    depthFogDensity = 0.01;
 }
 
 class GPUBuffer {
@@ -80,7 +82,7 @@ export class DeferredRenderer extends BaseRenderer {
 
     materialBuffer = new Float32Array(4 + 4);
     cameraBuffer = new Float32Array(16 + 16 + 16 + 16 + 4);
-    poprSettingsBufferArray = new Float32Array(4 * 8);
+    poprSettingsBufferArray = new Float32Array(4 * 9);
     poprSettingsBuffer = null;
     lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 1, 1000);
     lightsDefaultInverseProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 1, 1000).invert();
@@ -869,6 +871,8 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[29] = poprSettings.scanlinesDensity;
         this.poprSettingsBufferArray[30] = poprSettings.scanlinesSpeed;
         this.poprSettingsBufferArray[31] = poprSettings.environment;
+        this.poprSettingsBufferArray[32] = poprSettings.volumetricFog;
+        this.poprSettingsBufferArray[33] = poprSettings.depthFogDensity;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);

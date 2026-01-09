@@ -55,6 +55,9 @@ struct Settings {
     scanlinesDensity: f32,
     scanlinesSpeed: f32,
     environment: f32,
+
+    volumetricFog: f32,
+    depthFogDensity: f32
 }
 
 // wasteful but meh
