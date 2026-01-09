@@ -74,7 +74,12 @@ export class PlayerComponent {
 
         const effectiveDt = dt * this.playerTimeScale;
         
-        // Calculate forward and right vectors.
+        // Clamp effectiveDt to prevent teleporting when time scale changes abruptly
+        let maxEffectiveDt = 0.05; // Maximum 50ms per frame
+        if(this.isSlowTime){
+            maxEffectiveDt  = 0.01; // Maximum 200ms per frame when slowing time
+        }
+        const clampedEffectiveDt = Math.min(effectiveDt, maxEffectiveDt);
         const cos = Math.cos(this.yaw);
         const sin = Math.sin(this.yaw);
         const forward = [-sin, 0, -cos];
@@ -101,11 +106,11 @@ export class PlayerComponent {
         }
 
         const gravity = 22;
-        this.velocity[1] -= gravity * effectiveDt;
+        this.velocity[1] -= gravity * clampedEffectiveDt;
         
 
         // Update velocity based on acceleration.
-        vec3.scaleAndAdd(this.velocity, this.velocity, acc, effectiveDt * this.acceleration);
+        vec3.scaleAndAdd(this.velocity, this.velocity, acc, clampedEffectiveDt * this.acceleration);
 
         // If there is no user input, apply decay.
         if (!Inputs.isHeld('KeyW') &&
@@ -113,7 +118,7 @@ export class PlayerComponent {
             !Inputs.isHeld('KeyD') &&
             !Inputs.isHeld('KeyA'))
         {
-            const decay = Math.exp(effectiveDt * Math.log(1 - this.decay));
+            const decay = Math.exp(clampedEffectiveDt * Math.log(1 - this.decay));
             const velxz = [...this.velocity];
             vec3.scale(velxz, velxz, decay);
             this.velocity[0] = velxz[0];
@@ -131,7 +136,7 @@ export class PlayerComponent {
         if (transform) {
             // Update translation based on velocity.
             vec3.scaleAndAdd(transform.translation,
-                transform.translation, this.velocity, effectiveDt);
+                transform.translation, this.velocity, clampedEffectiveDt);
 
             if (transform.translation[1] <= this.groundY) {
                 transform.translation[1] = this.groundY
@@ -155,7 +160,7 @@ export class PlayerComponent {
             this.currentY = this.lerp(
                 this.currentY,
                 targetY,
-                Math.min(1, this.crouchSpeed * effectiveDt)
+                Math.min(1, this.crouchSpeed * clampedEffectiveDt)
             );
 
             transform.translation[1] = this.currentY;
