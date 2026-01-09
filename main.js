@@ -27,8 +27,6 @@ import { KatanaComponent } from './src/components/KatanaComponent.js';
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
     'dirt_image': new URL('./textures/DirtMaskTextureExample.webp', import.meta.url),
-    'floor_mesh': new URL('./models/floor/floor.json', import.meta.url),
-    'floor_image': new URL('./models/floor/grass.png', import.meta.url),
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/ulica/ulica.gltf', import.meta.url),
@@ -102,13 +100,6 @@ await renderer.initialize(resources.white_image, resources.dirt_image);
 const inputs = new Inputs(canvas);
 const physics = new Physics(World.scene);
 World.physics = physics;
-
-const floor = World.scene.addEntity(World.scene.createEntity());
-floor.name = "Floor";
-
-floor.addComponent(new Transform({
-  translation: [0, 0, 0], // Y = floor height
-}));
 
 //player creation
 
@@ -407,7 +398,7 @@ function update(t, dt) {
     World.timers.game.dt = dt * World.timeScale;
     if (Inputs.isHeld('KeyB'))
     {
-        World.timers.game.dt *= 10.0;
+        World.timers.game.dt *= 100.0;
     }
     World.timers.game.time += World.timers.game.dt;
     World.poprSettings.time = World.timers.global.time;

@@ -34,15 +34,15 @@ export class DeferredRendererSettings {
     ssaoRadius = 0.5;
     ssaoBias = 0.025;
     ssaoMaxDelta = 0.17;
-    showFog = true;
+    showFog = false;
     fogStrength = 0.006;
     fogLightFactor = 1.0;
     fogSteps = 60;
     vignette = 0.0;
     vignetteRadius = 0.0;
     vignetteSoftness = 0.0;
-    caX = 5.0;
-    caY = 5.0;
+    caX = 0.0;
+    caY = 0.0;
     scanlines = 0.0;
     scanlinesDensity = 0.0;
     scanlinesSpeed = 0.0;
@@ -82,8 +82,8 @@ export class DeferredRenderer extends BaseRenderer {
     cameraBuffer = new Float32Array(16 + 16 + 16 + 16 + 4);
     poprSettingsBufferArray = new Float32Array(4 * 8);
     poprSettingsBuffer = null;
-    lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100);
-    lightsDefaultInverseProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 0.1, 100).invert();
+    lightsDefaultProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 1, 1000);
+    lightsDefaultInverseProjectionMatrix = mat4.perspectiveZO(mat4.create(), 30 * 0.0174532925, 1, 1, 1000).invert();
     poprSettingsBindGroup = null;
 
     // per frame stuff
@@ -182,12 +182,12 @@ export class DeferredRenderer extends BaseRenderer {
         };
     
         const environmentImages = await Promise.all([
-            './textures/cpsmall/px.hdr',
-            './textures/cpsmall/nx.hdr',
-            './textures/cpsmall/py.hdr',
-            './textures/cpsmall/ny.hdr',
-            './textures/cpsmall/pz.hdr',
-            './textures/cpsmall/nz.hdr',
+            './textures/cp/px.hdr',
+            './textures/cp/nx.hdr',
+            './textures/cp/py.hdr',
+            './textures/cp/ny.hdr',
+            './textures/cp/pz.hdr',
+            './textures/cp/nz.hdr',
         ].map(url => loadHDR(url)));
 
         const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
