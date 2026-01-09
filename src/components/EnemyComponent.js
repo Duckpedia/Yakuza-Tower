@@ -11,6 +11,7 @@ export class EnemyComponent {
         this.entity = entity;
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
+        const playerComp = this.player.getComponentOfType(PlayerComponent);
 
         this.speed = 3;
         this.attackRange = 1.2;
@@ -43,6 +44,9 @@ export class EnemyComponent {
         this.awareness = 'idle';
         this.aimDir = null;
 
+        this.lastSeenPos = null;
+        this.searchRadius = 0.4;
+
         entity.skeleton?.playAnimation(this.runAnim);
     }
 
@@ -63,6 +67,11 @@ export class EnemyComponent {
     }
 
     MeleeEnemyBehaviour(dt){
+        if (this.state === 'search'){
+            this.moveToLastSeen(dt);
+            return;
+        }
+
         //dobro jutro
         if (this.awareness !== 'idle' && this.state === 'idle') {
             this.state = 'chase';
@@ -77,7 +86,7 @@ export class EnemyComponent {
         if (!playerTransform) return;
 
         if (this.awareness !== 'seen'){
-            this.state = 'idle';
+            this.state = 'search';
             return;
         }
 
@@ -140,8 +149,12 @@ export class EnemyComponent {
         }
     }
 
-
     RangedEnemyBehaviour(dt){
+        if (this.state === 'search'){
+            this.moveToLastSeen(dt);
+            return;
+        }
+
         //dobro jutro
         if (this.awareness !== 'idle' && this.state === 'idle') {
             this.state = 'chase';
@@ -157,12 +170,11 @@ export class EnemyComponent {
         if (!playerTransform) return;
 
         if (this.awareness !== 'seen'){
-            this.state = 'idle';
+            this.state = 'search';
             return;
         }
 
         const targetPos = playerTransform.final_position;
-
 
         if (!targetPos) return;
 
@@ -224,7 +236,7 @@ export class EnemyComponent {
             }
 
             if (this.awareness !== 'seen'){
-                this.state = 'idle';
+                this.state = 'search';
                 this.aimDir = null;
                 return;
             }
@@ -243,11 +255,6 @@ export class EnemyComponent {
 
     faceDirection(dir, dt) {
         if (this.awareness !== 'seen') return;
-
-        const timeScale = World.timeScale ?? 1.0;
-        if (timeScale <= 0.01){
-            return;
-        }
 
         if (glm.vec3.length(dir) < 0.001) return;
 
@@ -332,18 +339,70 @@ export class EnemyComponent {
     }
 
     updateAwareness(){ //to pa dejansko posodobi tisto awareness variable na zacetku
-        if (this.canSeePlayer()){
-            if (this.awareness !== 'seen'){
-                this.awareness = 'seen';
-            }
-        } 
-        else{
+        const playerComp = this.player?.getComponentOfType(PlayerComponent);
+        if (!playerComp) return;
+
+        //Blind david
+        if (playerComp.isSlowTime){
             if (this.awareness === 'seen'){
                 this.awareness = 'idle';
-                this.state = 'idle';
-                this.aimDir = null;
+                this.state = 'search';
             }
+            return;
         }
+
+        if (this.canSeePlayer()){
+            const playerTransform = this.player.getComponentOfType(Transform);
+            if (!playerTransform) return;
+
+            this.awareness = 'seen';
+            this.lastSeenPos = playerTransform.final_position.slice();
+
+            if (this.state === 'idle'){
+                this.state = 'chase';
+                this.entity.skeleton?.playAnimation(this.runAnim);
+            }
+            return;
+        }
+
+        //ce te ne vidijo vec
+        if (this.awareness === 'seen'){
+            this.awareness = 'idle';
+            this.state = 'search';
+        }
+    }
+
+    moveToLastSeen(dt){
+        if (!this.lastSeenPos){
+            this.state = 'idle';
+            return;
+        }
+
+        const pos = this.transform.translation;
+
+        const dir = glm.vec3.sub(
+            glm.vec3.create(),
+            this.lastSeenPos,
+            pos
+        );
+
+        dir[1] = 0;
+        const dist = glm.vec3.length(dir);
+
+        if (dist <= this.searchRadius){
+            this.lastSeenPos = null;
+            this.state = 'idle';
+            return;
+        }
+
+        glm.vec3.scale(dir, dir, 1 / dist);
+
+        glm.vec3.scaleAndAdd(
+            this.transform.translation,
+            this.transform.translation,
+            dir,
+            this.speed * dt
+        );
     }
 
 }
