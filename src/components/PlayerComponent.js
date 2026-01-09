@@ -36,8 +36,8 @@ export class PlayerComponent {
                 localMin: [-0.35, -0.1, -0.30],
                 localMax: [0.35, 1.6, 0.30],
                 isDynamic: false,
-                layer: Layers.WORLD,
-                mask: Layers.BULLET,
+                layer: Layers.PLAYER,
+                mask: Layers.WORLD | Layers.ENEMY | Layers.BULLET,
             }));
         }
 

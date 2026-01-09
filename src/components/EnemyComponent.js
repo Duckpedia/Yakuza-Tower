@@ -1,9 +1,9 @@
 import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
-
 import { BulletComponent } from './BulletComponent.js';
 import { World } from '../World.js';
-
+import { Layers } from '../Physics.js';
+import { PlayerComponent } from './PlayerComponent.js';
 
 export class EnemyComponent {
     constructor(entity, player, bulletModel = null, type = 'Melee') {
@@ -20,7 +20,7 @@ export class EnemyComponent {
 
         this.turnSpeed = 5.0;
 
-        this.state = 'chase';
+        this.state = 'idle';
 
         this.runAnim = 2;  //animacija 2 je running with sword in veli bolj smooth, kot 6. Animacija 6 je sam running.
         this.outwardAttackAnim = 5;
@@ -30,18 +30,24 @@ export class EnemyComponent {
 
         this.enemyType = type;
 
-
         this.shootTime = 0.2;
         this.shootTimer = 0;
         this.hasFired = false;
 
         this.bulletModel = bulletModel;
 
+        //line of sight dodajanje
+        this.viewRadius = 10.0;
+        this.fovCos = Math.cos(Math.PI * 0.6); //priblizno en cone
+        this.awareness = 'idle';
+        this.aimDir = null;
+
         entity.skeleton?.playAnimation(this.runAnim);
     }
 
-
     update() {
+        this.updateAwareness();
+
         let dt = World.getDt();
         switch(this.enemyType){
             case 'Melee':
@@ -55,17 +61,32 @@ export class EnemyComponent {
         }
     }
 
-
     MeleeEnemyBehaviour(dt){
+        //dobro jutro
+        if (this.awareness !== 'idle' && this.state === 'idle') {
+            this.state = 'chase';
+            this.entity.skeleton?.playAnimation(this.runAnim);
+        }
+
+        if (this.state === 'idle') return;
+
         if (!this.player) return;
 
         const playerTransform = this.player.getComponentOfType(Transform);
         if (!playerTransform) return;
 
-        // --- WORLD direction (XZ only) ---
+        if (this.awareness !== 'seen'){
+            this.state = 'idle';
+            return;
+        }
+
+        const targetPos = playerTransform.final_position;
+
+        if (!targetPos) return;
+
         const dir = glm.vec3.sub(
             glm.vec3.create(),
-            playerTransform.final_position,
+            targetPos,
             this.transform.final_position
         );
 
@@ -77,12 +98,9 @@ export class EnemyComponent {
             glm.vec3.scale(dir, dir, 1 / distance);
         }
 
-        // -------------------------------
-        // CHASE
-        // -------------------------------
+        //chase
         if (this.state === 'chase') {
             // move
-            
             glm.vec3.scaleAndAdd(
                 this.transform.translation,
                 this.transform.translation,
@@ -90,12 +108,12 @@ export class EnemyComponent {
                 this.speed * dt
             );
 
-            
-
-            this.faceDirection(dir, dt);
+            if (this.awareness === 'seen') {
+                this.faceDirection(dir, dt);
+            }
 
             // enter attack ONCE
-            if (distance <= this.attackRange) {
+            if (distance <= this.attackRange && this.awareness === 'seen') {
                 this.state = 'attack';
                 this.attackTimer = this.attackDuration;
 
@@ -105,14 +123,14 @@ export class EnemyComponent {
             }
         }
 
-        // -------------------------------
-        // ATTACK (LOCKED)
-        // -------------------------------
+        //attack
         else if (this.state === 'attack') {
             this.attackTimer -= dt;
 
             // rotate only
-            this.faceDirection(dir, dt);
+            if (this.awareness === 'seen') {
+                this.faceDirection(dir, dt);
+            }
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
@@ -123,16 +141,33 @@ export class EnemyComponent {
 
 
     RangedEnemyBehaviour(dt){
+        //dobro jutro
+        if (this.awareness !== 'idle' && this.state === 'idle') {
+            this.state = 'chase';
+            this.entity.skeleton?.playAnimation(this.runAnim);
+        }
+
+        if (this.state === 'idle') return;
+
         //Tle je behaviour za enemije s pistolo, za določanje lah uporabljaš this.enemyType
         if (!this.player) return;
 
         const playerTransform = this.player.getComponentOfType(Transform);
         if (!playerTransform) return;
 
-        // --- WORLD direction (XZ only) ---
+        if (this.awareness !== 'seen'){
+            this.state = 'idle';
+            return;
+        }
+
+        const targetPos = playerTransform.final_position;
+
+
+        if (!targetPos) return;
+
         const dir = glm.vec3.sub(
             glm.vec3.create(),
-            playerTransform.final_position,
+            targetPos,
             this.transform.final_position
         );
 
@@ -144,38 +179,40 @@ export class EnemyComponent {
             glm.vec3.scale(dir, dir, 1 / distance);
         }
 
-        // -------------------------------
-        // CHASE
-        // -------------------------------
-        if (this.state === 'chase') {
-            // move
-            
-            glm.vec3.scaleAndAdd(
-                this.transform.translation,
-                this.transform.translation,
-                dir,
-                this.speed * dt
-            );
+        //chase
+        if (this.state === 'chase'){
 
-            
+            if (this.awareness === 'seen'){
+                //ce je pre dalec bo prsu blizji
+                if (distance > this.rangedAttackRange * 0.9) {
+                    glm.vec3.scaleAndAdd(
+                        this.transform.translation,
+                        this.transform.translation,
+                        dir,
+                        this.speed * dt
+                    );
+                }
 
-            this.faceDirection(dir, dt);
+                //ce je in range attacka
+                else{
+                    this.state = 'attack';
+                    this.attackTimer = this.attackDuration;
+                    this.shootTimer = 0;
+                    this.hasFired = false;
 
-            // enter attack ONCE
-            if (distance <= this.rangedAttackRange) {
-                this.state = 'attack';
-                this.attackTimer = this.attackDuration;
+                    this.aimDir = glm.vec3.clone(dir);
 
-            
-
-
-                this.entity.skeleton?.playAnimation(this.gunShootingAnim);
+                    this.entity.skeleton?.playAnimation(this.gunShootingAnim);
+                }
             }
+
+            if (this.awareness === 'seen') {
+                this.faceDirection(dir, dt);
+            }
+
         }
 
-        // -------------------------------
-        // ATTACK (LOCKED)
-        // -------------------------------
+        //attack
         else if (this.state === 'attack') {
             this.attackTimer -= dt;
             this.shootTimer += dt;
@@ -185,18 +222,32 @@ export class EnemyComponent {
                 this.hasFired = true;
             }
 
-             this.faceDirection(dir, dt);
+            if (this.awareness !== 'seen'){
+                this.state = 'idle';
+                this.aimDir = null;
+                return;
+            }
+
+            this.faceDirection(this.aimDir, dt);
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
                 this.hasFired = false;
+                this.shootTimer = 0;
+                this.aimDir = null;
                 this.entity.skeleton?.playAnimation(this.runAnim);
             }
         }
     }
 
-
     faceDirection(dir, dt) {
+        if (this.awareness !== 'seen') return;
+
+        const timeScale = World.timeScale ?? 1.0;
+        if (timeScale <= 0.01){
+            return;
+        }
+
         if (glm.vec3.length(dir) < 0.001) return;
 
         // mau je scam k nimas se animacij pa assetov ampak se znajdes pomoje
@@ -206,15 +257,14 @@ export class EnemyComponent {
         // nared recimo da ce prides dost blizu da se zacne premikat ravno pod playerju pa playa neko animacijo
         // lah probas mu tud dt weapon (macko alpaneki) v roko
         // vsak entity ma funkcijo findChildByName in loh poisces "LeftHand" in parentas orozje po njega
+        
         glm.quat.rotationTo(q, forward, dir);
         glm.quat.normalize(q, q);
 
         const current = this.transform.rotation;
-
         const t = Math.min(1, this.turnSpeed * dt);
 
         glm.quat.slerp(current, current, q, t);
-
         this.transform.rotation = current;
 
     }
@@ -237,7 +287,6 @@ export class EnemyComponent {
             gun.getComponentOfType(Transform).final_position
         );
 
-
         //dodaja gaussovo porazdelitev, da je mal random direction
         let spread = 0.025;
 
@@ -254,6 +303,50 @@ export class EnemyComponent {
         while (u === 0) u = Math.random();
         while (v === 0) v = Math.random();
         return mean + stdDev * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    canSeePlayer(){
+        const playerTransform = this.player?.getComponentOfType(Transform);
+        if (!playerTransform) return false;
+
+        const from = this.transform.final_position;
+        const to = playerTransform.final_position;
+
+        const dir = glm.vec3.sub(glm.vec3.create(), to, from);
+        const dist = glm.vec3.length(dir);
+        if (dist > this.viewRadius) return false;
+
+        glm.vec3.normalize(dir, dir);
+
+        //the cone in question basically
+        const forward = glm.vec3.transformQuat(
+            glm.vec3.create(),
+            [0, 0, 1],
+            this.transform.rotation
+        );
+
+        if (glm.vec3.dot(forward, dir) < this.fovCos) return false;
+
+        //to je za stene
+        const hit = World.physics.raycast(from, to, World.scene, Layers.WORLD);
+        if (!hit) return true;
+
+        return hit.entity === this.player;
+    }
+
+    updateAwareness(){ //to pa dejansko posodobi tisto awareness variable na zacetku
+        if (this.canSeePlayer()){
+            if (this.awareness !== 'seen'){
+                this.awareness = 'seen';
+            }
+        } 
+        else{
+            if (this.awareness === 'seen'){
+                this.awareness = 'idle';
+                this.state = 'idle';
+                this.aimDir = null;
+            }
+        }
     }
 
 }
