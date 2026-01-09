@@ -28,28 +28,19 @@ export class BulletComponent {
         const newPos = glm.vec3.create();
         glm.vec3.scaleAndAdd(newPos, this.transform.translation, this.direction, this.speed * dt);
 
-        const hitEnemy = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.ENEMY);
-        const hitPlayer = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER);
-        if (hitPlayer) {
-            hitPlayer.entity.onCollision?.(this.entity);
-            World.scene.removeEntity(this.entity);
-            console.log("hit player");
+        const hitPerson = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER | Layers.ENEMY);
+        const hit = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.WORLD | Layers.PLAYER | Layers.ENEMY);
+        if (hitPerson && (!hit || hitPerson.distance < hit.distance)) {
+            hitPerson.entity.onCollision?.(this.entity);
+            this.entity.destroy?.();
             return;
         }
-        if (hitEnemy) {
-            hitEnemy.entity.onCollision?.(this.entity);
-            World.scene.removeEntity(this.entity);
-            console.log("hit person");
-            return;
-        }
-        
-
 
         glm.vec3.copy(this.transform.translation, newPos);
 
         this.lifetime -= dt;
         if (this.lifetime <= 0) {
-            World.scene.removeEntity(this.entity);
+            this.entity.destroy?.();
         }
     }
 

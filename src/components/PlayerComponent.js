@@ -4,6 +4,8 @@ import { Transform } from 'engine/core/Transform.js';
 import { DeferredRenderer } from '../renderer/DeferredRenderer.js';
 import { World } from '../World.js';
 import { Inputs } from '../Inputs.js';
+import { PhysicsComponent } from './PhysicsComponent.js';
+import { Layers } from '../Physics.js';
 
 export class PlayerComponent {
 
@@ -25,11 +27,18 @@ export class PlayerComponent {
         this.domElement = domElement;
 
         if (model) {
-            const guyEntity = model.build(this.entity.scene);
-            guyEntity.parent = this.entity;
-            guyEntity.hidden = true;
-            guyEntity.aabbManual = true;
-            guyEntity.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
+            this.guyEntity = model.build(this.entity.scene);
+            this.guyEntity.parent = this.entity;
+            this.guyEntity.hidden = true;
+            this.guyEntity.skeleton?.playAnimation(-1); // stop animation
+            this.guyEntity.addComponent(new PhysicsComponent({
+                type: "aabb",
+                localMin: [-0.35, -0.1, -0.30],
+                localMax: [0.35, 1.6, 0.30],
+                isDynamic: false,
+                layer: Layers.WORLD,
+                mask: Layers.BULLET,
+            }));
         }
 
         this.isCrouching = isCrouching
@@ -157,6 +166,13 @@ export class PlayerComponent {
             quat.rotateY(rotation, rotation, this.yaw);
             quat.rotateX(rotation, rotation, this.pitch);
             transform.rotation = rotation;
+
+            if (this.guyEntity) {
+                const guyTransform = this.guyEntity.getComponentOfType(Transform);
+                if (guyTransform) {
+                    guyTransform.rotation = quat.create();
+                }
+            }
 
             
         if (this.isGrounded) {

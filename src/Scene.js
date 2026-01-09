@@ -35,7 +35,14 @@ export class Scene {
         while (entity.components.length > 0)
             entity.removeComponent(entity.components[entity.components.length - 1]);
 
+        const parent = entity.parent;
         entity.parent = null;
+        if (parent && parent.children) {
+            const index = parent.children.indexOf(entity);
+            if (index !== -1) {
+                parent.children.splice(index, 1);
+            }
+        }
     }
 
     // https://dev.to/anishkumar/tree-data-structure-in-javascript-1o99
@@ -63,7 +70,6 @@ export class Scene {
     *query(componentType) {
         const data = this._getComponentData(componentType)
         for (const [entity, component] of data.entries()) {
-            if (!entity.isVisible()) continue;
             yield [entity, component];
         }
     }

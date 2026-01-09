@@ -192,24 +192,16 @@ export class Physics {
         let closestHit = null;
         let closest = Infinity;
 
-        for (const entity of scene.allEntities()){
-            let bounds = null;
-            if (entity._bounds) {
-                bounds = entity._bounds;
-            } else if (entity.aabb) {
-                bounds = { localMin: entity.aabb.min, localMax: entity.aabb.max };
-            }
-            if (bounds) {
-                const layer = entity._bounds ? entity._bounds.layer : Layers.WORLD;
-                if ((layer & mask) === 0) continue;
+        for (const [entity, b] of scene.query(PhysicsComponent)){
+            //sepravi zdej filtera by layer and mask ne pa samo static bs
+            if ((b.layer & mask) === 0) continue;
 
-                const worldAABB = this.getTransformedAABB(entity, bounds);
-                const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
+            const worldAABB = this.getTransformedAABB(entity, b);
+            const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
 
-                if(t !== null && t <= maxDistance && t < closest){
-                    closest = t;
-                    closestHit = entity;
-                }
+            if(t !== null && t <= maxDistance && t < closest){
+                closest = t;
+                closestHit = entity;
             }
         }
 
