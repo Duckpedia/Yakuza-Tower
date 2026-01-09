@@ -1,12 +1,13 @@
 import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
 import { BulletComponent } from './BulletComponent.js';
+import { BulletPool } from './BulletPool.js';
 import { World } from '../World.js';
 import { Layers } from '../Physics.js';
 import { PlayerComponent } from './PlayerComponent.js';
 
 export class EnemyComponent {
-    constructor(entity, player, bulletModel = null, type = 'Melee') {
+    constructor(entity, player, bulletPool = null, type = 'Melee') {
         this.entity = entity;
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
@@ -34,7 +35,7 @@ export class EnemyComponent {
         this.shootTimer = 0;
         this.hasFired = false;
 
-        this.bulletModel = bulletModel;
+        this.bulletPool = bulletPool;
 
         //line of sight dodajanje
         this.viewRadius = 10.0;
@@ -270,16 +271,12 @@ export class EnemyComponent {
     }
 
     spawnBullet() {
+        if (!this.bulletPool) return;
+
         const gun = this.entity.findChildByName("Pistol_5") 
             ?? this.entity.findChildByName("mixamorig:RightHand");
 
         if (!gun) return;
-
-        console.log(this.bulletModel);
-        const bullet = this.bulletModel.build(World.scene);
-        const transform = bullet.getComponentOfType(Transform);
-        transform.translation = [...gun.getComponentOfType(Transform).final_position];
-        transform.scale = new glm.vec3(0.0002, 0.0002, 0.0002);
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
@@ -293,8 +290,8 @@ export class EnemyComponent {
         dir[0]+=this.randomGaussian(0, spread);
         dir[2]+=this.randomGaussian(0, spread);
 
-
-        bullet.addComponent(new BulletComponent(bullet, dir));
+        const position = gun.getComponentOfType(Transform).final_position;
+        this.bulletPool.spawnBullet(position, dir);
     }
 
 

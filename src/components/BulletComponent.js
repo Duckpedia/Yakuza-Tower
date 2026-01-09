@@ -5,12 +5,13 @@ import { Layers } from '../Physics.js';
 
 
 export class BulletComponent {
-    constructor(entity, direction, speed = 4, lifetime = 2.0) {
+    constructor(entity, direction, pool, speed = 4, lifetime = 2.0) {
         this.direction = glm.vec3.normalize(glm.vec3.create(), direction);
         this.speed = speed;
         this.lifetime = lifetime;
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
+        this.pool = pool;
 
         const forward = glm.vec3.fromValues(0, 1, 0);
         const q = glm.quat.create();
@@ -27,20 +28,20 @@ export class BulletComponent {
 
         const newPos = glm.vec3.create();
         glm.vec3.scaleAndAdd(newPos, this.transform.translation, this.direction, this.speed * dt);
-
+/*
         const hitPerson = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER | Layers.ENEMY);
         const hit = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.WORLD | Layers.PLAYER | Layers.ENEMY);
         if (hitPerson && (!hit || hitPerson.distance < hit.distance)) {
             hitPerson.entity.onCollision?.(this.entity);
             this.entity.destroy?.();
             return;
-        }
+        }*/
 
         glm.vec3.copy(this.transform.translation, newPos);
 
         this.lifetime -= dt;
         if (this.lifetime <= 0) {
-            this.entity.destroy?.();
+            this.pool.returnBullet(this.entity);
         }
     }
 

@@ -17,6 +17,7 @@ import { updateWorldMatricesRecursive } from './root/engine/core/SceneUtils.js';
 import { loadResources } from 'engine/loaders/resources.js';
 import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
+import { BulletPool } from './src/components/BulletPool.js';
 import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
 import { Physics, Layers } from './src/Physics.js';
@@ -34,6 +35,8 @@ const resources = await loadResources({
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
 });
+
+const bulletPool = new BulletPool(resources.bullet_model);
 
 //box helper colider, da ne bo problemov z animated mesh
 function attachBoxCollider(parent, {
@@ -164,7 +167,7 @@ guy.addComponent(new RecordComponent());
 const rangedGuy = resources.guy_model.build(World.scene);
 // rangedGuy.skeleton.playAnimationByIndex(3);
 console.log("bullet"+resources.bullet_model);
-rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, resources.bullet_model,'Ranged'));
+rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, bulletPool,'Ranged'));
 rangedGuy.addComponent(new RecordComponent());
 const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
 rangedGuy_transform.translation = new vec3(1, 0, 1);
