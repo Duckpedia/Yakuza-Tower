@@ -34,8 +34,8 @@ export class DeferredRendererSettings {
     ssaoRadius = 0.5;
     ssaoBias = 0.025;
     ssaoMaxDelta = 0.17;
-    showFog = false;
-    fogStrength = 0.006;
+    showFog = true;
+    fogStrength = 0.01;
     fogLightFactor = 1.0;
     fogSteps = 60;
     vignette = 0.0;
