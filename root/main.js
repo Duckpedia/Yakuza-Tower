@@ -81,7 +81,7 @@ player.addComponent(new Transform({
     translation: new vec3(0, 1.2, 2),
 }));
 player.addComponent(new Camera());
-player.addComponent(new PlayerComponent(player, canvas));
+player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
 
 const scene = [player];
 

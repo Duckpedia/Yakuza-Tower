@@ -1,6 +1,7 @@
 import * as glm from 'glm';
 import { Transform } from 'engine/core/Transform.js';
 import { World } from '../World.js';
+import { Layers } from '../Physics.js';
 
 
 export class BulletComponent {
@@ -24,16 +25,31 @@ export class BulletComponent {
     update() {
         let dt = World.getDt();
 
-        glm.vec3.scaleAndAdd(
-            this.transform.translation,
-            this.transform.translation,
-            this.direction,
-            this.speed * dt
-        );
+        const newPos = glm.vec3.create();
+        glm.vec3.scaleAndAdd(newPos, this.transform.translation, this.direction, this.speed * dt);
+
+        const hitEnemy = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.ENEMY);
+        const hitPlayer = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER);
+        if (hitPlayer) {
+            hitPlayer.entity.onCollision?.(this.entity);
+            World.scene.removeEntity(this.entity);
+            console.log("hit player");
+            return;
+        }
+        if (hitEnemy) {
+            hitEnemy.entity.onCollision?.(this.entity);
+            World.scene.removeEntity(this.entity);
+            console.log("hit person");
+            return;
+        }
+        
+
+
+        glm.vec3.copy(this.transform.translation, newPos);
 
         this.lifetime -= dt;
         if (this.lifetime <= 0) {
-            this.entity.destroy?.();
+            World.scene.removeEntity(this.entity);
         }
     }
 

@@ -21,7 +21,7 @@ export class Entity {
         const removed = this.scene._removeComponent(this, component)
         const i = this.components.indexOf(removed);
         if (i !== -1) this.components.splice(i, 1);
-        removed.onDetach?.(this);
+        removed?.onDetach?.(this);
     }
 
     getComponentOfType(type) {

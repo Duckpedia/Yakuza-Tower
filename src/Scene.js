@@ -43,11 +43,21 @@ export class Scene {
         yield* this._walk(this.root);
     }
 
+    *allEntities() {
+        yield* this._allWalk(this.root);
+    }
+
     *_walk(entity) {
         if (entity.hidden) return;
         yield entity;
         for (const child of entity.children)
             yield* this._walk(child);
+    }
+
+    *_allWalk(entity) {
+        yield entity;
+        for (const child of entity.children)
+            yield* this._allWalk(child);
     }
 
     *query(componentType) {

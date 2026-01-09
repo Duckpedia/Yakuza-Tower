@@ -98,6 +98,7 @@ await renderer.initialize(resources.white_image, resources.dirt_image);
 
 const inputs = new Inputs(canvas);
 const physics = new Physics(World.scene);
+World.physics = physics;
 
 const floor = World.scene.addEntity(World.scene.createEntity());
 floor.name = "Floor";
@@ -114,7 +115,7 @@ player.addComponent(new Transform({
 }));
 player.addComponent(new Camera());
 player.addComponent(new RecordComponent());
-player.addComponent(new PlayerComponent(player, canvas));
+player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
 
 // to samo doda da dejansko dela aabb collision
 

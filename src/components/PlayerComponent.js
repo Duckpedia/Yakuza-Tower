@@ -7,7 +7,7 @@ import { Inputs } from '../Inputs.js';
 
 export class PlayerComponent {
 
-    constructor(entity, domElement, {
+    constructor(entity, domElement, model = null, {
         pitch = 0,
         yaw = 0,
         velocity = [0, 0, 0],
@@ -23,6 +23,14 @@ export class PlayerComponent {
     } = {}) {
         this.entity = entity;
         this.domElement = domElement;
+
+        if (model) {
+            const guyEntity = model.build(this.entity.scene);
+            guyEntity.parent = this.entity;
+            guyEntity.hidden = true;
+            guyEntity.aabbManual = true;
+            guyEntity.aabb = { min: [-0.35, -0.1, -0.30], max: [0.35, 1.6, 0.30] };
+        }
 
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded
