@@ -14,6 +14,7 @@ import {
     Material,
 } from '../core/core.js';
 import { vec3 } from '../../lib/glm.js';
+import { updateFinalMatrixTree } from '../core/SceneUtils.js';
 
 // TODO: GLB support
 // TODO: accessors with no buffer views (zero-initialized)
@@ -635,6 +636,7 @@ export class GLTFLoader {
             if (physics) physics.parentEntity = root;
         }
         root.animations = root.skeleton?.animations ?? [];
+        updateFinalMatrixTree(root);
         scene.addEntity(root);
         return root;
     }

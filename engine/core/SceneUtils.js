@@ -19,3 +19,18 @@ export function getGlobalModelMatrix(entity) {
         return getLocalModelMatrix(entity);
     }
 }
+
+export function updateFinalMatrixTree(entity, parentMatrix = new mat4())
+{
+    const transform = entity._transform;
+    if (transform)
+    {
+        // TODO: tuki je transform.matrix dost slow k rab klicat fromRotationTranslatioScale
+        mat4.mul(transform.final, parentMatrix, transform.matrix);
+        if (transform._calculateInverse)
+            mat4.invert(transform.inv_final, transform.final);
+    }
+    for (const child of entity.children) {
+        updateFinalMatrixTree(child, transform?.final ?? parentMatrix);
+    }
+}

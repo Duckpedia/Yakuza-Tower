@@ -12,8 +12,6 @@ import {
     Transform
 } from 'engine/core/core.js';
 
-import { updateWorldMatricesRecursive } from './root/engine/core/SceneUtils.js';
-
 import { loadResources } from 'engine/loaders/resources.js';
 import { DeferredRenderer } from './src/renderer/DeferredRenderer.js';
 import { EnemyComponent } from './src/components/EnemyComponent.js';
@@ -22,6 +20,7 @@ import { World } from './src/World.js';
 import { Inputs } from './src/Inputs.js';
 import { Physics, Layers } from './src/Physics.js';
 import { PhysicsComponent } from './src/components/PhysicsComponent.js';
+import { updateFinalMatrixTree } from './engine/core/SceneUtils.js';
 import { KatanaComponent } from './src/components/KatanaComponent.js';
 
 //tukej se vsi resources dodajajo
@@ -424,7 +423,7 @@ function update(t, dt) {
         }
     }
 
-    updateWorldMatricesRecursive(World.scene.root, new mat4());
+    updateFinalMatrixTree(World.scene.root);
         
     if (World.doUpdate)
     {
@@ -432,6 +431,8 @@ function update(t, dt) {
 
         physics.update(t, dt, World.scene);
     }
+
+    updateFinalMatrixTree(World.scene.root);
 }
 
 let renderTimeAccum = 0.0;
