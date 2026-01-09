@@ -265,7 +265,8 @@ function updateInput()
             currentItem.hidden = false;
             player.currentItem = null;
         }
-        else {
+        else 
+        {
             const camEntity = World.activeCamera;
             const camTransform = camEntity.getComponentOfType(Transform);
 
@@ -384,9 +385,14 @@ function update(t, dt) {
     }
     
     renderer.clearDebug();
+    
     World.timers.global.time = t;
     World.timers.global.dt = dt;
     World.timers.game.dt = dt * World.timeScale;
+    if (Inputs.isHeld('KeyB'))
+    {
+        World.timers.game.dt *= 10.0;
+    }
     World.timers.game.time += World.timers.game.dt;
     World.poprSettings.time = World.timers.global.time;
     
