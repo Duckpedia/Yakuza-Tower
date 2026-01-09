@@ -7,50 +7,6 @@ import { Camera, Model } from '../../engine/core/core.js';
 import { BaseRenderer } from '../../engine/renderers/BaseRenderer.js';
 import { LightComponent } from '../components/LightComponent.js';
 
-export class DeferredRendererSettings {
-    pass = 0;
-    showUI = true;
-    showSkybox = true;
-    showBloom = true;
-    bloom = {
-        threshold: 1.3,
-        // strength: 0.0,
-        strength: 0.012,
-        filterRadius: 1.0,
-        dirtStrength: 0.0,
-    };
-    tonemapping = {
-        // index: 0, // 0 none, 1 reinhard, 2 agx
-        index: 2, // 0 none, 1 reinhard, 2 agx
-        agxSlope: [1.0, 1.0, 1.0],
-        agxPower: [1.35, 1.35, 1.35],
-        agxSat: 4.0
-    };
-    blackAndWhite = 0.0;
-    wireframe = false;
-    debug = false;
-    test = 0.0;
-    showSSAO = true;
-    ssaoRadius = 0.5;
-    ssaoBias = 0.025;
-    ssaoMaxDelta = 0.17;
-    showFog = true;
-    fogStrength = 0.05;
-    fogLightFactor = 0.0;
-    fogSteps = 60;
-    vignette = 0.1;
-    vignetteRadius = 2.0;
-    vignetteSoftness = 1.0;
-    caX = 10.0;
-    caY = 2.0;
-    scanlines = 0.2;
-    scanlinesDensity = 1.0;
-    scanlinesSpeed = 0.2;
-    environment = true;
-    volumetricFog = 1.0;
-    depthFogDensity = 0.01;
-}
-
 class GPUBuffer {
     constructor(device, capacity = 0, elementSize = 1, T = Uint8Array, usage = GPUBufferUsage.VERTEX | GPUBufferUsage.FRAGMENT | GPUBufferUsage.COPY_DST)
     {
@@ -104,8 +60,31 @@ export class DeferredRenderer extends BaseRenderer {
     async initialize(defaultTextureImage, dirtImage) {
         await super.initialize(defaultTextureImage);
 
+        await this.setUpDefaults();
+        await this.setUpEnvironment();
+        await this.setUpDeferred();
+        await this.setUpLighting();
+        await this.setUpDebug();
+        await this.setUpPopr(dirtImage);
+        await this.setUpBloom();
+        await this.setUpUI();
+
+        this.recreateRenderTargets();
+
+        DeferredRenderer.s = this;
+    }
+
+    async loadShaderModule(url, prefixes = [])
+    {
+        const shaderCode = await fetch(new URL(url, import.meta.url)).then(response => response.text());
+        const code = this.commonShaderCode + prefixes.join('') + shaderCode;
+        return this.device.createShaderModule({ code });
+    }
+
+    async setUpDefaults()
+    {
         this.commonShaderCode = await fetch(new URL('Common.wgsl', import.meta.url)).then(response => response.text());
-        this.skyboxCommonCode = await fetch(new URL("SkyboxCommon.wgsl", import.meta.url)).then(response => response.text());
+        this.environmentCommonCode = await fetch(new URL("EnvironmentCommon.wgsl", import.meta.url)).then(response => response.text());
         this.fullscreenCommonCode = await fetch(new URL("FullscreenCommon.wgsl", import.meta.url)).then(response => response.text());
 
         this.cameraBindGroupLayout = this.createBindGroupLayout([uniformBufferBindGroupEntry]);
@@ -132,25 +111,6 @@ export class DeferredRenderer extends BaseRenderer {
             { format: 'rgba16float', }, // TODO: use a smaller format
             // { format: 'bgra8unorm', } 
         ];
-
-        await this.setUpSkybox();
-        await this.setUpDeferred();
-        await this.setUpLighting();
-        await this.setUpDebug();
-        await this.setUpPopr(dirtImage);
-        await this.setUpBloom();
-        await this.setUpUI();
-
-        this.recreateRenderTargets();
-
-        DeferredRenderer.s = this;
-    }
-
-    async loadShaderModule(url, prefixes = [])
-    {
-        const code = this.commonShaderCode + prefixes.join('') +
-            await fetch(new URL(url, import.meta.url)).then(response => response.text());
-        return this.device.createShaderModule({ code });
     }
 
     async setUpUI()
@@ -170,9 +130,8 @@ export class DeferredRenderer extends BaseRenderer {
         });
     }
 
-    // TODO: rename to environment
-    async setUpSkybox() {
-        console.log("setting up skybox");
+    async setUpEnvironment() {
+        console.log("setting up environment");
 
         const loadHDR = (url) => {
             return new Promise((resolve, reject) => {
@@ -194,13 +153,13 @@ export class DeferredRenderer extends BaseRenderer {
 
         const envBindGroupLayout = this.createBindGroupLayout([cubemapBindGroupEntry, filteringSamplerBindGroupEntry]);
         
-        { // default skybox pipeline
+        { // default environment pipeline
             const layout = this.device.createPipelineLayout({
                 bindGroupLayouts: [this.cameraBindGroupLayout, envBindGroupLayout],
             });
-            const module = await this.loadShaderModule('Skybox.wgsl');
-            this.skyboxPipeline = await this.device.createRenderPipelineAsync({
-                label: 'skybox',
+            const module = await this.loadShaderModule('Environment.wgsl');
+            this.environmentPipeline = await this.device.createRenderPipelineAsync({
+                label: 'environment',
                 layout,
                 vertex: { module },
                 fragment: {
@@ -241,7 +200,7 @@ export class DeferredRenderer extends BaseRenderer {
                 );
             }
             
-            this.skyboxBindGroup = this.device.createBindGroup({
+            this.environmentBindGroup = this.device.createBindGroup({
                 layout: envBindGroupLayout,
                 entries: [
                     { binding: 0, resource: this.environmentTexture.createView({ dimension: 'cube' }) },
@@ -252,7 +211,7 @@ export class DeferredRenderer extends BaseRenderer {
 
         { // irradiance map
             const layout = this.device.createPipelineLayout({ bindGroupLayouts: [ envBindGroupLayout ] });
-            const module = await this.loadShaderModule('IrradienceMap.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const module = await this.loadShaderModule('IrradienceMap.wgsl', [this.environmentCommonCode, this.fullscreenCommonCode]);
             const pipeline = await this.device.createRenderPipelineAsync({
                 label: 'irradience',
                 layout,
@@ -294,7 +253,7 @@ export class DeferredRenderer extends BaseRenderer {
             });
 
             renderPass.setPipeline(pipeline);
-            renderPass.setBindGroup(0, this.skyboxBindGroup);
+            renderPass.setBindGroup(0, this.environmentBindGroup);
             renderPass.draw(6);
             renderPass.end();
 
@@ -304,7 +263,7 @@ export class DeferredRenderer extends BaseRenderer {
         { // prefilter map
             const configLayout = this.createBindGroupLayout([ uniformBufferBindGroupEntry ]);
             const layout = this.device.createPipelineLayout({ bindGroupLayouts: [ envBindGroupLayout, configLayout ] });
-            const module = await this.loadShaderModule('PrefilterMap.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const module = await this.loadShaderModule('PrefilterMap.wgsl', [this.environmentCommonCode, this.fullscreenCommonCode]);
             const pipeline = await this.device.createRenderPipelineAsync({
                 label: 'prefilter',
                 layout,
@@ -366,7 +325,7 @@ export class DeferredRenderer extends BaseRenderer {
                 });
 
                 renderPass.setPipeline(pipeline);
-                renderPass.setBindGroup(0, this.skyboxBindGroup);
+                renderPass.setBindGroup(0, this.environmentBindGroup);
                 renderPass.setBindGroup(1, bindGroups[mip]);
                 renderPass.draw(6);
                 renderPass.end();
@@ -376,7 +335,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
         
         { // brdf convolution
-            const module = await this.loadShaderModule('BRDFConvolution.wgsl', [this.skyboxCommonCode, this.fullscreenCommonCode]);
+            const module = await this.loadShaderModule('BRDFConvolution.wgsl', [this.environmentCommonCode, this.fullscreenCommonCode]);
             const pipeline = await this.device.createRenderPipelineAsync({
                 label: 'brdf convolution',
                 layout: 'auto',
@@ -568,7 +527,7 @@ export class DeferredRenderer extends BaseRenderer {
             vertex: { module: fogModule },
             fragment: {
                 module: fogModule,
-                targets: [{ format: 'bgra8unorm' }],
+                targets: [{ format: 'rgba16float' }],
             },
         });
 
@@ -780,7 +739,7 @@ export class DeferredRenderer extends BaseRenderer {
         // this.deferredSubsurfaceSpecularSpecularTintClearcoatView = this.deferredSubsurfaceSpecularSpecularTintClearcoatTexture.createView();
 
         this.fogTexture = this.device.createTexture({
-            format: 'bgra8unorm',
+            format: 'rgba16float',
             size: [this.canvas.width * 0.4, this.canvas.height * 0.4],
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
         });
@@ -824,8 +783,7 @@ export class DeferredRenderer extends BaseRenderer {
         let height = this.canvas.height;
         for (let i = 0; i < 5; i++)
         {
-            width /= 2;
-            height /= 2;
+            width /= 2; height /= 2;
             const tex = this.device.createTexture({
                 format: 'rgba16float',
                 size: [width, height],
@@ -896,9 +854,9 @@ export class DeferredRenderer extends BaseRenderer {
             
         this.renderLights(encoder);
 
-        if (poprSettings.showSkybox)
+        if (poprSettings.showEnvironment)
         {
-            this.renderSkybox(encoder,cameraBindGroup, poprSettings);
+            this.renderEnvironment(encoder,cameraBindGroup, poprSettings);
         }
 
         this.renderLighting(encoder, cameraBindGroup, poprSettings);
@@ -938,6 +896,7 @@ export class DeferredRenderer extends BaseRenderer {
         let nInstances = 0;
         let nJoints = 0;
         this.lights.length = 0;
+
         for (const [entity, model] of scene.query(Model))
         {
             let data = this.models.get(model);
@@ -960,7 +919,7 @@ export class DeferredRenderer extends BaseRenderer {
             nInstances += 1;
         }
 
-        for (const [entity, light] of scene.query(LightComponent))
+        for (const [entity, _] of scene.query(LightComponent))
         {
             this.lights.push(entity);
         }
@@ -1159,7 +1118,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    renderLighting(encoder, cameraBindGroup, poprSettings)
+    renderLighting(encoder, cameraBindGroup)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -1204,7 +1163,7 @@ export class DeferredRenderer extends BaseRenderer {
         }
     }
 
-    renderSkybox(encoder, cameraBindGroup, poprSettings)
+    renderEnvironment(encoder, cameraBindGroup, poprSettings)
     {
         const renderPass = encoder.beginRenderPass({
             colorAttachments: [
@@ -1231,9 +1190,9 @@ export class DeferredRenderer extends BaseRenderer {
             },
         });
 
-        renderPass.setPipeline(this.skyboxPipeline);
+        renderPass.setPipeline(this.environmentPipeline);
         renderPass.setBindGroup(0, cameraBindGroup);
-        renderPass.setBindGroup(1, poprSettings.debug ? this.irradianceBindGroup : this.skyboxBindGroup);
+        renderPass.setBindGroup(1, poprSettings.debug ? this.irradianceBindGroup : this.environmentBindGroup);
         renderPass.draw(36);
 
         renderPass.end();
@@ -1622,6 +1581,50 @@ export class DeferredRenderer extends BaseRenderer {
     {
         DeferredRenderer.Draw3DBoxMinMax([-1, -1, -1], [1, 1, 1], mat, color);
     }
+}
+
+export class DeferredRendererSettings {
+    pass = 0;
+    showUI = true;
+    showSkybox = true;
+    showBloom = true;
+    bloom = {
+        threshold: 1.3,
+        // strength: 0.0,
+        strength: 0.012,
+        filterRadius: 1.0,
+        dirtStrength: 0.0,
+    };
+    tonemapping = {
+        // index: 0, // 0 none, 1 reinhard, 2 agx
+        index: 2, // 0 none, 1 reinhard, 2 agx
+        agxSlope: [1.0, 1.0, 1.0],
+        agxPower: [1.35, 1.35, 1.35],
+        agxSat: 4.0
+    };
+    blackAndWhite = 0.0;
+    wireframe = false;
+    debug = false;
+    test = 0.0;
+    showSSAO = true;
+    ssaoRadius = 0.5;
+    ssaoBias = 0.025;
+    ssaoMaxDelta = 0.17;
+    showFog = true;
+    fogStrength = 0.05;
+    fogLightFactor = 0.0;
+    fogSteps = 60;
+    vignette = 0.1;
+    vignetteRadius = 2.0;
+    vignetteSoftness = 1.0;
+    caX = 10.0;
+    caY = 2.0;
+    scanlines = 0.2;
+    scanlinesDensity = 1.0;
+    scanlinesSpeed = 0.2;
+    environment = true;
+    volumetricFog = 1.0;
+    depthFogDensity = 0.01;
 }
 
 const vertexBufferLayout = {

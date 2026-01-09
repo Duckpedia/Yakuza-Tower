@@ -125,10 +125,6 @@ fn PBR(world: vec3f, viewPos: vec3f, normal: vec3f, material: Material, ndc: vec
     let roughness = material.roughness;
     let coatRoughness = clamp(mix(material.roughness, 0.04, material.wetness), 0.02, 1.0);
     let coatF0 = vec3(0.04);
-    // let subsurface = material.subsurface;
-    // let specular = material.specular;
-    // let specularTint = material.specularTint;
-    // let clearcoat = material.clearcoat;
 
     let view = normalize(camera.position.xyz - world.xyz);
     let normalDotView = positiveDot(normal, view);
@@ -223,10 +219,6 @@ fn fragment(input: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     material.wetness      = f32(packedMetallicWetness & 0xf) / 15.0;
     material.emission     = normalEmissionRoughness.z;
     material.roughness    = normalEmissionRoughness.w;
-    // material.subsurface   = subsurfaceSpecularSpecularTintClearcoat.r;
-    // material.specular     = subsurfaceSpecularSpecularTintClearcoat.g;
-    // material.specularTint = subsurfaceSpecularSpecularTintClearcoat.b;
-    // material.clearcoat    = subsurfaceSpecularSpecularTintClearcoat.a;
 
     if (settings.passIndex >= 7.0) {
         return vec4(vec3(material.wetness), 1.0);
