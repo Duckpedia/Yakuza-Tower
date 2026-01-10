@@ -394,8 +394,15 @@ function updateStage()
     player._transform.translation = [0.0, 0.0, 0.0];
 
     resources[World.loadStage].build(newScene);
-    
+
+    updateFinalMatrixTree(newScene.root);
+    // for (const [entity, spawner] of newScene.query(SpawnerComponent))
+    // {
+    //     if (spawner.spawnType. === "")
+    // }
+
     World.scene = newScene;
+
     World.loadStage = null;
 }
 

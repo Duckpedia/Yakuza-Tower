@@ -1,6 +1,7 @@
 import { LightComponent } from '../../src/components/LightComponent.js';
 import { SkeletonComponent } from '../../src/components/SkeletonComponent.js';
 import { PhysicsComponent } from '../../src/components/PhysicsComponent.js';
+import { SpawnpointComponent } from '../../src/components/SpawnpointComponent.js';
 import {
     Accessor,
     Camera,
@@ -587,6 +588,11 @@ export class GLTFLoader {
                 gltfSpec.extras.localMin = [ -1, -1, -1 ];
                 gltfSpec.extras.localMax = [  1,  1,  1 ];
                 entity.addComponent(new PhysicsComponent(gltfSpec.extras));
+            }
+
+            if (gltfSpec.extras.spawner)
+            {
+                entity.addComponent(new SpawnpointComponent(gltfSpec.extras));
             }
         }
 

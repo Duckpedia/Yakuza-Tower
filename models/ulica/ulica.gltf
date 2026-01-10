@@ -47,7 +47,7 @@
 			]
 		}
 	},
-	"scene":1,
+	"scene":0,
 	"scenes":[
 		{
 			"name":"Scene",
@@ -1679,8 +1679,8 @@
 		},
 		{
 			"extras":{
-				"spawner":true,
-				"spawnName":"MeeleEnemy"
+				"spawnType":"Meele",
+				"spawnpoint":true
 			},
 			"name":"Empty.034",
 			"scale":[

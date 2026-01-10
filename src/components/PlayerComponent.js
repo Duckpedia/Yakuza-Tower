@@ -229,7 +229,7 @@ export class PlayerComponent {
         this.isCrouching = Inputs.isHeld('KeyC');
     }
 
-    onCollision(parent, other, collider)
+    onCollision(entity, other, collider)
     {
         if (!collider.trigger)
             return;
