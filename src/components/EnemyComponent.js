@@ -6,9 +6,10 @@ import { World } from '../World.js';
 import { Layers } from '../Physics.js';
 import { PlayerComponent } from './PlayerComponent.js';
 import { DeferredRenderer } from '../renderer/DeferredRenderer.js';
+import { KatanaComponent } from './KatanaComponent.js';
 
 export class EnemyComponent {
-    constructor(entity, player, bulletPool = null, type = 'Melee') {
+    constructor(entity, player, weapon = null, bulletPool = null, type = 'Melee') {
         this.entity = entity;
         this.transform = entity.getComponentOfType(Transform);
         this.player = player;
@@ -47,6 +48,8 @@ export class EnemyComponent {
 
         this.lastSeenPos = null;
         this.searchRadius = 0.4;
+
+        this.weapon = weapon;
 
         entity.skeleton?.playAnimation(this.runAnim);
     }
@@ -137,6 +140,8 @@ export class EnemyComponent {
         //attack
         else if (this.state === 'attack') {
             this.attackTimer -= dt;
+            this.weapon.getComponentOfType(KatanaComponent).startAttack();
+
 
             // rotate only
             if (this.awareness === 'seen') {

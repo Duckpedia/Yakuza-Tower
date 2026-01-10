@@ -6,6 +6,7 @@ import { World } from '../World.js';
 import { Inputs } from '../Inputs.js';
 import { PhysicsComponent } from './PhysicsComponent.js';
 import { Layers } from '../Physics.js';
+import { KatanaComponent } from './KatanaComponent.js';
 
 export class PlayerComponent {
 
@@ -66,6 +67,8 @@ export class PlayerComponent {
         DeferredRenderer.randomRectangle.position[1] = 0.1;
         DeferredRenderer.randomRectangle.scale[0] = 0.4;
         DeferredRenderer.randomRectangle.scale[1] = 0.025;
+
+        this.weapon = undefined;
     }
 
     lerp(a, b, t) {
@@ -122,6 +125,12 @@ export class PlayerComponent {
         if (Inputs.isHeld('Space') && this.isGrounded) {
             this.velocity[1] = 5;
             this.isGrounded = false;
+        }
+        if(Inputs.isHeld('ShiftLeft')){
+            if(this.weapon){
+                console.log("Player attacks with katana");
+                this.weapon.getComponentOfType(KatanaComponent).startAttack();  //Attack with katana
+            }
         }
 
         const gravity = 22;
@@ -244,5 +253,10 @@ export class PlayerComponent {
     {
         this.yaw = 0.0;
         this.pitch = 0.0;
+    }
+
+
+    givePlayerKatana(katana){
+        this.weapon = katana;
     }
 }

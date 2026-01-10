@@ -94,6 +94,14 @@ player.addComponent(new PhysicsComponent({
   mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP | Layers.TRIGGER,
 }));
 
+
+//Player test katana
+const playerKatana = resources.katana_model.build(World.scene);
+playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+playerKatana.parent = player.getComponentOfType(Camera).entity;
+player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
+
+
 World.loadStage = "soba_model";
 let active_camera = 0;
 
@@ -282,12 +290,11 @@ function updateStage()
         const type = spawner.spawnType.toLowerCase();
         if (type == "meele")
         {
-            entity = resources.guy_model.build(newScene);
-            entity.addComponent(new EnemyComponent(entity, player));
-            entity.addComponent(new RecordComponent());
-
             const katana = resources.katana_model.build(newScene);
-            katana.addComponent(new KatanaComponent(katana));
+            entity = resources.guy_model.build(newScene);
+            katana.addComponent(new KatanaComponent(katana, entity, player));
+            entity.addComponent(new EnemyComponent(entity, player, katana));
+            entity.addComponent(new RecordComponent());
             katana.parent = entity.findChildByName("up_righthand");
         }
         else if (type == "ranged")
