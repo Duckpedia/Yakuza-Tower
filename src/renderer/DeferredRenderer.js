@@ -991,7 +991,7 @@ export class DeferredRenderer extends BaseRenderer {
 
             renderPass.setPipeline(poprSettings.wireframe ? this.wireframedepthPassPipeline : this.depthPassPipeline);
             renderPass.setBindGroup(0, cameraBindGroup);
-            renderPass.setBindGroup(1, this.skeletonBindGroup);
+            renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
 
             for (const [model, data] of this.models.entries())
             {
@@ -1032,7 +1032,7 @@ export class DeferredRenderer extends BaseRenderer {
 
             renderPass.setPipeline(poprSettings.wireframe ? this.wireframePipeline : this.deferredPipeline);
             renderPass.setBindGroup(0, cameraBindGroup);
-            renderPass.setBindGroup(1, this.skeletonBindGroup);
+            renderPass.setBindGroup(1, this.skeletonBindGroup ?? this.dummySkeletonBindGroup);
 
             for (const [model, data] of this.models.entries())
             {

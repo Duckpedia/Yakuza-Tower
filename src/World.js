@@ -5,6 +5,7 @@ export class World {
     static timeScale = 1.0;
     static poprSettings = new DeferredRendererSettings();
     static scene = new Scene();
+    static cameras = [];
     static activeCamera = null;
     static timers = { global: { time: 0.0, dt: 0.0 }, game: { time: 0.0, dt: 0.0 } };
     static doUpdate = true;

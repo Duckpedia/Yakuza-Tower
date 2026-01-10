@@ -39,63 +39,6 @@ const resources = await loadResources({
 
 let bulletPool = new BulletPool(resources.bullet_model);
 
-//box helper colider, da ne bo problemov z animated mesh
-function attachBoxCollider(parent, {
-  name = 'Collider',
-  offset = new vec3(0, 1.0, 0),
-  halfExtents = new vec3(0.35, 1.0, 0.35),
-  isStatic = true,
-} = {}) {
-  const c = World.scene.createEntity();
-  c.name = name;
-
-  c.addComponent(new Transform({
-    translation: offset,
-  }));
-
-  c.customProperties = isStatic ? { isStatic: true } : { isDynamic: true };
-  c.aabbManual = true;
-  c.aabb = {
-    min: [-halfExtents[0], -halfExtents[1], -halfExtents[2]],
-    max: [ halfExtents[0],  halfExtents[1],  halfExtents[2]],
-  };
-
-  c.parent = parent;
-  parent.children ??= [];
-  parent.children.push(c);
-
-  return c;
-}
-
-// make the weapons n shit (anything made with this will be pickable up)
-function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), rotationAxis = new vec3(1,0,0), rotationAngle = Math.PI/2)
-{
-    const visualEntity = modelResource.build(World.scene);
-
-    const transform = visualEntity.getComponentOfType(Transform);
-    transform.scale = scale;
-    glm.quat.setAxisAngle(transform.rotation, rotationAxis, rotationAngle);
-
-    const collider = World.scene.addEntity(World.scene.createEntity());
-    collider.name = modelResource.name + "Collider";
-    collider.addComponent(new Transform({ translation: position }));
-    collider.velocity = new vec3(0, 0, 0); //da bo padlo na tla + dynamic ker ja 
-
-    collider.addComponent(new PhysicsComponent({
-        type: "aabb",
-        localMin: [-scale[0], -scale[1], -scale[2]],
-        localMax: [ scale[0],  scale[1],  scale[2]],
-        isDynamic: true,
-        layer: Layers.PICKUP,
-        mask: Layers.WORLD | Layers.PLAYER, //se player da se bumpata, ce nocte da se bumpata sam zbriste da se collida s playerjem
-    }));
-
-    collider.isPickup = true;
-
-    visualEntity.parent = collider;
-    return collider;
-}
-
 const canvas = document.querySelector('canvas');
 const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image, resources.dirt_image);
@@ -104,8 +47,10 @@ const inputs = new Inputs(canvas);
 const physics = new Physics(World.scene);
 World.physics = physics;
 
-//player creation
+const defaultPoprSettings = World.poprSettings;
+const replay = { frames: [] };
 
+//player creation
 const player = World.scene.addEntity(World.scene.createEntity());
 player.addComponent(new Transform({
     translation: new vec3(0, 1.2, 2),
@@ -114,28 +59,12 @@ player.addComponent(new Camera());
 player.addComponent(new RecordComponent());
 player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
 
-// to samo doda da dejansko dela aabb collision
-
-player.currentItem = null;
-
 // Make player invulnerable for 2 seconds at start
 player.invulnerable = true;
 setTimeout(() => {
     player.invulnerable = false;
     console.log("Player invulnerability ended");
 }, 2000);
-
-
-//ce bi hotl da ni direkt na player:
-//player.game = player.game ?? {};
-//player.game.currentItem = null;
-
-//current item bo zdj storeal kaj si picku up, pol pa lah droppas
-//bi bilo zelo uporabno ce bi kdo hotu naredit weapone!!!!
-
-//ok spremenila sm na bounds in sm dala player.currentItem namest customProperties da ne mixamo vec stvari
-
-
 
 player.addComponent(new PhysicsComponent({
   type: "aabb",
@@ -146,78 +75,7 @@ player.addComponent(new PhysicsComponent({
   mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP | Layers.TRIGGER,
 }));
 
-//layers!! koncno
-
-//reference za item modele ko spawnas, prosim dodaj tukaj ce dodas se kaksen weapon
-const itemResources = {
-    katana: resources.katana_model,
-    gun: resources.pistol_model,
-    bullet: resources.bullet_model,
-};
-
-//make pickups like this!!
-const katanaPickup = createPickup(resources.katana_model, new vec3(0,4,-5), new vec3(0.2,0.2,0.2), new vec3(1,0,0), Math.PI/2, "katana");
-const pistolPickup = createPickup(resources.pistol_model, new vec3(0,4,-2), new vec3(0.2,0.2,0.2), undefined, undefined, "gun");
-
-const invisibleWallCollider = World.scene.addEntity(World.scene.createEntity());
-invisibleWallCollider.name = 'InvisibleWall';
-invisibleWallCollider.addComponent(new Transform({ translation: new vec3(4, 0.1, 0) }));
-
-const soba = resources.soba_model.build(World.scene);
-
-const guy = resources.guy_model.build(World.scene);
-guy.skeleton.playAnimation(2, "base");
-guy.addComponent(new EnemyComponent(guy, player));
-guy.addComponent(new RecordComponent());
-
-const rangedGuy = resources.guy_model.build(World.scene);
-// rangedGuy.skeleton.playAnimationByIndex(3);
-console.log("bullet"+resources.bullet_model);
-rangedGuy.addComponent(new EnemyComponent(rangedGuy, player, bulletPool,'Ranged'));
-rangedGuy.addComponent(new RecordComponent());
-const rangedGuy_transform = rangedGuy.getComponentOfType(Transform);
-rangedGuy_transform.translation = new vec3(1, 0, 1);
-
-{
-    
-    const littleguy = resources.katana_model.build(World.scene);
-    littleguy.addComponent(new KatanaComponent(littleguy));
-    // littleguy.addComponent(new EnemyComponent(littleguy, player));
-    const littleguy_transform = littleguy.getComponentOfType(Transform);
-    littleguy_transform.scale = new vec3(16, 16, 16);
-
-    const littleguy2 = resources.pistol_model.build(World.scene);
-    // littleguy2.addComponent(new EnemyComponent(littleguy2, player));
-    const littleguy2_transform = littleguy2.getComponentOfType(Transform);
-    littleguy2_transform.scale = new vec3(20, 20, 20);
-
-    littleguy2.parent = rangedGuy.findChildByName("up_righthand");
-    littleguy.parent = guy.findChildByName("up_righthand");
-}
-
-// for (const entity of World.scene.entities()) {
-//   if (entity.aabbManual) continue;
-
-//   const model = entity.getComponentOfType(Model);
-//   if (!model) continue;
-
-//   const boxes = model.primitives.map(p => calculateAxisAlignedBoundingBox(p.mesh));
-//   entity.aabb = mergeAxisAlignedBoundingBoxes(boxes);
-// }
-
-const cameras = []
-for (const entity of World.scene.entities())
-{
-    const c = entity.getComponentOfType(Camera);
-    if (c) cameras.push(entity);
-}
-let active_camera = 0;
-World.activeCamera = cameras[0];
-const defaultPoprSettings = World.poprSettings;
-
-console.log(World.scene, glm);
-
-const replay = { frames: [] };
+World.loadStage = "soba_model";
 
 function updateInput()
 {
@@ -440,9 +298,17 @@ function updateStage()
         entity._transform.matrix = e._transform.final;
     }
 
+    World.cameras.length = 0;
+    for (const [_, camera] of newScene.query(Camera))
+    {
+        World.cameras.push(camera);
+    }
+    World.activeCamera = player;
+
     World.scene = newScene;
 
     World.loadStage = null;
+    World.loaded = true;
 }
 
 const elementUpdate = document.getElementById("update");
@@ -501,6 +367,8 @@ let renderTimeAccum = 0.0;
 let renderTimeSamples = 0;
 function render(dt) 
 {
+    if (!World.loaded)
+        return;
     renderTimeAccum += dt;
     renderTimeSamples += 1;
     if (renderTimeAccum >= 0.5)
