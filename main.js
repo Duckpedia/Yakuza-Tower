@@ -292,10 +292,21 @@ function updateStage()
         else if (type == "player")
         {
             entity = player;
+            player._transform.translation = [0, 0, 0];
+            player._transform.rotation = new quat();
         }
 
         entity._transform.matrix = mat4.mul(mat, e._transform.final, entity._transform.matrix);
     }
+
+    for (const entity of newScene.entities())
+    {
+        for (const component of entity.components)
+        {
+            component.onReset?.();
+        }
+    }
+
 
     World.cameras.length = 0;
     for (const [ent, camera] of newScene.query(Camera))
