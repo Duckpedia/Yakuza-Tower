@@ -263,6 +263,7 @@ function updateStage()
         {
             entity = resources.guy_model.build(newScene);
             entity.addComponent(new EnemyComponent(entity, player));
+            entity.skeleton.playAnimation(3);
             entity.addComponent(new RecordComponent());
 
             const katana = resources.katana_model.build(newScene);
@@ -300,6 +301,7 @@ function updateStage()
     World.cameras.length = 0;
     for (const [_, camera] of newScene.query(Camera))
     {
+        camera.aspect = World.aspect;
         World.cameras.push(camera);
     }
     World.activeCamera = player;
@@ -380,9 +382,10 @@ function render(dt)
 }
 
 function resize({ displaySize: { width, height }}) {
+    World.aspect = width / height;
     for (const camera of World.cameras)
     {
-        camera.aspect = width / height;
+        camera.aspect = World.aspect;
     }
 }
 

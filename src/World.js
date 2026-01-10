@@ -9,6 +9,7 @@ export class World {
     static activeCamera = null;
     static timers = { global: { time: 0.0, dt: 0.0 }, game: { time: 0.0, dt: 0.0 } };
     static doUpdate = true;
+    static aspect = 1.0;
 
     static getDt(name = 'game')
     {
