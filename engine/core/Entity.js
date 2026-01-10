@@ -18,10 +18,10 @@ export class Entity {
     }
 
     removeComponent(component) {
-        const removed = this.scene._removeComponent(this, component)
-        const i = this.components.indexOf(removed);
+        this.scene._removeComponent(this, component)
+        const i = this.components.indexOf(component);
         if (i !== -1) this.components.splice(i, 1);
-        removed?.onDetach?.(this);
+        component?.onDetach?.(this);
     }
 
     getComponentOfType(type) {
@@ -42,9 +42,9 @@ export class Entity {
         this.children.forEach(e => {f(e); e.forEachChild(f)});
     }
 
-    onCollision(other)
+    onCollision(other, collider)
     {
-        this.components.forEach(c => c.onCollision?.(this, other));
+        this.components.forEach(c => c.onCollision?.(this, other, collider));
     }
 
     isVisible() {

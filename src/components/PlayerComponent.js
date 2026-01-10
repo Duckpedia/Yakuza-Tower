@@ -27,20 +27,21 @@ export class PlayerComponent {
         this.domElement = domElement;
 
         
-        if (model) {
-            this.guyEntity = model.build(this.entity.scene);
-            this.guyEntity.parent = this.entity;
-            this.guyEntity.hidden = true;
-            this.guyEntity.skeleton?.playAnimation(-1); // stop animation
-            this.guyEntity.addComponent(new PhysicsComponent({
-                type: "aabb",
-                localMin: [-0.35, -0.1, -0.30],
-                localMax: [0.35, 1.6, 0.30],
-                isDynamic: false,
-                layer: Layers.PLAYER,
-                mask: Layers.WORLD | Layers.ENEMY | Layers.BULLET,
-            }));
-        } 
+        // if (model) {
+        //     this.guyEntity = model.build(this.entity.scene);
+        //     this.guyEntity.parent = this.entity;
+        //     this.guyEntity.hidden = true;
+        //     this.guyEntity.skeleton?.playAnimation(-1); // stop animation
+        //     this.guyEntity.addComponent(new PhysicsComponent({
+        //         type: "aabb",
+        //         localMin: [-0.35, -0.1, -0.30],
+        //         localMax: [0.35, 1.6, 0.30],
+        //         isDynamic: false,
+        //         layer: Layers.PLAYER,
+        //         mask: Layers.WORLD | Layers.ENEMY | Layers.BULLET | Layers.TRIGGER,
+        //     }));
+        //     console.log(this.guyEntity._bounds);
+        // } 
 
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded
@@ -226,5 +227,16 @@ export class PlayerComponent {
         }
 
         this.isCrouching = Inputs.isHeld('KeyC');
+    }
+
+    onCollision(parent, other, collider)
+    {
+        if (!collider.trigger)
+            return;
+
+        if (collider.triggerAction === "EnterTower")
+        {
+            World.loadStage = "tutorial";
+        }
     }
 }

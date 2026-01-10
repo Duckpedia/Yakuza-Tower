@@ -11,6 +11,7 @@ export const Layers = {
     ENEMY:  1 << 2,
     PICKUP: 1 << 3,
     BULLET: 1 << 4,
+    TRIGGER: 1 << 5,
 };
 
 function getLayer(e){
@@ -136,13 +137,18 @@ export class Physics {
         const ta = actualA._transform;
         if(!ta) return;
         
+        const actualB = bB.parentEntity ?? bEnt;
+        actualA.onCollision(actualB, bB);
+
+        if (bB.trigger) // triggers dont affect others
+            return;
+
         if (bB.isDynamic)
         {
-            const actualB = bB.parentEntity ?? bEnt;
             const tb = actualB._transform;
             if (!tb) return;
 
-            vec3.scale(minDirection, minDirection,  0.5)
+            vec3.scale(minDirection, minDirection, 0.5)
             vec3.add(ta.translation, ta.translation, minDirection);
             vec3.sub(tb.translation, tb.translation, minDirection);
         }

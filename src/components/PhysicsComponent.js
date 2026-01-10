@@ -13,6 +13,8 @@ export class PhysicsComponent{
         isDynamic = false,
         layer = 1 << 0,
         mask = ~0,
+        trigger = null,
+        triggerAction = null,
     } = {}) {
         this.parentEntity = null;
         this.type = type;
@@ -21,6 +23,8 @@ export class PhysicsComponent{
         this.isDynamic = isDynamic;
         this.layer = typeof layer === 'number' ? layer : Layers[layer.toUpperCase()];
         this.mask = typeof mask === 'number' ? mask : parseMask(mask);
+        this.trigger = trigger;
+        this.triggerAction = triggerAction;
     }
     
     onAttach(entity)

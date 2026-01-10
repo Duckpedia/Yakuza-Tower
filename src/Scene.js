@@ -14,35 +14,38 @@ export class Scene {
     addEntity(entity)
     {
         entity.parent ??= this.root;
-        if (entity.scene && entity.scene !== this)
-            console.error(new Error("adding entity from another scene"));
-        if (!entity.scene)
+        if (entity.scene)
         {
-            entity.scene = this;
-            for (const component of entity.components)
-                this._addComponent(entity, component);
-            for (const child of entity.children)
-                this.addEntity(child);
+            if (entity.scene !== this)
+            {
+                entity.scene.removeEntity(entity);
+                this._fullAdd(entity);
+            }
+        } 
+        else
+        {
+            this._fullAdd(entity);
         }
         return entity;
+    }
+
+    _fullAdd(entity)
+    {
+        entity.parent = this.root;
+        entity.scene = this;
+        for (const component of entity.components)
+            this._addComponent(entity, component);
+        for (const child of entity.children)
+            this.addEntity(child);
     }
 
     removeEntity(entity)
     {
         const children = [...entity.children];
         for (const child of children) this.removeEntity(child);
-
-        while (entity.components.length > 0)
-            entity.removeComponent(entity.components[entity.components.length - 1]);
-
-        const parent = entity.parent;
+        for (const component of entity.components) this._removeComponent(entity, component);
+        entity.scene = null;
         entity.parent = null;
-        if (parent && parent.children) {
-            const index = parent.children.indexOf(entity);
-            if (index !== -1) {
-                parent.children.splice(index, 1);
-            }
-        }
     }
 
     // https://dev.to/anishkumar/tree-data-structure-in-javascript-1o99

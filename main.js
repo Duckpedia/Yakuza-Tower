@@ -22,6 +22,7 @@ import { Physics, Layers } from './src/Physics.js';
 import { PhysicsComponent } from './src/components/PhysicsComponent.js';
 import { updateFinalMatrixTree } from './engine/core/SceneUtils.js';
 import { KatanaComponent } from './src/components/KatanaComponent.js';
+import { Scene } from './src/Scene.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -30,6 +31,7 @@ const resources = await loadResources({
     'guy_model': new URL('./models/xd/character.gltf', import.meta.url),
     'katana_model': new URL('./models/katana/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/ulica/ulica.gltf', import.meta.url),
+    'tutorial' : new URL('./models/tutorial/tutorial.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
 });
@@ -140,7 +142,7 @@ player.addComponent(new PhysicsComponent({
   localMax: [ 0.2,  0.2,  0.2],
   isDynamic: true,
   layer: Layers.PLAYER,
-  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP ,
+  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP | Layers.TRIGGER,
 }));
 
 //layers!! koncno
@@ -374,6 +376,27 @@ function updateInput()
             vec3.lerp(entity._transform.scale, a.scale, b.scale, t);
         }
     }
+
+    if (Inputs.isHeld('KeyR'))
+    {
+        World.loadStage = "tutorial";
+    }
+}
+
+function updateStage()
+{
+    if (!World.loadStage)
+        return;
+
+    let newScene = new Scene();
+
+    newScene.addEntity(player);
+    player._transform.translation = [0.0, 0.0, 0.0];
+
+    resources[World.loadStage].build(newScene);
+    
+    World.scene = newScene;
+    World.loadStage = null;
 }
 
 const elementUpdate = document.getElementById("update");
@@ -402,8 +425,10 @@ function update(t, dt) {
     }
     World.timers.game.time += World.timers.game.dt;
     World.poprSettings.time = World.timers.global.time;
-    
+
     updateInput();
+    
+    updateStage();
 
     if (World.doUpdate)
     {
