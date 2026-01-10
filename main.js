@@ -253,7 +253,6 @@ function updateStage()
 
     resources[World.loadStage].build(newScene);
 
-    updateFinalMatrixTree(newScene.root);
     bulletPool = new BulletPool(resources.bullet_model);
     
     for (const [e, spawner] of newScene.query(SpawnpointComponent))
@@ -383,7 +382,7 @@ function render(dt)
 function resize({ displaySize: { width, height }}) {
     for (const camera of World.cameras)
     {
-        camera.getComponentOfType(Camera).aspect = width / height;
+        camera.aspect = width / height;
     }
 }
 
