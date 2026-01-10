@@ -1189,6 +1189,12 @@
 				"spawnType":"meele"
 			},
 			"name":"Empty.007",
+			"rotation":[
+				0,
+				-1,
+				0,
+				4.371139183945161e-08
+			],
 			"scale":[
 				13.333332061767578,
 				13.333332061767578,
@@ -1701,7 +1707,7 @@
 		{
 			"extras":{
 				"spawnpoint":true,
-				"spawnType":"meele"
+				"spawnType":"Ranged"
 			},
 			"name":"Empty.034",
 			"scale":[
@@ -1718,7 +1724,7 @@
 		{
 			"extras":{
 				"spawnpoint":true,
-				"spawnType":"meele"
+				"spawnType":"Ranged"
 			},
 			"name":"Empty.035",
 			"scale":[
@@ -1735,7 +1741,7 @@
 		{
 			"extras":{
 				"spawnpoint":true,
-				"spawnType":"meele"
+				"spawnType":"Ranged"
 			},
 			"name":"Empty.036",
 			"scale":[
@@ -1772,14 +1778,20 @@
 				"spawnType":"katana"
 			},
 			"name":"Empty.038",
+			"rotation":[
+				0,
+				0.7071068286895752,
+				0,
+				0.7071068286895752
+			],
 			"scale":[
-				13.333332061767578,
-				13.333332061767578,
-				13.333332061767578
+				0.13333331048488617,
+				0.13333331048488617,
+				0.13333331048488617
 			],
 			"translation":[
 				-5.706514358520508,
-				1.5181300113908947e-05,
+				1.2597559690475464,
 				-120.76183319091797
 			]
 		},
