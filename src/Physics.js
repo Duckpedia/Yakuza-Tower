@@ -191,6 +191,9 @@ export class Physics {
     }
 
     raycast(from, to, scene, mask = Layers.WORLD | Layers.PLAYER | Layers.ENEMY | Layers.PICKUP){
+        if (World.poprSettings.debug)
+            DeferredRenderer.Draw3DLine(from, to, [1.0, 0.0, 0.0]);
+
         const dir = vec3.sub(vec3.create(), to, from); //naredimo vektor, direction pa length
         const maxDistance = vec3.length(dir); //tukaj imamo pa length raya
         vec3.normalize(dir, dir); //normaliziramo ker prejsna funkcija vrne dejanski distance

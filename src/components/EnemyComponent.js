@@ -319,25 +319,25 @@ export class EnemyComponent {
 
         // move the from vector up a bit so it doesnt collide with the floor
         from[1] += 0.8;
-
+        
         const dir = glm.vec3.sub(glm.vec3.create(), to, from);
         const dist = glm.vec3.length(dir);
         if (dist > this.viewRadius) return false;
-
+        
         glm.vec3.normalize(dir, dir);
-
+        
         //the cone in question basically
         const forward = glm.vec3.transformQuat(
             glm.vec3.create(),
             [0, 0, 1],
             this.transform.rotation
         );
-
+        
         if (glm.vec3.dot(forward, dir) < this.fovCos) return false;
-
+        
         //to je za stene
         const hit = World.physics.raycast(from, to, World.scene, Layers.WORLD | Layers.PLAYER);
-        DeferredRenderer.Draw3DLine(from, to, [1.0, 0.0, 0.0]);
+
         if (!hit) return true;
 
         return hit.entity === this.player;
