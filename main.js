@@ -76,7 +76,7 @@ player.addComponent(new PhysicsComponent({
 }));
 
 World.loadStage = "soba_model";
-
+let active_camera = 0;
 function updateInput()
 {
     const time = World.getTime();
@@ -105,8 +105,8 @@ function updateInput()
 
     if (Inputs.isPressed('KeyT'))
     {
-        active_camera = (active_camera + 1) % cameras.length;
-        World.activeCamera = cameras[active_camera];
+        active_camera = (active_camera + 1) % World.cameras.length;
+        World.activeCamera = World.cameras[active_camera];
         if (active_camera == 1)
         {
             World.poprSettings = structuredClone(World.poprSettings);
@@ -298,10 +298,10 @@ function updateStage()
     }
 
     World.cameras.length = 0;
-    for (const [_, camera] of newScene.query(Camera))
+    for (const [ent, camera] of newScene.query(Camera))
     {
         camera.aspect = World.aspect;
-        World.cameras.push(camera);
+        World.cameras.push(ent);
     }
     World.activeCamera = player;
 

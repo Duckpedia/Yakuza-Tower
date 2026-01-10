@@ -5,6 +5,7 @@ import { BulletPool } from './BulletPool.js';
 import { World } from '../World.js';
 import { Layers } from '../Physics.js';
 import { PlayerComponent } from './PlayerComponent.js';
+import { DeferredRenderer } from '../renderer/DeferredRenderer.js';
 
 export class EnemyComponent {
     constructor(entity, player, bulletPool = null, type = 'Melee') {
@@ -316,6 +317,9 @@ export class EnemyComponent {
         const from = this.transform.final_position;
         const to = playerTransform.final_position;
 
+        // move the from vector up a bit so it doesnt collide with the floor
+        from[1] += 0.8;
+
         const dir = glm.vec3.sub(glm.vec3.create(), to, from);
         const dist = glm.vec3.length(dir);
         if (dist > this.viewRadius) return false;
@@ -332,7 +336,8 @@ export class EnemyComponent {
         if (glm.vec3.dot(forward, dir) < this.fovCos) return false;
 
         //to je za stene
-        const hit = World.physics.raycast(from, to, World.scene, Layers.WORLD);
+        const hit = World.physics.raycast(from, to, World.scene, Layers.WORLD | Layers.PLAYER);
+        DeferredRenderer.Draw3DLine(from, to, [1.0, 0.0, 0.0]);
         if (!hit) return true;
 
         return hit.entity === this.player;
