@@ -23,6 +23,7 @@ import { PhysicsComponent } from './src/components/PhysicsComponent.js';
 import { updateFinalMatrixTree } from './engine/core/SceneUtils.js';
 import { KatanaComponent } from './src/components/KatanaComponent.js';
 import { Scene } from './src/Scene.js';
+import { SpawnpointComponent } from './src/components/SpawnpointComponent.js';
 
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
@@ -36,7 +37,7 @@ const resources = await loadResources({
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
 });
 
-const bulletPool = new BulletPool(resources.bullet_model);
+let bulletPool = new BulletPool(resources.bullet_model);
 
 //box helper colider, da ne bo problemov z animated mesh
 function attachBoxCollider(parent, {
@@ -67,7 +68,7 @@ function attachBoxCollider(parent, {
 }
 
 // make the weapons n shit (anything made with this will be pickable up)
-function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), rotationAxis = new vec3(1,0,0), rotationAngle = Math.PI/2, itemType = "generic")
+function createPickup(modelResource, position, scale = new vec3(0.2, 0.2, 0.2), rotationAxis = new vec3(1,0,0), rotationAngle = Math.PI/2)
 {
     const visualEntity = modelResource.build(World.scene);
 
@@ -391,15 +392,53 @@ function updateStage()
     let newScene = new Scene();
 
     newScene.addEntity(player);
-    player._transform.translation = [0.0, 0.0, 0.0];
 
     resources[World.loadStage].build(newScene);
 
     updateFinalMatrixTree(newScene.root);
-    // for (const [entity, spawner] of newScene.query(SpawnerComponent))
-    // {
-    //     if (spawner.spawnType. === "")
-    // }
+    bulletPool = new BulletPool(resources.bullet_model);
+    
+    for (const [e, spawner] of newScene.query(SpawnpointComponent))
+    {
+        let entity = null;
+        const type = spawner.spawnType.toLowerCase();
+        if (type == "meele")
+        {
+            entity = resources.guy_model.build(newScene);
+            entity.addComponent(new EnemyComponent(entity, player));
+            entity.addComponent(new RecordComponent());
+
+            const katana = resources.katana_model.build(newScene);
+            katana.addComponent(new KatanaComponent(katana));
+            katana._transform.scale = [16, 16, 16];
+            katana.parent = entity.findChildByName("up_righthand");
+        }
+        else if (type == "ranged")
+        {
+            entity = resources.guy_model.build(newScene);
+            entity.addComponent(new EnemyComponent(entity, player, bulletPool,'Ranged'));
+            entity.addComponent(new EnemyComponent(entity, player));
+            entity.addComponent(new RecordComponent());
+
+            const gun = resources.pistol_model.build(newScene);
+            gun._transform.scale = [20, 20, 20];
+            gun.parent = entity.findChildByName("up_righthand");
+        }
+        else if (type == "katana")
+        {
+            entity = resources.katana_model.build(newScene);
+        }
+        else if (type == "gun")
+        {
+            entity = resources.pistol_model.build(newScene);
+        }
+        else if (type == "player")
+        {
+            entity = player;
+        }
+
+        entity._transform.matrix = e._transform.final;
+    }
 
     World.scene = newScene;
 

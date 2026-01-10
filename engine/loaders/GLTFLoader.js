@@ -14,7 +14,6 @@ import {
     Mesh,
     Material,
 } from '../core/core.js';
-import { vec3 } from '../../lib/glm.js';
 import { updateFinalMatrixTree } from '../core/SceneUtils.js';
 
 // TODO: GLB support
@@ -590,7 +589,7 @@ export class GLTFLoader {
                 entity.addComponent(new PhysicsComponent(gltfSpec.extras));
             }
 
-            if (gltfSpec.extras.spawner)
+            if (gltfSpec.extras.spawnpoint)
             {
                 entity.addComponent(new SpawnpointComponent(gltfSpec.extras));
             }
