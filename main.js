@@ -381,7 +381,7 @@ function render(dt)
 }
 
 function resize({ displaySize: { width, height }}) {
-    for (const camera of cameras)
+    for (const camera of World.cameras)
     {
         camera.getComponentOfType(Camera).aspect = width / height;
     }
