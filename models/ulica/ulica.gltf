@@ -787,18 +787,21 @@
 		{
 			"extras":{
 				"bounds":true,
-				"trigger":"EnterTower"
+				"layer":"TRIGGER",
+				"mask":"PLAYER",
+				"triggerAction":"EnterTower",
+				"trigger":true
 			},
 			"name":"trigger",
 			"scale":[
-				26.138193130493164,
+				9.213372230529785,
 				10.010481834411621,
 				0.9244204163551331
 			],
 			"translation":[
 				-0.22071218490600586,
 				8.831733703613281,
-				-159.13302612304688
+				-163.40866088867188
 			]
 		},
 		{
