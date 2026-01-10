@@ -268,7 +268,6 @@ function updateStage()
 
             const katana = resources.katana_model.build(newScene);
             katana.addComponent(new KatanaComponent(katana));
-            katana._transform.scale = [16, 16, 16];
             katana.parent = entity.findChildByName("up_righthand");
         }
         else if (type == "ranged")
