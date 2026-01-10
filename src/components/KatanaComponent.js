@@ -25,8 +25,6 @@ export class KatanaComponent {
     update() {
         if (!this.isAttacking) return;
 
-        console.log("Katana attack in progress...");
-
         // Get world position of the katana handle
         const worldPos = this.transform.final_position;
 

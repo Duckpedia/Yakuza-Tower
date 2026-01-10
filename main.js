@@ -95,12 +95,6 @@ player.addComponent(new PhysicsComponent({
 }));
 
 
-//Player test katana
-const playerKatana = resources.katana_model.build(World.scene);
-playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
-playerKatana.parent = player.getComponentOfType(Camera).entity;
-player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
-
 
 World.loadStage = "soba_model";
 let active_camera = 0;
@@ -281,6 +275,9 @@ function updateStage()
 
     resources[World.loadStage].build(newScene);
 
+
+
+
     bulletPool = new BulletPool(resources.bullet_model);
     
     const mat = new mat4();
@@ -320,6 +317,11 @@ function updateStage()
             entity = player;
             player._transform.translation = [0, 0, 0];
             player._transform.rotation = new quat();
+                //Player test katana
+            const playerKatana = resources.katana_model.build(newScene);
+            playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+            //playerKatana.parent = player.getComponentOfType(Camera).entity;
+            player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
         }
 
         entity._transform.matrix = mat4.mul(mat, e._transform.final, entity._transform.matrix);

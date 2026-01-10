@@ -126,9 +126,8 @@ export class PlayerComponent {
             this.velocity[1] = 5;
             this.isGrounded = false;
         }
-        if(Inputs.isHeld('ShiftLeft')){
+        onclick = (e) => {
             if(this.weapon){
-                console.log("Player attacks with katana");
                 this.weapon.getComponentOfType(KatanaComponent).startAttack();  //Attack with katana
             }
         }
