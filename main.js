@@ -35,7 +35,7 @@ const resources = await loadResources({
     'katana_model': new URL('./models/katana_real/katana.gltf', import.meta.url),
     'soba_model' : new URL('./models/ulica/ulica.gltf', import.meta.url),
     'tutorial' : new URL('./models/tutorial/tutorial.gltf', import.meta.url),
-    'pistol_model' : new URL('./models/pistol/pistol.gltf', import.meta.url),
+    'pistol_model' : new URL('./models/pistol_real/glug.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
 });
 
