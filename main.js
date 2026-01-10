@@ -25,6 +25,8 @@ import { KatanaComponent } from './src/components/KatanaComponent.js';
 import { Scene } from './src/Scene.js';
 import { SpawnpointComponent } from './src/components/SpawnpointComponent.js';
 
+let gameStarted = false;
+
 //tukej se vsi resources dodajajo
 const resources = await loadResources({
     'white_image': new URL('./textures/white.png', import.meta.url),
@@ -40,6 +42,23 @@ const resources = await loadResources({
 let bulletPool = new BulletPool(resources.bullet_model);
 
 const canvas = document.querySelector('canvas');
+
+const startMenu = document.getElementById("startMenu");
+const startBtn = document.getElementById("startBtn");
+
+document.querySelector(".crosshair").style.display = "none";
+
+startBtn.onclick = () => {
+    startMenu.style.display = "none";
+    gameStarted = true;
+
+    document.querySelector(".crosshair").style.display = "block";
+    gui.domElement.style.display = "block";
+
+    canvas.requestPointerLock?.();
+};
+
+
 const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image, resources.dirt_image);
 
@@ -328,6 +347,11 @@ const elementRender = document.getElementById("render");
 let updateTimeAccum = 0.0;
 let updateTimeSamples = 0;
 function update(t, dt) {
+
+    if (!gameStarted) {
+        return;
+    }
+
     updateTimeAccum += dt;
     updateTimeSamples += 1;
     if (updateTimeAccum >= 0.5)
@@ -404,6 +428,10 @@ new UpdateSystem({ update, render }).start();
 
 
 const gui = new GUI();
+gui.domElement.style.display = "none";
+
+
+
 gui.add(World, 'doUpdate', 0, 1);
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);

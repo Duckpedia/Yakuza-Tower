@@ -62,6 +62,36 @@ body, html {
     z-index: 9999;
 }
 
+#startMenu {
+    position: absolute;      
+    inset: 0;               
+    z-index: 100;     
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    background: rgba(0, 0, 0, 0.85); 
+    color: white;
+    font-family: sans-serif;
+}
+
+#startMenu h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+#startMenu button {
+    font-size: 22px;
+    padding: 12px 30px;
+    cursor: pointer;
+}
+
+.crosshair {
+    display: none;
+}
+
 @keyframes spin {
       0% { transform: rotate(0deg); }
     100% { transform: rotate(1800deg); }
