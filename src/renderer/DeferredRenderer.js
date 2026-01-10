@@ -831,6 +831,7 @@ export class DeferredRenderer extends BaseRenderer {
         this.poprSettingsBufferArray[31] = poprSettings.environment;
         this.poprSettingsBufferArray[32] = poprSettings.volumetricFog;
         this.poprSettingsBufferArray[33] = poprSettings.depthFogDensity;
+        this.poprSettingsBufferArray[34] = poprSettings.barrelDistortion;
         this.device.queue.writeBuffer(this.poprSettingsBuffer, 0, this.poprSettingsBufferArray.buffer);
         
         const cameraComponent = camera.getComponentOfType(Camera);
@@ -1625,6 +1626,7 @@ export class DeferredRendererSettings {
     environment = true;
     volumetricFog = 1.0;
     depthFogDensity = 0.01;
+    barrelDistortion = 1.1;
 }
 
 const vertexBufferLayout = {

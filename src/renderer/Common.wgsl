@@ -57,7 +57,8 @@ struct Settings {
     environment: f32,
 
     volumetricFog: f32,
-    depthFogDensity: f32
+    depthFogDensity: f32,
+    barrelDistortion: f32
 }
 
 // wasteful but meh
@@ -240,7 +241,7 @@ fn isnan(x: f32) -> bool {
 }
 
 fn length2(v: vec3f) -> f32 {
-    return v.x * v.x + v.y * v.y + v.z * v.z;
+    return dot(v, v);
 }
 
 fn makeBasis(normal: vec3f) -> mat3x3f {

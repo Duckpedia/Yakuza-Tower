@@ -139,11 +139,18 @@ fn popr(input: VertexOutput) -> @location(0) vec4<f32> {
     var uv = input.uv;
 
     let ndc = uv * 2.0 - 1.0;
-    let uvDist = length(ndc);
+    let ndcLen = length(ndc);
+
+    { // barrel distortion
+        let theta  = atan2(ndc.y, ndc.x);
+        let radius = pow(ndcLen, settings.barrelDistortion);
+        uv = vec2(cos(theta), sin(theta)) * radius * 0.5 + 0.5;
+    }
+
     var color = vec3(0.0);
 
     { // chromatic abberation
-        let diff = settings.chromaticAbberation / resolution * uvDist;
+        let diff = settings.chromaticAbberation / resolution * ndcLen;
         color = vec3(
             textureSample(tex, tex_sampler, uv + diff).r,
             textureSample(tex, tex_sampler, uv).g,
@@ -152,7 +159,7 @@ fn popr(input: VertexOutput) -> @location(0) vec4<f32> {
     }
     
     { // vignette
-        let v = smoothstep(settings.vignetteRadius, settings.vignetteRadius - settings.vignetteSoftness, uvDist);
+        let v = smoothstep(settings.vignetteRadius, settings.vignetteRadius - settings.vignetteSoftness, ndcLen);
         color *= mix(1.0, v, saturate(settings.vignette));
     }
 
@@ -165,6 +172,12 @@ fn popr(input: VertexOutput) -> @location(0) vec4<f32> {
     { // black and white
         let luma = dot(color, vec3f(0.2126, 0.7152, 0.0722));
         color = mix(color, vec3f(luma), settings.blackAndWhite);
+    }
+
+    { // https://prideout.net/barrel-distortion
+        let p = abs(uv * 2.0 - 1.0);
+        let crtVignette = smoothstep(1.0, 0.99, p.x) * smoothstep(1.0, 0.99, p.y);
+        color *= crtVignette;
     }
 
     var gammaCorrected = pow(color, vec3(1.0/2.2));
