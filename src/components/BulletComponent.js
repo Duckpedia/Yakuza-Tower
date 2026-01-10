@@ -29,7 +29,6 @@ export class BulletComponent {
         const newPos = glm.vec3.create();
         glm.vec3.scaleAndAdd(newPos, this.transform.translation, this.direction, this.speed * dt);
 
-        /*
         const hitEnemy = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.ENEMY);
         const hit = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.WORLD | Layers.PLAYER | Layers.ENEMY);
         const hitPlayer = World.physics.raycast(this.transform.translation, newPos, World.scene, Layers.PLAYER);
@@ -48,7 +47,6 @@ export class BulletComponent {
             this.pool.returnBullet(this.entity);
             return;
         }
-            */
 
         glm.vec3.copy(this.transform.translation, newPos);
 

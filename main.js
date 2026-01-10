@@ -77,6 +77,7 @@ player.addComponent(new PhysicsComponent({
 
 World.loadStage = "soba_model";
 let active_camera = 0;
+
 function updateInput()
 {
     const time = World.getTime();

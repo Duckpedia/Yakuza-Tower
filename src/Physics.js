@@ -12,6 +12,7 @@ export const Layers = {
     PICKUP: 1 << 3,
     BULLET: 1 << 4,
     TRIGGER: 1 << 5,
+    KATANA: 1 << 6,
 };
 
 function getLayer(e){
