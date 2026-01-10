@@ -306,6 +306,7 @@ function updateStage()
         }
         else if (type == "katana")
         {
+            debugger
             entity = resources.katana_model.build(newScene);
         }
         else if (type == "gun")
@@ -317,11 +318,11 @@ function updateStage()
             entity = player;
             player._transform.translation = [0, 0, 0];
             player._transform.rotation = new quat();
-                //Player test katana
-            const playerKatana = resources.katana_model.build(newScene);
-            playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+            //Player test katana
+            //const playerKatana = resources.katana_model.build(newScene);
+            //playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
             //playerKatana.parent = player.getComponentOfType(Camera).entity;
-            player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
+            //player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
         }
 
         entity._transform.matrix = mat4.mul(mat, e._transform.final, entity._transform.matrix);
