@@ -787,9 +787,9 @@
 		{
 			"extras":{
 				"bounds":true,
-				"trigger":true
+				"trigger":"EnterTower"
 			},
-			"name":"trigger.001",
+			"name":"trigger",
 			"scale":[
 				26.138193130493164,
 				10.010481834411621,
@@ -1766,9 +1766,9 @@
 			"extras":{
 				"bounds":true,
 				"prop":1.0,
-				"trigger":true
+				"trigger":"EnterLevel1"
 			},
-			"name":"trigger",
+			"name":"trigger.001",
 			"rotation":[
 				1,
 				0,
