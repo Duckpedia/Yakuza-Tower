@@ -297,11 +297,11 @@ function updateStage()
         else if (type == "ranged")
         {
             entity = resources.guy_model.build(newScene);
-            entity.addComponent(new EnemyComponent(entity, player, bulletPool,'Ranged'));
+        
             entity.addComponent(new RecordComponent());
-
             const gun = resources.pistol_model.build(newScene);
             gun._transform.scale = [20, 20, 20];
+            entity.addComponent(new EnemyComponent(entity, player, gun, bulletPool,'Ranged'));
             gun.parent = entity.findChildByName("up_righthand");
         }
         else if (type == "katana")
