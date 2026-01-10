@@ -1626,7 +1626,7 @@ export class DeferredRendererSettings {
     environment = true;
     volumetricFog = 1.0;
     depthFogDensity = 0.01;
-    barrelDistortion = 1.1;
+    barrelDistortion = 1.0;
 }
 
 const vertexBufferLayout = {
