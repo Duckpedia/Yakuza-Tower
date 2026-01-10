@@ -255,6 +255,7 @@ function updateStage()
 
     bulletPool = new BulletPool(resources.bullet_model);
     
+    const mat = new mat4();
     for (const [e, spawner] of newScene.query(SpawnpointComponent))
     {
         let entity = null;
@@ -263,7 +264,6 @@ function updateStage()
         {
             entity = resources.guy_model.build(newScene);
             entity.addComponent(new EnemyComponent(entity, player));
-            entity.skeleton.playAnimation(3);
             entity.addComponent(new RecordComponent());
 
             const katana = resources.katana_model.build(newScene);
@@ -275,7 +275,6 @@ function updateStage()
         {
             entity = resources.guy_model.build(newScene);
             entity.addComponent(new EnemyComponent(entity, player, bulletPool,'Ranged'));
-            entity.addComponent(new EnemyComponent(entity, player));
             entity.addComponent(new RecordComponent());
 
             const gun = resources.pistol_model.build(newScene);
@@ -295,7 +294,7 @@ function updateStage()
             entity = player;
         }
 
-        entity._transform.matrix = e._transform.final;
+        entity._transform.matrix = mat4.mul(mat, e._transform.final, entity._transform.matrix);
     }
 
     World.cameras.length = 0;
@@ -357,7 +356,6 @@ function update(t, dt) {
     if (World.doUpdate)
     {
         inputs.update();
-
         physics.update(t, dt, World.scene);
     }
 
