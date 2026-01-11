@@ -37,7 +37,7 @@ const resources = await loadResources({
     'tutorial' : new URL('./models/tutorial/tutorial.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol_real/glug.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
-    // 'guy2' : new URL('./models/guy/guy.gltf', import.meta.url),
+    'player' : new URL('./models/guy/guy.gltf', import.meta.url),
 });
 
 let bulletPool = new BulletPool(resources.bullet_model);
@@ -59,7 +59,6 @@ startBtn.onclick = () => {
     canvas.requestPointerLock?.();
 };
 
-
 const renderer = new DeferredRenderer(canvas);
 await renderer.initialize(resources.white_image, resources.dirt_image);
 
@@ -71,16 +70,11 @@ const defaultPoprSettings = World.poprSettings;
 const replay = { frames: [] };
 
 //player creation
-const player = World.scene.addEntity(World.scene.createEntity());
-const cameraEntity = World.scene.addEntity(World.scene.createEntity());
-cameraEntity.parent = player;
-cameraEntity.addComponent(new Transform());
-cameraEntity.addComponent(new Camera());
-player.addComponent(new Transform({
-    translation: new vec3(0, 1.2, 2),
-}));
+const player = resources.player.build(World.scene);
+player.skeleton.playAnimation(1);
 player.addComponent(new RecordComponent());
-player.addComponent(new PlayerComponent(player, canvas, cameraEntity, resources.guy_model));
+const playerCamera = player.findChildByName("Camera");
+player.addComponent(new PlayerComponent(player, canvas, playerCamera, resources.guy_model));
 
 // Make player invulnerable for 2 seconds at start
 player.invulnerable = true;
@@ -338,7 +332,7 @@ function updateStage()
         camera.aspect = World.aspect;
         World.cameras.push(ent);
     }
-    World.activeCamera = cameraEntity;
+    World.activeCamera = playerCamera;
 
     World.scene = newScene;
 
@@ -418,7 +412,7 @@ function render(dt)
         renderTimeSamples = 0;
     }
 
-    renderer.render(World.scene, cameraEntity, World.poprSettings);
+    renderer.render(World.scene, World.activeCamera, World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {
