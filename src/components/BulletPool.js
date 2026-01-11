@@ -32,9 +32,6 @@ export class BulletPool {
         }
         bullet.hidden = false;
         this.activeBullets.add(bullet);
-        console.log("Activated");
-        console.log(bullet);
-        console.log(this.activeBullets);
         return bullet;
     }
 
@@ -64,8 +61,7 @@ export class BulletPool {
         const bullet = this.getBullet();
         const transform = bullet.getComponentOfType(Transform);
         transform.translation = [...position];
-        transform.scale = [0.0002, 0.0002, 0.0002];
-
+        transform.scale = [0.002, 0.002, 0.002];
         bullet.addComponent(new BulletComponent(bullet, direction, this, speed, lifetime));
         return bullet;
     }

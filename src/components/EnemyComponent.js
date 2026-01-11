@@ -337,15 +337,15 @@ export class EnemyComponent {
     spawnBullet() {
         if (!this.bulletPool) return;
 
-        const gun = this.entity.findChildByName("Pistol_5") 
+        const gun = this.entity.findChildByName("Circle") 
             ?? this.entity.findChildByName("mixamorig:RightHand");
 
         if (!gun) return;
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
-            this.player.getComponentOfType(Transform).translation,
-            gun.getComponentOfType(Transform).translation
+            this.player.getComponentOfType(Transform).final_position,
+            gun.getComponentOfType(Transform).final_position
         );
 
         //dodaja gaussovo porazdelitev, da je mal random direction
@@ -354,7 +354,7 @@ export class EnemyComponent {
         dir[0]+=this.randomGaussian(0, spread);
         dir[2]+=this.randomGaussian(0, spread);
 
-        const position = gun.getComponentOfType(Transform).translation;
+        const position = gun.getComponentOfType(Transform).final_position;
         this.bulletPool.spawnBullet(position, dir);
     }
 

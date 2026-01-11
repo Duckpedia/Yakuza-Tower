@@ -258,7 +258,7 @@ function updateStage()
     {
         let entity = null;
         const type = spawner.spawnType.toLowerCase();
-        if (type.toLowerCase() == "meele")
+        if (type.toLowerCase() == "melee")
         {
             const katana = resources.katana_model.build(newScene);
             entity = resources.guy_model.build(newScene);

@@ -1257,7 +1257,7 @@
 		{
 			"extras":{
 				"spawnpoint":true,
-				"spawnType":"meele"
+				"spawnType":"melee"
 			},
 			"name":"Empty.007",
 			"rotation":[

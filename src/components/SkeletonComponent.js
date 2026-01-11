@@ -154,10 +154,9 @@ export class SkeletonComponent
         {
             time %= anim.duration;
         }
-        else 
+        else if (time > anim.duration)
         {
-            if (time > anim.duration)
-                return;
+            return false;
         }
 
         for (const channel of anim.channels)
@@ -206,6 +205,8 @@ export class SkeletonComponent
                     break;
             }
         }
+            
+        return true;
     }
 
     calculateWeight(anim, time)
@@ -221,7 +222,10 @@ export class SkeletonComponent
     {
         const l = this.layers[layer];
         if (!l) return false;
-        this.calculatePose(pose, l.active, time);
+        if (!this.calculatePose(pose, l.active, time))
+        {
+            this.stopAnimation(layer, 0.2);
+        }
         if (l.stopping)
         {
             const weight = this.calculateWeight(l.stopping, time);
