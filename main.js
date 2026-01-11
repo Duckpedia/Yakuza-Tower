@@ -37,7 +37,7 @@ const resources = await loadResources({
     'tutorial' : new URL('./models/tutorial/tutorial.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol_real/glug.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
-    'guy2' : new URL('./models/guy/guy.gltf', import.meta.url),
+    // 'guy2' : new URL('./models/guy/guy.gltf', import.meta.url),
 });
 
 let bulletPool = new BulletPool(resources.bullet_model);
@@ -265,8 +265,8 @@ function updateStage()
 
     resources[World.loadStage].build(newScene);
 
-    const guy = resources.guy2.build(newScene);
-    guy.skeleton.playAnimation(0);
+    // const guy = resources.guy2.build(newScene);
+    // guy.skeleton.playAnimation(0);
     
     bulletPool = new BulletPool(resources.bullet_model);
     
