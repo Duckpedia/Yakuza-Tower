@@ -27,23 +27,6 @@ export class PlayerComponent {
         this.domElement = domElement;
         this.camera = camera;
 
-        
-        // if (model) {
-        //     this.guyEntity = model.build(this.entity.scene);
-        //     this.guyEntity.parent = this.entity;
-        //     this.guyEntity.hidden = true;
-        //     this.guyEntity.skeleton?.playAnimation(-1); // stop animation
-        //     this.guyEntity.addComponent(new PhysicsComponent({
-        //         type: "aabb",
-        //         localMin: [-0.35, -0.1, -0.30],
-        //         localMax: [0.35, 1.6, 0.30],
-        //         isDynamic: false,
-        //         layer: Layers.PLAYER,
-        //         mask: Layers.WORLD | Layers.ENEMY | Layers.BULLET | Layers.TRIGGER,
-        //     }));
-        //     console.log(this.guyEntity._bounds);
-        // } 
-
         this.isCrouching = isCrouching
         this.isGrounded = isGrounded
         this.groundY = groundY
@@ -69,7 +52,6 @@ export class PlayerComponent {
         DeferredRenderer.randomRectangle.scale[1] = 0.025;
 
         this.weapon = undefined;
-        this.camera = null;
     }
 
     lerp(a, b, t) {
@@ -173,33 +155,31 @@ export class PlayerComponent {
             }        
 
             // Update rotation based on the Euler angles.
-            const rotation = quat.create();
-            quat.rotateY(rotation, rotation, this.yaw);
-            quat.rotateX(rotation, rotation, this.pitch);
-            transform.rotation = rotation;
-
-            if (this.guyEntity) {
-                const guyTransform = this.guyEntity.getComponentOfType(Transform);
-                if (guyTransform) {
-                    guyTransform.rotation = quat.create();
-                }
+            {       
+                const rotation = quat.create();
+                quat.rotateY(rotation, rotation, this.yaw);
+                transform.rotation = rotation;
             }
 
+            {       
+                console.log(this.camera);
+                quat.rotateX(this.camera._transform.rotation, quat.create(), this.pitch);
+            }
             
-        if (this.isGrounded) {
+            if (this.isGrounded) {
 
-            const targetY = this.isCrouching
-                ? this.crouchY
-                : this.standY;
+                const targetY = this.isCrouching
+                    ? this.crouchY
+                    : this.standY;
 
-            this.currentY = this.lerp(
-                this.currentY,
-                targetY,
-                Math.min(1, this.crouchSpeed * clampedEffectiveDt)
-            );
+                this.currentY = this.lerp(
+                    this.currentY,
+                    targetY,
+                    Math.min(1, this.crouchSpeed * clampedEffectiveDt)
+                );
 
-            transform.translation[1] = this.currentY;
-        }
+                transform.translation[1] = this.currentY;
+            }
 
         }
     }
