@@ -61,6 +61,12 @@ export class Transform {
         ).normalize() : new vec3(0.0);
     }
 
+    get final_rotation() {
+        const rot = new quat();
+        mat4.getRotation(rot, this.final);
+        return rot;
+    }
+
     get matrix() {
         return mat4.fromRotationTranslationScale(mat4.create(),
             this.rotation, this.translation, this.scale);

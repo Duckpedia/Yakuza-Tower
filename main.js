@@ -129,10 +129,10 @@ function updateInput()
     }
 
     if (Inputs.isPressed('KeyQ')) { // drop currently held item
-        const camEntity = World.activeCamera;
+        const camEntity = playerCamera;
         const camTransform = camEntity.getComponentOfType(Transform);
-        const from = vec3.clone(camTransform.translation);
-        const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], camTransform.rotation);
+        const from = vec3.clone(camTransform.final_position);
+        const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], camTransform.final_rotation);
         const to = vec3.scaleAndAdd(vec3.create(), from, forward, 50.0);
 
         const currentItem = player.currentItem;
@@ -140,10 +140,9 @@ function updateInput()
         {
             const hit = physics.raycast(from, to, World.scene, Layers.WORLD);
             const pos = hit.point;
-            vec3.sub(pos, pos, player._transform.translation);
+            vec3.sub(pos, pos, player._transform.final_position);
             vec3.normalize(pos, pos);
-            vec3.add(pos, player._transform.translation, pos);
-            currentItem._transform.translation = pos;
+            vec3.scaleAndAdd(currentItem._transform.translation, player._transform.final_position, pos, 2.0);
             currentItem.hidden = false;
             player.currentItem = null;
         }
@@ -159,10 +158,10 @@ function updateInput()
                     if (entity.itemType) {
                         player.currentItem = entity.itemType;
                         
-                        const playerKatana = resources.katana_model.build(newScene);
-                        playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
-                        playerKatana.parent = player.findChildByName("hand.R");
-                        player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
+                        // const playerKatana = resources.katana_model.build(newScene);
+                        // playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+                        // playerKatana.parent = player.findChildByName("hand.R");
+                        // player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
 
                         console.log("Picked up:", player.currentItem);
                     }
@@ -256,9 +255,6 @@ function updateStage()
 
     resources[World.loadStage].build(newScene);
 
-    // const guy = resources.guy2.build(newScene);
-    // guy.skeleton.playAnimation(0);
-    
     bulletPool = new BulletPool(resources.bullet_model);
     
     const mat = new mat4();
@@ -379,14 +375,14 @@ function update(t, dt) {
 
     updateFinalMatrixTree(World.scene.root);
     
+    inputs.update();
+
     if (World.doUpdate)
     {
         physics.update(t, dt, World.scene);
     }
 
     updateFinalMatrixTree(World.scene.root);
-    
-    inputs.update();
 }
 
 let renderTimeAccum = 0.0;
