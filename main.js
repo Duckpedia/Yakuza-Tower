@@ -97,11 +97,6 @@ function updateInput()
         World.poprSettings.showUI = World.poprSettings.pass == 0;
     }
 
-    if (Inputs.isPressed('KeyE'))
-    {
-        guy.hidden = !guy.hidden;
-    }
-
     if (Inputs.isPressed('KeyH'))
     {
         World.poprSettings.wireframe = !World.poprSettings.wireframe;
