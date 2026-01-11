@@ -219,7 +219,6 @@ function updateInput()
     {
         replay.playbackStart = time;
         World.doUpdate = false;
-        debugger;
     }
     
     if (Inputs.isReleased('KeyZ'))
@@ -377,7 +376,7 @@ function update(t, dt) {
     }
     World.timers.game.time += World.timers.game.dt;
     World.poprSettings.time = World.timers.global.time;
-
+    
     updateInput();
     
     updateStage();
@@ -392,14 +391,15 @@ function update(t, dt) {
     }
 
     updateFinalMatrixTree(World.scene.root);
-        
+    
     if (World.doUpdate)
     {
-        inputs.update();
         physics.update(t, dt, World.scene);
     }
 
     updateFinalMatrixTree(World.scene.root);
+    
+    inputs.update();
 }
 
 let renderTimeAccum = 0.0;
