@@ -16,7 +16,9 @@
 		{
 			"extras":{
 				"bounds":true,
-				"layer":"PICKUP"
+				"layer":"PICKUP",
+				"mask":"WORLD",
+				"isDynamic":true
 			},
 			"name":"Empty.033",
 			"rotation":[

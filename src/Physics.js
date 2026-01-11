@@ -35,12 +35,11 @@ export class Physics {
         const colliders = [...scene.query(PhysicsComponent)];
         
         //ts sam da gravity deluje za tko pickups pa to sranje, it should fall
-        for (const [e, b] of colliders){
+        for (const [_, b] of colliders){
             if (!b.isDynamic) continue;
+            const e = b.parentEntity;
             if (!e.velocity) continue;
-
             e.velocity[1] += g * dt;
-
             const tr = e.getComponentOfType(Transform);
             tr.translation[0] += e.velocity[0] * dt;
             tr.translation[1] += e.velocity[1] * dt;
@@ -62,7 +61,7 @@ export class Physics {
 
             for (const [bEnt, bB] of colliders){
                 if (aEnt === bEnt) continue;
-
+                
                 //filtriranje po maskah pa layerjih
                 if ((bB.layer & aB.mask) === 0) continue;
                 if ((aB.layer & bB.mask) === 0) continue;

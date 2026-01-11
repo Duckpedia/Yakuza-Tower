@@ -91,7 +91,7 @@ player.addComponent(new PhysicsComponent({
   localMax: [ 0.2,  0.2,  0.2],
   isDynamic: true,
   layer: Layers.PLAYER,
-  mask: Layers.WORLD | Layers.ENEMY | Layers.PICKUP | Layers.TRIGGER,
+  mask: Layers.WORLD | Layers.ENEMY | Layers.TRIGGER,
 }));
 
 
@@ -142,51 +142,38 @@ function updateInput()
     }
 
     if (Inputs.isPressed('KeyQ')) { // drop currently held item
+        const camEntity = World.activeCamera;
+        const camTransform = camEntity.getComponentOfType(Transform);
+        const from = vec3.clone(camTransform.translation);
+        const forward = vec3.transformQuat(vec3.create(), [0, 0, -1], camTransform.rotation);
+        const to = vec3.scaleAndAdd(vec3.create(), from, forward, 50.0);
+
         const currentItem = player.currentItem;
         if (currentItem)
         {
-            currentItem._transform.matrix = player._transform.matrix;
-            const forward = vec3.transformQuat(
-                vec3.create(),
-                [0, 0, -1],
-                player._transform.rotation
-            );
-            vec3.add(currentItem._transform.translation, currentItem._transform.translation, forward);
+            const hit = physics.raycast(from, to, World.scene, Layers.WORLD);
+            const pos = hit.point;
+            vec3.sub(pos, pos, player._transform.translation);
+            vec3.normalize(pos, pos);
+            vec3.add(pos, player._transform.translation, pos);
+            currentItem._transform.translation = pos;
             currentItem.hidden = false;
             player.currentItem = null;
         }
         else 
         {
-            const camEntity = World.activeCamera;
-            const camTransform = camEntity.getComponentOfType(Transform);
-
-            const from = vec3.clone(camTransform.translation);
-
-            const forward = vec3.transformQuat(
-                vec3.create(),
-                [0, 0, -1],
-                camTransform.rotation
-            );
-
-            const to = vec3.scaleAndAdd(
-                vec3.create(),
-                from,
-                forward,
-                50.0
-            );
-
             const hit = physics.raycast(from, to, World.scene, Layers.PICKUP);
-            console.log(hit);
-            if (hit && hit.entity.isPickup) {
+            const entity = hit?.entity?._bounds?.parentEntity;
+            if (entity?.isPickup) {
                 const distance = vec3.distance(from, hit.point);
                 if (distance <= 3.0) { // distance check (not perfect since camera is off the floor)
                     console.log("PICKUP HIT", hit.point, hit.distance);
                     // pick up new item
-                    if (hit.entity.itemType) {
-                        player.currentItem = hit.entity.itemType;
+                    if (entity.itemType) {
+                        player.currentItem = entity.itemType;
                         console.log("Picked up:", player.currentItem);
                     }
-                    player.currentItem = hit.entity;
+                    player.currentItem = entity;
                     player.currentItem.hidden = true;
                 } else {
                     console.log("too far to pick up", hit.entity.name, distance);
@@ -306,12 +293,17 @@ function updateStage()
         }
         else if (type == "katana")
         {
-            debugger
             entity = resources.katana_model.build(newScene);
+            entity.isPickup = true;
+            entity.itemType = "katana";
+            entity.velocity = new vec3(0, 0, 0);
         }
         else if (type == "gun")
         {
             entity = resources.pistol_model.build(newScene);
+            entity.isPickup = true;
+            entity.itemType = "gun";
+            entity.velocity = new vec3(0, 0, 0);
         }
         else if (type == "player")
         {
