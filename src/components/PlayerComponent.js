@@ -46,7 +46,7 @@ export class PlayerComponent {
         this.playerTimeScale = 1.0
         this.isSlowTime = isSlowTime
 
-        DeferredRenderer.randomRectangle.position[0] = 0.33;
+        DeferredRenderer.randomRectangle.position[0] = 0.30;
         DeferredRenderer.randomRectangle.position[1] = 0.1;
         DeferredRenderer.randomRectangle.scale[0] = 0.4;
         DeferredRenderer.randomRectangle.scale[1] = 0.025;
@@ -65,7 +65,7 @@ export class PlayerComponent {
 
         if (this.isSlowTime) {
             if (DeferredRenderer.randomRectangle.scale[0] > 0) {
-            //DeferredRenderer.randomRectangle.scale[0] -= dt * 0.05;
+            DeferredRenderer.randomRectangle.scale[0] -= dt * 5;
             } else {
                 this.playerTimeScale = 1;
                 World.timeScale = 1;
