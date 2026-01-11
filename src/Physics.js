@@ -197,7 +197,7 @@ export class Physics {
 
         for (const [entity, b] of scene.query(PhysicsComponent)){
             //sepravi zdej filtera by layer and mask ne pa samo static bs
-            if ((b.layer & mask) === 0) continue;
+            if (b.trigger || (b.layer & mask) === 0) continue;
 
             const worldAABB = this.getTransformedAABB(entity, b);
             const t = this.rayAABB(from, dir, worldAABB); //ce dobimo t dobimo skalarno razdaljo
