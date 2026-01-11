@@ -51,13 +51,58 @@ export class EnemyComponent {
 
         this.weapon = weapon;
 
-        entity.skeleton?.playAnimation(this.runAnim);
+        this.lostTimer = 0;
+        this.lostDelay = 1.2;
+        this.idleAnimation = "idle";
+
+        this.searchTimer = 0;
+        this.searchDelay = 0.6;
+
+
+        entity.skeleton?.playAnimation(this.idleAnimation);
     }
 
-    update() {
+    update(){
         this.updateAwareness();
 
         let dt = World.getDt();
+
+        if(this.state === 'lost'){
+            this.lostTimer -= dt;
+
+            if(this.awareness === 'seen'){
+                this.state = 'chase';
+                this.entity.skeleton?.playAnimation(this.runAnim);
+                return;
+            }
+
+            if(this.lostTimer <= 0){
+                this.state = 'search_idle';
+                this.searchTimer = this.searchDelay;
+                this.entity.skeleton?.playAnimation(this.idleAnimation);
+            }
+
+            return;
+        }
+
+        if(this.state === 'search_idle'){
+            this.searchTimer -= dt;
+
+            if(this.awareness === 'seen'){
+                this.state = 'chase';
+                this.entity.skeleton?.playAnimation(this.runAnim);
+                return;
+            }
+
+            if(this.searchTimer <= 0){
+                this.state = 'search_move';
+                this.entity.skeleton?.playAnimation(this.runAnim);
+            }
+
+            return;
+        }
+
+
         switch(this.enemyType){
             case 'Melee':
                 this.MeleeEnemyBehaviour(dt);
@@ -65,13 +110,12 @@ export class EnemyComponent {
             case 'Ranged':
                 this.RangedEnemyBehaviour(dt);
                 break;
-            default:
-                break;    
         }
     }
 
+
     MeleeEnemyBehaviour(dt){
-        if (this.state === 'search'){
+        if (this.state === 'search_move'){
             this.moveToLastSeen(dt);
             return;
         }
@@ -90,18 +134,18 @@ export class EnemyComponent {
         if (!playerTransform) return;
 
         if (this.awareness !== 'seen'){
-            this.state = 'search';
+            this.state = 'search_move';
             return;
         }
 
-        const targetPos = playerTransform.final_position;
+        const targetPos = playerTransform.translation;
 
         if (!targetPos) return;
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
             targetPos,
-            this.transform.final_position
+            this.transform.translation
         );
 
         dir[1] = 0;
@@ -126,7 +170,7 @@ export class EnemyComponent {
                 this.faceDirection(dir, dt);
             }
 
-            if (distance <= this.attackRange && this.awareness === 'seen') {
+        if(this.state === 'chase' && this.awareness === 'seen' && distance <= this.attackRange){
                 this.state = 'attack';
                 this.attackTimer = this.attackDuration;
 
@@ -155,7 +199,7 @@ export class EnemyComponent {
     }
 
     RangedEnemyBehaviour(dt){
-        if (this.state === 'search'){
+        if (this.state === 'search_move'){
             this.moveToLastSeen(dt);
             return;
         }
@@ -175,18 +219,18 @@ export class EnemyComponent {
         if (!playerTransform) return;
 
         if (this.awareness !== 'seen'){
-            this.state = 'search';
+            this.state = 'search_move';
             return;
         }
 
-        const targetPos = playerTransform.final_position;
+        const targetPos = playerTransform.translation;
 
         if (!targetPos) return;
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
             targetPos,
-            this.transform.final_position
+            this.transform.translation
         );
 
         dir[1] = 0;
@@ -241,7 +285,7 @@ export class EnemyComponent {
             }
 
             if (this.awareness !== 'seen'){
-                this.state = 'search';
+                this.state = 'search_move';
                 this.aimDir = null;
                 return;
             }
@@ -269,19 +313,12 @@ export class EnemyComponent {
         }
     }
 
-    faceDirection(dir, dt) {
-        if (this.awareness !== 'seen') return;
+    faceDirection(dir, dt){
+        if(glm.vec3.length(dir) < 0.001) return;
 
-        if (glm.vec3.length(dir) < 0.001) return;
-
-        // mau je scam k nimas se animacij pa assetov ampak se znajdes pomoje
         const forward = glm.vec3.fromValues(0, 0, 1);
         const q = glm.quat.create();
 
-        // nared recimo da ce prides dost blizu da se zacne premikat ravno pod playerju pa playa neko animacijo
-        // lah probas mu tud dt weapon (macko alpaneki) v roko
-        // vsak entity ma funkcijo findChildByName in loh poisces "LeftHand" in parentas orozje po njega
-        
         glm.quat.rotationTo(q, forward, dir);
         glm.quat.normalize(q, q);
 
@@ -290,8 +327,8 @@ export class EnemyComponent {
 
         glm.quat.slerp(current, current, q, t);
         this.transform.rotation = current;
-
     }
+
 
     spawnBullet() {
         if (!this.bulletPool) return;
@@ -303,8 +340,8 @@ export class EnemyComponent {
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
-            this.player.getComponentOfType(Transform).final_position,
-            gun.getComponentOfType(Transform).final_position
+            this.player.getComponentOfType(Transform).translation,
+            gun.getComponentOfType(Transform).translation
         );
 
         //dodaja gaussovo porazdelitev, da je mal random direction
@@ -313,7 +350,7 @@ export class EnemyComponent {
         dir[0]+=this.randomGaussian(0, spread);
         dir[2]+=this.randomGaussian(0, spread);
 
-        const position = gun.getComponentOfType(Transform).final_position;
+        const position = gun.getComponentOfType(Transform).translation;
         this.bulletPool.spawnBullet(position, dir);
     }
 
@@ -368,59 +405,55 @@ export class EnemyComponent {
         if (playerComp.isSlowTime){
             if (this.awareness === 'seen'){
                 this.awareness = 'idle';
-                this.state = 'search';
+                this.state = 'search_move';
             }
             return;
         }
 
-        if (this.canSeePlayer()){
+        if(this.canSeePlayer()){
             const playerTransform = this.player.getComponentOfType(Transform);
-            if (!playerTransform) return;
+            if(!playerTransform) return;
 
             this.awareness = 'seen';
             this.lastSeenPos = playerTransform.translation.slice();
 
-            if (this.state === 'idle'){
-                this.state = 'chase';
-                this.entity.skeleton?.playAnimation(this.runAnim);
-            }
             return;
         }
 
-        //ce te ne vidijo vec
-        if (this.awareness === 'seen'){
+        // lost sight
+        if(this.awareness === 'seen'){
             this.awareness = 'idle';
-            this.state = 'search';
-            this.entity.skeleton?.playAnimation(-1);
+
+            if(this.state !== 'lost'){
+                this.state = 'lost';
+                this.lostTimer = this.lostDelay;
+                this.entity.skeleton?.playAnimation(this.idleAnimation);
+            }
         }
     }
 
     moveToLastSeen(dt){
-        if (this.state !== 'search'){
-            this.state = 'search';
-            this.entity.skeleton?.playAnimation(this.runAnim);
-            return;
-        }
+        if(this.state !== 'search_move') return;
 
-        if (!this.lastSeenPos){
+        if(!this.lastSeenPos){
             this.state = 'idle';
+            this.entity.skeleton?.playAnimation(this.idleAnimation);
             return;
         }
-
-        const pos = this.transform.translation;
 
         const dir = glm.vec3.sub(
             glm.vec3.create(),
             this.lastSeenPos,
-            pos
+            this.transform.translation
         );
 
         dir[1] = 0;
         const dist = glm.vec3.length(dir);
 
-        if (dist <= this.searchRadius){
+        if(dist <= this.searchRadius){
             this.lastSeenPos = null;
             this.state = 'idle';
+            this.entity.skeleton?.playAnimation(this.idleAnimation);
             return;
         }
 
@@ -433,5 +466,6 @@ export class EnemyComponent {
             this.speed * dt
         );
     }
+
 
 }
