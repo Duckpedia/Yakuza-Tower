@@ -37,6 +37,7 @@ const resources = await loadResources({
     'tutorial' : new URL('./models/tutorial/tutorial.gltf', import.meta.url),
     'pistol_model' : new URL('./models/pistol_real/glug.gltf', import.meta.url),
     'bullet_model' : new URL('./models/bullet/bullet.gltf', import.meta.url),
+    'guy2' : new URL('./models/guy/guy.gltf', import.meta.url),
 });
 
 let bulletPool = new BulletPool(resources.bullet_model);
@@ -218,6 +219,7 @@ function updateInput()
     {
         replay.playbackStart = time;
         World.doUpdate = false;
+        debugger;
     }
     
     if (Inputs.isReleased('KeyZ'))
@@ -229,6 +231,7 @@ function updateInput()
     if (Inputs.isHeld('KeyZ') && replay.frames.length !== 0)
     {
         const replayTime = time - replay.playbackStart;
+        console.log(replayTime);
         let i = replay.frames.findIndex(f => replayTime <= f.time);
         if (i < 0) i = replay.frames.length - 1;
         const frame = replay.frames[Math.max(i - 1, 0)];
@@ -262,9 +265,9 @@ function updateStage()
 
     resources[World.loadStage].build(newScene);
 
-
-
-
+    const guy = resources.guy2.build(newScene);
+    guy.skeleton.playAnimation(0);
+    
     bulletPool = new BulletPool(resources.bullet_model);
     
     const mat = new mat4();
