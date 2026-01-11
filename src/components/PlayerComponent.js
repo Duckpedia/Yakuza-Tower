@@ -69,6 +69,7 @@ export class PlayerComponent {
         DeferredRenderer.randomRectangle.scale[1] = 0.025;
 
         this.weapon = undefined;
+        this.camera = null;
     }
 
     lerp(a, b, t) {
@@ -257,5 +258,9 @@ export class PlayerComponent {
 
     givePlayerKatana(katana){
         this.weapon = katana;
+    }
+
+    setCamera(camera){
+        this.camera = camera;
     }
 }

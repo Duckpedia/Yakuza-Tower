@@ -72,12 +72,17 @@ const replay = { frames: [] };
 
 //player creation
 const player = World.scene.addEntity(World.scene.createEntity());
+const cameraEntity = World.scene.addEntity(World.scene.createEntity());
+cameraEntity._parent = player;
+cameraEntity.addComponent(new Transform());
+cameraEntity.addComponent(new Camera());
 player.addComponent(new Transform({
     translation: new vec3(0, 1.2, 2),
 }));
 player.addComponent(new Camera());
 player.addComponent(new RecordComponent());
 player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
+player.setCamera(cameraEntity);
 
 // Make player invulnerable for 2 seconds at start
 player.invulnerable = true;
@@ -337,7 +342,7 @@ function updateStage()
         camera.aspect = World.aspect;
         World.cameras.push(ent);
     }
-    World.activeCamera = player;
+    World.activeCamera = cameraEntity;
 
     World.scene = newScene;
 
