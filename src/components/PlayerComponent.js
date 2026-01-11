@@ -111,7 +111,6 @@ export class PlayerComponent {
         }
         onclick = (e) => {
             if(!this.entity.currentItem) return;
-            this.entity.skeleton.playAnimation(1); //Play attack animation
             if(this.weapon){
                 this.weapon.getComponentOfType(KatanaComponent).startAttack();  //Attack with katana
             }
@@ -234,6 +233,11 @@ export class PlayerComponent {
     {
         this.yaw = 0.0;
         this.pitch = 0.0;
+        if (this.weapon)
+        {
+            World.scene.removeEntity(this.weapon);
+            this.weapon = null;
+        }
     }
 
 

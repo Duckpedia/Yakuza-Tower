@@ -16,7 +16,7 @@ export class KatanaComponent {
     }
 
     startAttack() {
-        this.player.skeleton.playAnimation("Swing");
+        this.player.skeleton.playAnimation("Swing", "base", 0.3, { loop: false });
         this.isAttacking = true;
     }
 

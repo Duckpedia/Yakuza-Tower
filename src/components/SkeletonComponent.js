@@ -149,7 +149,16 @@ export class SkeletonComponent
         pose.copyFrom(this.restPose);
         const anim = options.anim;
         time -= options.startTime;
-        if (options.loop) time %= anim.duration;
+        
+        if (options.loop) 
+        {
+            time %= anim.duration;
+        }
+        else 
+        {
+            if (time > anim.duration)
+                return;
+        }
 
         for (const channel of anim.channels)
         {
