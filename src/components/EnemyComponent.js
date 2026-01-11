@@ -246,7 +246,18 @@ export class EnemyComponent {
                 return;
             }
 
-            this.faceDirection(this.aimDir, dt);
+            const liveDir = glm.vec3.sub(
+                glm.vec3.create(),
+                playerTransform.translation,
+                this.transform.translation
+            );
+            liveDir[1] = 0;
+
+            if (glm.vec3.length(liveDir) > 0.001){
+                glm.vec3.normalize(liveDir, liveDir);
+                this.faceDirection(liveDir, dt);
+                this.aimDir = liveDir;
+            }
 
             if (this.attackTimer <= 0) {
                 this.state = 'chase';
@@ -314,38 +325,40 @@ export class EnemyComponent {
         return mean + stdDev * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
     }
 
-    canSeePlayer(){
-        const playerTransform = this.player?.getComponentOfType(Transform);
-        if (!playerTransform) return false;
+        canSeePlayer(){
+            const playerTransform = this.player?.getComponentOfType(Transform);
+            if (!playerTransform) return false;
 
-        const from = this.transform.final_position;
-        const to = playerTransform.final_position;
+            const from = glm.vec3.clone(this.transform.translation);
+            const to   = glm.vec3.clone(playerTransform.translation);
 
-        // move the from vector up a bit so it doesnt collide with the floor
-        from[1] += 0.8;
-        
-        const dir = glm.vec3.sub(glm.vec3.create(), to, from);
-        const dist = glm.vec3.length(dir);
-        if (dist > this.viewRadius) return false;
-        
-        glm.vec3.normalize(dir, dir);
-        
-        //the cone in question basically
-        const forward = glm.vec3.transformQuat(
-            glm.vec3.create(),
-            [0, 0, 1],
-            this.transform.rotation
-        );
-        
-        if (glm.vec3.dot(forward, dir) < this.fovCos) return false;
-        
-        //to je za stene
-        const hit = World.physics.raycast(from, to, World.scene, Layers.WORLD | Layers.PLAYER);
+            from[1] += 0.8;
 
-        if (!hit) return true;
+            const dir = glm.vec3.sub(glm.vec3.create(), to, from);
+            const dist = glm.vec3.length(dir);
+            if (dist > this.viewRadius) return false;
 
-        return hit.entity === this.player;
-    }
+            glm.vec3.normalize(dir, dir);
+
+            const forward = glm.vec3.transformQuat(
+                glm.vec3.create(),
+                [0, 0, 1],
+                this.transform.rotation
+            );
+
+            if (glm.vec3.dot(forward, dir) < this.fovCos) return false;
+
+            const hit = World.physics.raycast(
+                from,
+                to,
+                World.scene,
+                Layers.WORLD | Layers.PLAYER
+            );
+
+            if (!hit) return true;
+            return hit.entity === this.player;
+        }
+
 
     updateAwareness(){ //to pa dejansko posodobi tisto awareness variable na zacetku
         const playerComp = this.player?.getComponentOfType(PlayerComponent);
@@ -365,7 +378,7 @@ export class EnemyComponent {
             if (!playerTransform) return;
 
             this.awareness = 'seen';
-            this.lastSeenPos = playerTransform.final_position.slice();
+            this.lastSeenPos = playerTransform.translation.slice();
 
             if (this.state === 'idle'){
                 this.state = 'chase';
@@ -378,10 +391,17 @@ export class EnemyComponent {
         if (this.awareness === 'seen'){
             this.awareness = 'idle';
             this.state = 'search';
+            this.entity.skeleton?.playAnimation(-1);
         }
     }
 
     moveToLastSeen(dt){
+        if (this.state !== 'search'){
+            this.state = 'search';
+            this.entity.skeleton?.playAnimation(this.runAnim);
+            return;
+        }
+
         if (!this.lastSeenPos){
             this.state = 'idle';
             return;
