@@ -4,7 +4,7 @@ import { BulletComponent } from './BulletComponent.js';
 import { World } from '../World.js';
 
 export class BulletPool {
-    constructor(bulletModel, initialSize = 10) {
+    constructor(bulletModel, initialSize = 1) {
         this.bulletModel = bulletModel;
         this.pool = [];
         this.activeBullets = new Set();

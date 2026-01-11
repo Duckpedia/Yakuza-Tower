@@ -229,17 +229,20 @@ export class PlayerComponent {
         }
     }
 
+    removeWeapon()
+    {
+        if (!this.weapon)
+            return;
+        World.scene.removeEntity(this.weapon);
+        this.weapon = null;
+    }
+
     onReset()
     {
         this.yaw = 0.0;
         this.pitch = 0.0;
-        if (this.weapon)
-        {
-            World.scene.removeEntity(this.weapon);
-            this.weapon = null;
-        }
+        this.removeWeapon();
     }
-
 
     givePlayerKatana(katana){
         this.weapon = katana;

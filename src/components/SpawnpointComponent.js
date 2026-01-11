@@ -1,5 +1,5 @@
 export class SpawnpointComponent {
-    constructor({spawnType = "Meele"})
+    constructor({spawnType = "Melee"})
     {
         this.spawnType = spawnType;
     }

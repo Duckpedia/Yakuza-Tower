@@ -43,8 +43,7 @@ export class SkeletonComponent
         this.active = true;
         this.layers[layer] ??= {};
         const l = this.layers[layer];
-        if (l.active?.index === index) return;
-        if (transitionTime >= 0.0 && l.active)
+        if (l.active?.index !== index && transitionTime >= 0.0 && l.active)
             this.stopAnimation(layer, transitionTime);
 
         const anim = this.animations[index];
@@ -156,7 +155,7 @@ export class SkeletonComponent
         }
         else if (time > anim.duration)
         {
-            return false;
+            time = anim.duration;
         }
 
         for (const channel of anim.channels)
@@ -222,10 +221,7 @@ export class SkeletonComponent
     {
         const l = this.layers[layer];
         if (!l) return false;
-        if (!this.calculatePose(pose, l.active, time))
-        {
-            this.stopAnimation(layer, 0.2);
-        }
+        this.calculatePose(pose, l.active, time);
         if (l.stopping)
         {
             const weight = this.calculateWeight(l.stopping, time);
