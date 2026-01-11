@@ -110,6 +110,8 @@ export class PlayerComponent {
             this.isGrounded = false;
         }
         onclick = (e) => {
+            if(!this.entity.currentItem) return;
+            this.entity.skeleton.playAnimation(1); //Play attack animation
             if(this.weapon){
                 this.weapon.getComponentOfType(KatanaComponent).startAttack();  //Attack with katana
             }
@@ -162,7 +164,6 @@ export class PlayerComponent {
             }
 
             {       
-                console.log(this.camera);
                 quat.rotateX(this.camera._transform.rotation, quat.create(), this.pitch);
             }
             

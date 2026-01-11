@@ -19,6 +19,9 @@ export class KatanaComponent {
         this.isAttacking = true;
         setTimeout(() => {
             this.isAttacking = false;
+            if(this.holder === this.player){
+                this.player.skeleton.playAnimation(0); //Return to idle animation
+            }
         }, 500); // Attack lasts 0.5 seconds
     }
 
@@ -45,6 +48,7 @@ export class KatanaComponent {
             console.log("Player katana attack...");
             const hitEnemy = World.physics.raycast(worldPos, endPos, World.scene, Layers.ENEMY);
             if (hitEnemy) {
+                hitEnemy.entity._parent.hidden = true;
                 console.log("Katana hit enemy");
                 return;
             }
@@ -52,6 +56,7 @@ export class KatanaComponent {
         const hitPlayer = World.physics.raycast(worldPos, endPos, World.scene, Layers.PLAYER);
         if (hitPlayer) {
             console.log("Katana hit player");
+            location.reload();
             this.isAttacking = false;
             return;
         }

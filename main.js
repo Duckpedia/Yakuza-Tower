@@ -71,7 +71,7 @@ const replay = { frames: [] };
 
 //player creation
 const player = resources.player.build(World.scene);
-player.skeleton.playAnimation(1);
+player.skeleton.playAnimation(0);
 player.addComponent(new RecordComponent());
 const playerCamera = player.findChildByName("Camera");
 player.addComponent(new PlayerComponent(player, canvas, playerCamera, resources.guy_model));
@@ -167,6 +167,12 @@ function updateInput()
                     // pick up new item
                     if (entity.itemType) {
                         player.currentItem = entity.itemType;
+                        
+                        const playerKatana = resources.katana_model.build(newScene);
+                        playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+                        playerKatana.parent = player.findChildByName("hand.R");
+                        player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
+
                         console.log("Picked up:", player.currentItem);
                     }
                     player.currentItem = entity;
@@ -307,11 +313,6 @@ function updateStage()
             entity = player;
             player._transform.translation = [0, 0, 0];
             player._transform.rotation = new quat();
-            //Player test katana
-            //const playerKatana = resources.katana_model.build(newScene);
-            //playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
-            //playerKatana.parent = player.getComponentOfType(Camera).entity;
-            //player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
         }
 
         entity._transform.matrix = mat4.mul(mat, e._transform.final, entity._transform.matrix);
