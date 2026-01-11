@@ -158,10 +158,10 @@ function updateInput()
                     if (entity.itemType) {
                         player.currentItem = entity.itemType;
                         
-                        // const playerKatana = resources.katana_model.build(newScene);
-                        // playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
-                        // playerKatana.parent = player.findChildByName("hand.R");
-                        // player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
+                        const playerKatana = resources.katana_model.build(World.scene);
+                        playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
+                        playerKatana.parent = player.findChildByName("hand.R");
+                        player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
 
                         console.log("Picked up:", player.currentItem);
                     }
