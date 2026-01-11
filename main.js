@@ -273,9 +273,8 @@ function updateStage()
         
             entity.addComponent(new RecordComponent());
             const gun = resources.pistol_model.build(newScene);
-            gun._transform.scale = [20, 20, 20];
             entity.addComponent(new EnemyComponent(entity, player, gun, bulletPool,'Ranged'));
-            gun.parent = entity.findChildByName("up_righthand");
+            gun.parent = entity.findChildByName("GunSlot");
         }
         else if (type.toLowerCase() == "katana")
         {
