@@ -56,11 +56,12 @@ fn vertex(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     var normal = vec4f(0.0, 0.0, 0.0, 0.0);
     if (instance.jointI >= 0)
     {
+        let weightsSum = model.weights.x + model.weights.y + model.weights.z + model.weights.w;
+        let weight = select(model.weights / weightsSum, model.weights, weightsSum == 0.0);
         for (var i = 0u; i < 4u; i += 1u){
             let joint = joints[u32(instance.jointI) + model.joints[i]];
-            let weight = model.weights[i];
-            position += weight * (joint.m * vec4<f32>(model.position, 1.0f));
-            normal += weight * (joint.m * vec4<f32>(model.normal, 0.0f));
+            position += weight[i] * (joint.m * vec4<f32>(model.position, 1.0f));
+            normal += weight[i] * (joint.m * vec4<f32>(model.normal, 0.0f));
         }
     }
     else {
