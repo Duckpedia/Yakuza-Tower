@@ -71,7 +71,6 @@ const replay = { frames: [] };
 
 //player creation
 const player = resources.player.build(World.scene);
-player.skeleton.playAnimation(0);
 player.addComponent(new RecordComponent());
 const playerCamera = player.findChildByName("Camera");
 player.addComponent(new PlayerComponent(player, canvas, playerCamera, resources.guy_model));
@@ -140,6 +139,7 @@ function updateInput()
             vec3.scaleAndAdd(currentItem._transform.translation, player._transform.final_position, pos, 2.0);
             currentItem.hidden = false;
             player.currentItem = null;
+            player.getComponentOfType(PlayerComponent).removeWeapon();
         }
         else 
         {
@@ -258,7 +258,7 @@ function updateStage()
     {
         let entity = null;
         const type = spawner.spawnType.toLowerCase();
-        if (type == "meele")
+        if (type.toLowerCase() == "meele")
         {
             const katana = resources.katana_model.build(newScene);
             entity = resources.guy_model.build(newScene);
@@ -267,7 +267,7 @@ function updateStage()
             entity.addComponent(new RecordComponent());
             katana.parent = entity.findChildByName("up_righthand");
         }
-        else if (type == "ranged")
+        else if (type.toLowerCase() == "ranged")
         {
             entity = resources.guy_model.build(newScene);
         
@@ -277,21 +277,21 @@ function updateStage()
             entity.addComponent(new EnemyComponent(entity, player, gun, bulletPool,'Ranged'));
             gun.parent = entity.findChildByName("up_righthand");
         }
-        else if (type == "katana")
+        else if (type.toLowerCase() == "katana")
         {
             entity = resources.katana_model.build(newScene);
             entity.isPickup = true;
             entity.itemType = "katana";
             entity.velocity = new vec3(0, 0, 0);
         }
-        else if (type == "gun")
+        else if (type.toLowerCase() == "gun")
         {
             entity = resources.pistol_model.build(newScene);
             entity.isPickup = true;
             entity.itemType = "gun";
             entity.velocity = new vec3(0, 0, 0);
         }
-        else if (type == "player")
+        else if (type.toLowerCase() == "player")
         {
             entity = player;
             player._transform.translation = [0, 0, 0];
