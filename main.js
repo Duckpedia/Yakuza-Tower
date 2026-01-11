@@ -83,15 +83,6 @@ setTimeout(() => {
     console.log("Player invulnerability ended");
 }, 2000);
 
-player.addComponent(new PhysicsComponent({
-  type: "aabb",
-  localMin: [-0.2, -0.2, -0.2],
-  localMax: [ 0.2,  0.2,  0.2],
-  isDynamic: true,
-  layer: Layers.PLAYER,
-  mask: Layers.WORLD | Layers.ENEMY | Layers.TRIGGER,
-}));
-
 World.loadStage = "soba_model";
 let active_camera = 0;
 
