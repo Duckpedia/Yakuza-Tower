@@ -1393,7 +1393,7 @@
 				"bounds":true,
 				"layer":"enemy",
 				"isDynamic":true,
-				"mask":"WORLD | PLAYER"
+				"mask":"WORLD | PLAYER | ENEMY"
 			},
 			"name":"Collider",
 			"scale":[
@@ -19488,7 +19488,7 @@
 					}
 				}
 			],
-			"name":"idle",
+			"name":"Idle",
 			"samplers":[
 				{
 					"input":1272,
