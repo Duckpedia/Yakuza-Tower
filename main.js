@@ -73,16 +73,14 @@ const replay = { frames: [] };
 //player creation
 const player = World.scene.addEntity(World.scene.createEntity());
 const cameraEntity = World.scene.addEntity(World.scene.createEntity());
-cameraEntity._parent = player;
+cameraEntity.parent = player;
 cameraEntity.addComponent(new Transform());
 cameraEntity.addComponent(new Camera());
 player.addComponent(new Transform({
     translation: new vec3(0, 1.2, 2),
 }));
-player.addComponent(new Camera());
 player.addComponent(new RecordComponent());
-player.addComponent(new PlayerComponent(player, canvas, resources.guy_model));
-player.setCamera(cameraEntity);
+player.addComponent(new PlayerComponent(player, canvas, cameraEntity, resources.guy_model));
 
 // Make player invulnerable for 2 seconds at start
 player.invulnerable = true;
@@ -99,8 +97,6 @@ player.addComponent(new PhysicsComponent({
   layer: Layers.PLAYER,
   mask: Layers.WORLD | Layers.ENEMY | Layers.TRIGGER,
 }));
-
-
 
 World.loadStage = "soba_model";
 let active_camera = 0;
@@ -421,7 +417,8 @@ function render(dt)
         renderTimeAccum = 0;
         renderTimeSamples = 0;
     }
-    renderer.render(World.scene, World.activeCamera, World.poprSettings);
+
+    renderer.render(World.scene, cameraEntity, World.poprSettings);
 }
 
 function resize({ displaySize: { width, height }}) {
@@ -435,13 +432,8 @@ function resize({ displaySize: { width, height }}) {
 new ResizeSystem({ canvas, resize }).start();
 new UpdateSystem({ update, render }).start();
 
-
-
 const gui = new GUI();
 gui.domElement.style.display = "none";
-
-
-
 gui.add(World, 'doUpdate', 0, 1);
 gui.add(World.poprSettings.bloom, 'threshold', 0.0, 10.0);
 gui.add(World.poprSettings.bloom, 'filterRadius', 0.0, 10.0);

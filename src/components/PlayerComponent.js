@@ -10,7 +10,7 @@ import { KatanaComponent } from './KatanaComponent.js';
 
 export class PlayerComponent {
 
-    constructor(entity, domElement, model = null, {
+    constructor(entity, domElement, camera, model = null, {
         pitch = 0,
         yaw = 0,
         velocity = [0, 0, 0],
@@ -22,10 +22,10 @@ export class PlayerComponent {
         groundY = 1.5,
         isGrounded = true,
         isSlowTime = false
-
     } = {}) {
         this.entity = entity;
         this.domElement = domElement;
+        this.camera = camera;
 
         
         // if (model) {
@@ -258,9 +258,5 @@ export class PlayerComponent {
 
     givePlayerKatana(katana){
         this.weapon = katana;
-    }
-
-    setCamera(camera){
-        this.camera = camera;
     }
 }

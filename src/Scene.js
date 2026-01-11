@@ -31,7 +31,7 @@ export class Scene {
 
     _fullAdd(entity)
     {
-        entity.parent = this.root;
+        if (entity.parent === null) entity.parent = this.root;
         entity.scene = this;
         for (const component of entity.components)
             this._addComponent(entity, component);
@@ -45,7 +45,8 @@ export class Scene {
         for (const child of children) this.removeEntity(child);
         for (const component of entity.components) this._removeComponent(entity, component);
         entity.scene = null;
-        entity.parent = null;
+        if (entity.parent === this.root) 
+            entity.parent = null;
     }
 
     // https://dev.to/anishkumar/tree-data-structure-in-javascript-1o99
