@@ -160,7 +160,9 @@ function updateInput()
                         
                         const playerKatana = resources.katana_model.build(World.scene);
                         playerKatana.addComponent(new KatanaComponent(playerKatana, player, player));
-                        playerKatana.parent = player.findChildByName("hand.R");
+                        playerKatana.parent = player.findChildByName("KatanaSpot");
+                        for (const collider of playerKatana.colliders)
+                            collider.hidden = true;
                         player.getComponentOfType(PlayerComponent).givePlayerKatana(playerKatana);
 
                         console.log("Picked up:", player.currentItem);
@@ -221,7 +223,6 @@ function updateInput()
     if (Inputs.isHeld('KeyZ') && replay.frames.length !== 0)
     {
         const replayTime = time - replay.playbackStart;
-        console.log(replayTime);
         let i = replay.frames.findIndex(f => replayTime <= f.time);
         if (i < 0) i = replay.frames.length - 1;
         const frame = replay.frames[Math.max(i - 1, 0)];

@@ -630,6 +630,7 @@ export class GLTFLoader {
         const root = nodes[0];
         root.skeleton = null;
         root.models = [];
+        root.colliders = [];
         for (const entity of nodes)
         {
             root.skeleton ??= entity.getComponentOfType(SkeletonComponent);
@@ -638,7 +639,11 @@ export class GLTFLoader {
             if (model) root.models.push(model);
 
             const physics = entity.getComponentOfType(PhysicsComponent);
-            if (physics) physics.parentEntity = root;
+            if (physics)
+            {
+                physics.parentEntity = root;
+                root.colliders.push(entity);
+            } 
         }
         root.animations = root.skeleton?.animations ?? [];
         updateFinalMatrixTree(root);
