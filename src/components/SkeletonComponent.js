@@ -32,7 +32,7 @@ export class SkeletonComponent
     // TODO: just make animations into a map
     getAnimationIndex(name)
     {
-        return this.animations.findIndex(anim => anim.name === name);
+        return this.animations.findIndex(anim => anim.name.toLowerCase() === name.toLowerCase());
     }
 
     playAnimation(name, layer = "base", transitionTime = 0.3, options = ({ loop: true, weight: 1.0, fadeinTime: 0.1 }))
