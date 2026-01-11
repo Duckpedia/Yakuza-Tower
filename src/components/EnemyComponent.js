@@ -356,7 +356,7 @@ export class EnemyComponent {
             );
 
             if (!hit) return true;
-            return hit.entity === this.player;
+            return hit.entity._bounds.parentEntity === this.player;
         }
 
 
