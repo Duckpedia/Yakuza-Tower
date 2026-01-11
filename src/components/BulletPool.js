@@ -9,7 +9,7 @@ export class BulletPool {
         this.pool = [];
         this.activeBullets = new Set();
 
-        // Pre-populate the pool
+        // Napolni pool
         for (let i = 0; i < initialSize; i++) {
             this.pool.push(this.createBullet());
         }
@@ -17,11 +17,12 @@ export class BulletPool {
 
     createBullet() {
         const bullet = this.bulletModel.build(World.scene);
-        bullet.pool = this; // Reference to pool for returning
+        bullet.pool = this; 
         bullet.hidden = true; // Start hidden
         return bullet;
     }
 
+    //pridobi bullet iz poola
     getBullet() {
         let bullet;
         if (this.pool.length > 0) {
@@ -37,6 +38,7 @@ export class BulletPool {
         return bullet;
     }
 
+    //vrne v pool
     returnBullet(bullet) {
         if (this.activeBullets.has(bullet)) {
             this.activeBullets.delete(bullet);
@@ -48,7 +50,6 @@ export class BulletPool {
             transform.scale = [0.0002, 0.0002, 0.0002];
             bullet.hidden = true;
 
-            // Remove BulletComponent if it exists
             const bulletComp = bullet.getComponentOfType(BulletComponent);
             if (bulletComp) {
                 bullet.removeComponent(bulletComp);
@@ -58,6 +59,7 @@ export class BulletPool {
         }
     }
 
+    //doda bullet
     spawnBullet(position, direction, speed = 4, lifetime = 4.0) {
         const bullet = this.getBullet();
         const transform = bullet.getComponentOfType(Transform);

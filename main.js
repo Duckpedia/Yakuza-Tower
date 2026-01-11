@@ -76,7 +76,7 @@ player.addComponent(new RecordComponent());
 const playerCamera = player.findChildByName("Camera");
 player.addComponent(new PlayerComponent(player, canvas, playerCamera, resources.guy_model));
 
-// Make player invulnerable for 2 seconds at start
+// Make player invulnerable for 2 second at start
 player.invulnerable = true;
 setTimeout(() => {
     player.invulnerable = false;

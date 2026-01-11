@@ -8,8 +8,8 @@ export class KatanaComponent {
         this.entity = entity;
         this.transform = this.entity.getComponentOfType(Transform);
         this.isAttacking = false;
-        this.attackRange = 2.0; // Range of the katana swing
-        this.tipOffset = glm.vec3.fromValues(0, 0, 1.5); // Local offset to the blade tip from the handle
+        this.attackRange = 2.0; 
+        this.tipOffset = glm.vec3.fromValues(0, 0, 1.5); 
 
         this.holder = holder; // The enemy holding the katana
         this.player = player; // The player entity  
@@ -22,25 +22,25 @@ export class KatanaComponent {
             if(this.holder === this.player){
                 this.player.skeleton.playAnimation(0); //Return to idle animation
             }
-        }, 500); // Attack lasts 0.5 seconds
+        }, 500); // 0.5 sekund
     }
 
     update() {
         if (!this.isAttacking) return;
 
-        // Get world position of the katana handle
+        // Get world position of handle
         const worldPos = this.transform.final_position;
 
-        // Calculate the world position of the blade tip
+        // Calculate the world position of tip
         const tipWorld = glm.vec3.create();
         glm.vec3.transformMat4(tipWorld, this.tipOffset, this.transform.final);
 
-        // Get the direction from handle to tip
+        // Handle to tip
         const direction = glm.vec3.create();
         glm.vec3.subtract(direction, tipWorld, worldPos);
         glm.vec3.normalize(direction, direction);
 
-        // Calculate end position for raycast (extend beyond tip for better detection)
+        // Calculate end position for raycast
         const endPos = glm.vec3.create();
         glm.vec3.scaleAndAdd(endPos, worldPos, direction, this.attackRange);
 

@@ -126,7 +126,6 @@ export class EnemyComponent {
                 this.faceDirection(dir, dt);
             }
 
-            // enter attack ONCE
             if (distance <= this.attackRange && this.awareness === 'seen') {
                 this.state = 'attack';
                 this.attackTimer = this.attackDuration;
