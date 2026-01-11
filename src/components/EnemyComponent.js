@@ -58,6 +58,8 @@ export class EnemyComponent {
         this.searchTimer = 0;
         this.searchDelay = 0.6;
 
+        this.preferredShootDistance = 8.0; //ok se more advanced za range
+        this.minShootDistance = 6.0;
 
         entity.skeleton?.playAnimation(this.idleAnimation);
     }
@@ -242,34 +244,38 @@ export class EnemyComponent {
         }
 
         //chase
-        if (this.state === 'chase'){
-
-            if (this.awareness === 'seen'){
-                //ce je pre dalec bo prsu blizji
-                const stopDist = this.rangedAttackRange * 0.85;
-
-                if(distance > stopDist){
-                    glm.vec3.scaleAndAdd(
-                        this.transform.translation,
-                        this.transform.translation,
-                        dir,
-                        this.speed * dt
-                    );
-                }else{
-                    //snap to attack without further movement
-                    this.state = 'attack';
-                    this.attackTimer = this.attackDuration;
-                    this.shootTimer = 0;
-                    this.hasFired = false;
-                    this.aimDir = glm.vec3.clone(dir);
-                    this.entity.skeleton?.playAnimation(this.gunShootingAnim);
-                }
+        if(this.state === 'chase'){
+            //predalec
+            if(distance > this.preferredShootDistance){
+                glm.vec3.scaleAndAdd(
+                    this.transform.translation,
+                    this.transform.translation,
+                    dir,
+                    this.speed * dt
+                );
             }
 
-            if (this.awareness === 'seen') {
-                this.faceDirection(dir, dt);
+            //preblizu
+            else if(distance < this.minShootDistance){
+                glm.vec3.scaleAndAdd(
+                    this.transform.translation,
+                    this.transform.translation,
+                    dir,
+                    -this.speed * dt * 0.7
+                );
             }
 
+            //ok
+            else{
+                this.state = 'attack';
+                this.attackTimer = this.attackDuration;
+                this.shootTimer = 0;
+                this.hasFired = false;
+
+                this.aimDir = glm.vec3.clone(dir);
+                this.entity.skeleton?.playAnimation(this.gunShootingAnim);
+            }
+            this.faceDirection(dir, dt);
         }
 
         //attack
@@ -368,6 +374,7 @@ export class EnemyComponent {
             const to   = glm.vec3.clone(playerTransform.translation);
 
             from[1] += 0.8;
+            to[1] += 0.2;
 
             const dir = glm.vec3.sub(glm.vec3.create(), to, from);
             const dist = glm.vec3.length(dir);
