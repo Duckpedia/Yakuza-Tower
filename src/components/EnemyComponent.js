@@ -246,24 +246,22 @@ export class EnemyComponent {
 
             if (this.awareness === 'seen'){
                 //ce je pre dalec bo prsu blizji
-                if (distance > this.rangedAttackRange * 0.9) {
+                const stopDist = this.rangedAttackRange * 0.85;
+
+                if(distance > stopDist){
                     glm.vec3.scaleAndAdd(
                         this.transform.translation,
                         this.transform.translation,
                         dir,
                         this.speed * dt
                     );
-                }
-
-                //ce je in range attacka
-                else{
+                }else{
+                    //snap to attack without further movement
                     this.state = 'attack';
                     this.attackTimer = this.attackDuration;
                     this.shootTimer = 0;
                     this.hasFired = false;
-
                     this.aimDir = glm.vec3.clone(dir);
-
                     this.entity.skeleton?.playAnimation(this.gunShootingAnim);
                 }
             }
@@ -415,7 +413,10 @@ export class EnemyComponent {
             if(!playerTransform) return;
 
             this.awareness = 'seen';
-            this.lastSeenPos = playerTransform.translation.slice();
+
+            if(this.state !== 'search_move' && this.state !== 'search_idle'){
+                this.lastSeenPos = playerTransform.translation.slice();
+            }
 
             return;
         }
@@ -455,6 +456,15 @@ export class EnemyComponent {
             this.state = 'idle';
             this.entity.skeleton?.playAnimation(this.idleAnimation);
             return;
+        }
+
+        if(this.enemyType === 'Ranged'){
+            const stopDist = this.rangedAttackRange * 0.9;
+            if(dist <= stopDist){
+                this.state = 'idle';
+                this.entity.skeleton?.playAnimation(this.idleAnimation);
+                return;
+            }
         }
 
         glm.vec3.scale(dir, dir, 1 / dist);
