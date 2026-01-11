@@ -31,11 +31,6 @@ export class Physics {
     constructor() { }
 
     update(t, dt, scene) {
-        const translation = new vec4();
-        const scale = new vec4();
-        const rotation = new quat();
-        const mat = new mat4();
-
         const g = -9.81;
         const colliders = [...scene.query(PhysicsComponent)];
         
@@ -55,12 +50,11 @@ export class Physics {
         for (const [aEnt, aB] of colliders){
             if (World.poprSettings.debug)
             {
-                mat4.getTranslation(translation, aEnt._transform.final);
-                mat4.getScaling(scale, aEnt._transform.final);
+                const aabb = this.getTransformedAABB(aEnt, aB);
                 DeferredRenderer.Draw3DBoxMinMax(
-                    aB.localMin, 
-                    aB.localMax, 
-                    mat4.fromRotationTranslationScale(mat, rotation, translation, scale), 
+                    aabb.min, 
+                    aabb.max, 
+                    null, 
                     aB.isDynamic ? [1.0, 0.0, 0.0] : [1.0, 0.0, 1.0]   
                 );
             }
